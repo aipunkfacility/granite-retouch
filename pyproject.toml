@@ -13,5 +13,13 @@ dev = [
     "pytest>=7.0",
 ]
 
-[project.scripts]
-granite-retouch = "retouch.cli:main"
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["prepare_vignette", "run_gimp"]
+packages = []
+
+[tool.setuptools.package-data]
+"*" = ["*.scm", "*.yaml", "*.json"]

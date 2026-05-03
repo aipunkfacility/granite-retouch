@@ -13,11 +13,6 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
-scripts/.venv/
-scripts/venv/
-*.lock
-uv.lock
-scripts/uv.lock
 
 # Binary images (examples — хранить локально, не в git)
 projects/
