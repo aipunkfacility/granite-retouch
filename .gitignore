@@ -1,4 +1,4 @@
-# IDE
+﻿# IDE
 .gemini/
 .agents/ctx/
 
@@ -16,6 +16,8 @@ venv/
 
 # Binary images (examples — хранить локально, не в git)
 projects/
+*.png
+*.tiff
 
 # Orders with binary content (кроме шаблона и тестового)
 orders/active/*/

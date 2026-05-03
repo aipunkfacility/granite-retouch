@@ -38,6 +38,8 @@ DEFAULTS = {
         "vertical_offset": 0.10,
         "vertical_diameter": 0.50,
         "blur_radius": 60,
+        "headroom": 0.6,
+        "horizontal_oversize": 0.2,
     },
 }
 
@@ -278,13 +280,30 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     img_final = img_leveled.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=0))
 
     # ---- Step 7: Arch/Vignette Mask ----
+    # The arch ellipse extends ABOVE the image so the head is always fully visible.
+    # Only the bottom corners fade to black in an arch/dome shape.
+    # Config params (all in config.yaml → vignette):
+    #   vertical_offset (0.10) — distance from bottom to arch bottom edge (fraction)
+    #   vertical_diameter (0.50) — height of the ellipse (fraction)
+    #   blur_radius (60) — smoothness of the fade
+    #   headroom (0.6) — how far the ellipse extends above the image (fraction)
+    #   horizontal_oversize (0.2) — horizontal extension beyond image edges (fraction)
     arch = Image.new('L', (width, height), 0)
     draw_arch = ImageDraw.Draw(arch)
+
     v_offset = height * vign_cfg.get("vertical_offset", 0.10)
     v_diameter = height * vign_cfg.get("vertical_diameter", 0.50)
     blur_radius = vign_cfg.get("blur_radius", 60)
+    headroom = height * vign_cfg.get("headroom", 0.6)
+    h_oversize = width * vign_cfg.get("horizontal_oversize", 0.2)
+
+    # Arch bottom: where the arch curve reaches at the sides
+    arch_bottom_y = height - v_offset
+    # Arch top: extends above the image so head is fully inside the ellipse
+    arch_top_y = arch_bottom_y - v_diameter - headroom
+
     draw_arch.ellipse(
-        [-width * 0.2, height - v_offset - v_diameter, width * 1.2, height - v_offset + v_diameter * 0.38],
+        [-h_oversize, arch_top_y, width + h_oversize, arch_bottom_y],
         fill=255
     )
     arch_mask = arch.filter(ImageFilter.GaussianBlur(radius=blur_radius))

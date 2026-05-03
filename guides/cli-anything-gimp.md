@@ -2,19 +2,35 @@
 
 ## 1. Окружение
 
-| Компонент | Путь |
+| Компонент | Как найти |
 |---|---|
-| Python 3.14 | C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe |
-| uv (пакетный менеджер) | C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\Scripts\uv.exe |
-| cli-anything-gimp | C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\Scripts\cli-anything-gimp.exe |
-| GIMP 2.10 | F:\GIMP 2\bin\gimp-2.10.exe |
-| gimp-console | F:\GIMP 2\bin\gimp-console-2.10.exe |
-| Pillow | pip install Pillow через uv в среде Python 3.14 |
+| Python 3.14 | Системный (`python --version`) |
+| uv (пакетный менеджер) | `uv --version` (установлен через `curl -LsSf https://astral.sh/uv/install.sh \| sh`) |
+| cli-anything-gimp | Установлен в `.venv` или глобально (`where cli-anything-gimp`) |
+| GIMP 2.10 | Через `config.yaml` → `gimp.search_paths` или env var `GIMP_PATH` |
+| Pillow + PyYAML | В `.venv` (`uv pip install Pillow PyYAML`) |
 
-Переменные окружения (обязательно перед запуском CLI-Anything):
+### Настройка venv (первый запуск)
+
+```bash
+cd /f/Dev/Projects/GRANITE/granite-retouch
+uv venv --python python        # Использует системный Python
+source .venv/Scripts/activate  # Git Bash
+uv pip install Pillow PyYAML pytest
+```
+
+### Переменные окружения (обязательно перед запуском CLI-Anything)
+
 ```powershell
+# PowerShell
 $env:PATH += ";F:\GIMP 2\bin"
 $env:GIMP_EXECUTABLE = "F:\GIMP 2\bin\gimp-2.10.exe"
+```
+
+```bash
+# Git Bash
+export PATH="$PATH;/f/GIMP 2/bin"
+export GIMP_EXECUTABLE="F:\GIMP 2\bin\gimp-2.10.exe"
 ```
 
 ## 2. Команды cli-anything-gimp
@@ -47,7 +63,7 @@ $env:GIMP_EXECUTABLE = "F:\GIMP 2\bin\gimp-2.10.exe"
 $env:PATH += ";F:\GIMP 2\bin"
 $env:GIMP_EXECUTABLE = "F:\GIMP 2\bin\gimp-2.10.exe"
 
-$cli  = "C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\Scripts\cli-anything-gimp.exe"
+$cli  = "cli-anything-gimp"
 $proj = "orders\active\ORD-XXXX\project.json"
 $src  = "orders\active\ORD-XXXX\ai.png"
 $out  = "orders\active\ORD-XXXX\final.tiff"
@@ -76,23 +92,61 @@ $out  = "orders\active\ORD-XXXX\final.tiff"
 
 ## 4. Виньетирование и визуальный вырез (Python + Pillow)
 
-Для сложного постобработки (удаление синего хромакея, полукруглый вырез "Memorial Arch", Inner Glow) используется скрипт `prepare_vignette.py`.
+Для сложной постобработки (удаление синего хромакея, полукруглый вырез "Memorial Arch", Inner Glow) используется скрипт `prepare_vignette.py`.
 
 **Скрипт:** `./prepare_vignette.py` (в корне проекта granite-retouch)
 
-Установка Pillow (если не установлен):
-```powershell
-C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\Scripts\uv.exe pip install Pillow --python C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe
+### Запуск скрипта
+
+```bash
+# Активировать venv
+source .venv/Scripts/activate
+
+# Лазерный станок (по умолчанию)
+python prepare_vignette.py -i orders/active/ORD-2026-006/generated/ai.png -o orders/active/ORD-2026-006/generated/final_vignette.tiff -m laser
+
+# Ударный станок
+python prepare_vignette.py -i ai.png -o final_vignette.tiff -m impact
+
+# Переопределить параметры Inner Glow
+python prepare_vignette.py -i ai.png -o final.tiff -m laser --glow-size 50 --glow-opacity 35
+
+# Пропустить валидацию (legacy-режим)
+python prepare_vignette.py -i ai.png -o final.tiff -m laser --no-validate
+
+# Указать путь к config.yaml
+python prepare_vignette.py -i ai.png -o final.tiff -c /path/to/config.yaml
 ```
 
-Запуск скрипта:
-```powershell
-C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe prepare_vignette.py
-```
+### Параметры CLI
 
-Скрипт создает два файла:
-- `final_vignette.tiff` — производственный файл
-- `final_vignette.png` — превью для визуальной проверки
+| Параметр | Сокращение | Обязательный | Описание |
+|----------|-----------|-------------|----------|
+| `--input` | `-i` | Да | Путь к входному PNG (с синим хромакеем) |
+| `--output` | `-o` | Да | Путь к выходному TIFF |
+| `--machine` | `-m` | Нет | `laser` (default) или `impact` |
+| `--glow-size` | — | Нет | Переопределить размер Inner Glow (px) |
+| `--glow-opacity` | — | Нет | Переопределить opacity Inner Glow (%) |
+| `--config` | `-c` | Нет | Путь к config.yaml (default: auto-detect) |
+| `--no-validate` | — | Нет | Пропустить валидацию входа и результата |
+
+### Валидация (автоматическая)
+
+Скрипт проверяет входное изображение перед обработкой:
+- Файл существует и открывается Pillow
+- Разрешение >= 512x512 (настраивается в `config.yaml`)
+- Присутствует синий хромакей (>= 15% синих пикселей)
+- Результат содержит достаточно чёрного фона (>= 25%)
+
+При ошибке валидации: `ValidationError` + exit code 1.
+
+### Результат
+
+Скрипт создаёт два файла:
+- `{output}.tiff` — производственный файл
+- `{output}.png` — превью для визуальной проверки
+
+Путь к PNG генерируется автоматически из `--output` (заменяется расширение).
 
 ## 5. Проверка результата (обязательный шаг!)
 
@@ -108,9 +162,10 @@ C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe prepare_vigne
 | 3 | Детали волос | Сохранены пряди, объём |
 | 4 | Воротник | Чёткий, контрастный |
 | 5 | Края плавные | Arch mask — плавный переход |
+| 6 | Голова видна целиком | Виньетка не обрезает верхнюю часть |
 
-```powershell
-C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe -c "from PIL import Image; Image.open('final.tiff').save('preview.png')"
+```bash
+python -c "from PIL import Image; Image.open('final.tiff').save('preview.png')"
 ```
 
 ## 6. Запасной план: Native GIMP Script-Fu
@@ -118,16 +173,20 @@ C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe -c "from PIL 
 Если cli-anything-gimp падает с MemoryError (4ГБ ОЗУ не хватает
 при рендере сложных масок), вся логика переносится в .scm-скрипт:
 
-Скрипт размещается в: `retouch_process.scm`
-Запуск через: `python run_gimp.py -i <input> -o <output> -m <laser|impact>`
+**Скрипт:** `retouch_process.scm`
+**Запуск через:** `python run_gimp.py -i <input> -o <output> -m <laser|impact>`
+
+```bash
+python run_gimp.py -i ai.png -o final.tiff -m laser
+```
+
+`run_gimp.py` автоматически:
+1. Находит GIMP по `config.yaml` → `gimp.search_paths` или env var `GIMP_PATH`
+2. Генерирует Scheme-команду с правильными путями и параметрами станка
+3. Запускает GIMP в headless-режиме
 
 Причина: GIMP использует GEGL и файл подкачки Windows (swap) как буфер,
 поэтому не падает при нехватке ОЗУ там, где Python+Pillow не справляется.
-
-Шаблон bat-файла:
-```bat
-"F:\GIMP 2\bin\gimp-console-2.10.exe" -i -b "(begin (load \"путь/к/скрипту.scm\") (имя-функции \"вход.png\" \"выход.tiff\"))" -b "(gimp-quit 0)"
-```
 
 ## 7. Важные ограничения и ошибки
 
@@ -135,5 +194,7 @@ C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe -c "from PIL 
 |---|---|---|
 | `Error: Neither GIMP nor Pillow available` | Не задан `GIMP_EXECUTABLE` | Установить переменную окружения |
 | `MemoryError` при рендере | 4ГБ ОЗУ, Pillow загружает всё в RAM | Перейти на Script-Fu режим |
-| `Error reading string` в gimp-console | Кавычки не правильно экранированы в PS | Завернуть команду в .bat-файл |
-| `unbound variable: retouch-process-order` | Функция не загружена в ту же сессию | Свернуть load и вызов в один `(begin ...)` |
+| `Error reading string` в gimp-console | Кавычки не правильно экранированы в PS | Использовать `run_gimp.py` (автоэкранирование) |
+| `unbound variable: retouch-process-order` | Функция не загружена в ту же сессию | Использовать `run_gimp.py` (оборачивает в `(begin ...)`) |
+| `ValidationError: Синий хромакей не обнаружен` | На изображении нет синего фона | Проверить, что фон #0000FF; использовать `--no-validate` для обхода |
+| `ValidationError: Разрешение ниже минимума` | Изображение меньше 512x512 | Использовать изображение большего размера |
