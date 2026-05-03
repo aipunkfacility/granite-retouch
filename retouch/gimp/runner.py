@@ -101,10 +101,10 @@ def run_gimp(input_path, output_path, machine_type="laser", config=None):
     gimp_exe = find_gimp(gimp_config)
     scm_path = find_scm_script()
 
-    # Escape for Scheme
-    scm_escaped = scm_path.replace("\\", "\\\\")
-    input_escaped = os.path.abspath(input_path).replace("\\", "\\\\")
-    output_escaped = os.path.abspath(output_path).replace("\\", "\\\\")
+    # Escape for Scheme (strip paths to remove possible trailing newlines)
+    scm_escaped = scm_path.replace("\\", "\\\\").strip()
+    input_escaped = os.path.abspath(input_path).replace("\\", "\\\\").strip()
+    output_escaped = os.path.abspath(output_path).replace("\\", "\\\\").strip()
 
     scm_command = SCM_TEMPLATE.format(
         scm_path=scm_escaped,
@@ -127,9 +127,17 @@ def run_gimp(input_path, output_path, machine_type="laser", config=None):
           f"headroom={vignette['headroom']}, "
           f"oversize={vignette['horizontal_oversize']}, "
           f"blur={vignette['blur_radius']}")
+    print(f"Scheme command:\n{scm_command}")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"GIMP error: {result.stderr}", file=sys.stderr)
+    # GIMP на русской Windows пишет в UTF-8, а system default — CP1251.
+    # Используем bytes + decode с errors='replace' чтобы избежать UnicodeDecodeError.
+    result = subprocess.run(cmd, capture_output=True)
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    stderr = result.stderr.decode("utf-8", errors="replace")
+
+    if stdout.strip():
+        print(f"GIMP stdout:\n{stdout.strip()}")
+    if stderr.strip():
+        print(f"GIMP stderr:\n{stderr.strip()}", file=sys.stderr)
 
     return result.returncode
