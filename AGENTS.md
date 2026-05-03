@@ -40,9 +40,26 @@ granite-retouch/
 │   ├── schema.json              # JSON-схема заказа
 │   ├── template/                # Шаблон нового заказа
 │   └── active/                  # Активные заказы
-├── prepare_vignette.py          # Скрипт виньетирования
-├── retouch_process.scm          # GIMP Script-Fu (запасной)
-├── run_gimp.py                  # Запуск GIMP скрипта
+├── retouch/                     # Python-пакет
+│   ├── __init__.py
+│   ├── __main__.py              # python -m retouch
+│   ├── cli.py                   # CLI (process, validate, gimp, order)
+│   ├── config.py                # Загрузка config.yaml
+│   ├── processing/              # Модули обработки
+│   │   ├── chromakey.py         # Удаление синего фона
+│   │   ├── glow.py              # Inner Glow
+│   │   ├── levels.py            # Levels + Brightness + Unsharp
+│   │   ├── vignette.py          # Арховая виньетка
+│   │   └── pipeline.py          # Полный пайплайн
+│   ├── gimp/                    # GIMP-интеграция (experimental)
+│   │   └── runner.py            # Поиск и запуск GIMP
+│   └── validation/              # Валидация
+│       ├── image.py             # Валидация изображения
+│       └── order.py             # Валидация order.json
+├── config.yaml                  # Параметры обработки
+├── pyproject.toml               # Пакетная конфигурация
+├── Makefile                     # Команды сборки
+├── BACKLOG.md                   # Product backlog
 ├── AGENTS.md
 ├── CHANGELOG.md
 ├── README.md
@@ -64,11 +81,17 @@ npx ajv validate -s orders/schema.json -d orders/active/*/order.json
 ### Полезные команды
 
 ```bash
-# Создание нового заказа (копирование шаблона)
-cp orders/template/order.json orders/active/ORDER_NAME/order.json
+# Создание нового заказа (CLI)
+python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 
-# Линтинг Markdown (опционально)
-markdownlint orders/
+# Список активных заказов
+python -m retouch order list
+
+# Валидация заказа
+python -m retouch order validate ORD-2026-042
+
+# Обработка портрета
+python -m retouch process -i input.png -o output.tiff -m laser
 ```
 
 ## Стиль кода
@@ -188,7 +211,7 @@ markdownlint orders/
 3. Запустить: `python prepare_vignette.py -i <input> -o <output> -m <laser|impact>`
 4. Проверить результат в `generated/final_vignette.tiff`
 
-**Опционально:** GIMP-скрипт `retouch_process.scm` через `python run_gimp.py`.
+**Опционально:** GIMP-скрипт `retouch_process.scm` через `python run_gimp.py` (**experimental / not recommended** — используйте `retouch process`).
 
 **См. подробнее:** `guides/cli-anything-gimp.md`
 
@@ -200,6 +223,60 @@ markdownlint orders/
 - [ ] Края плавные
 
 > **Скрапинг ритуальных агентств** — см. [granite-crm](https://github.com/aipunkfacility/granite-crm)
+
+## Интеграция с granite-crm
+
+granite-retouch и granite-crm — отдельные репозитории. Связь между ними — **конвенционная**, через поле `crm_company_id` в `order.json`.
+
+### Как связать заказ с CRM
+
+1. Создайте заказ с привязкой к компании:
+   ```bash
+   python -m retouch order create ORD-2026-042 --crm CMP-0042
+   ```
+2. Или добавьте `crm_company_id` вручную в `order.json`:
+   ```json
+   {
+     "order_id": "ORD-2026-042",
+     "crm_company_id": "CMP-0042",
+     ...
+   }
+   ```
+3. Формат `crm_company_id`: `CMP-NNNN` (напр. `CMP-0042`)
+
+### Что даёт связь
+
+- В `order list` видно, к какой компании в CRM относится заказ
+- При поиске заказа можно отследить клиента в granite-crm
+- В будущем: автоматический обмен статусами через API
+
+### Конфигурация
+
+В `config.yaml` можно указать путь к granite-crm:
+
+```yaml
+crm:
+  crm_path: "F:\\Dev\\Projects\\granite-crm"
+  env_var: GRANITE_CRM_PATH
+```
+
+Или через переменную окружения: `GRANITE_CRM_PATH=F:\Dev\Projects\granite-crm`
+
+### Что НЕ делается
+
+| Подход | Почему нет |
+|--------|------------|
+| API-интеграция (HTTP-запросы) | Overkill для одного пользователя |
+| Общая БД | Разные стеки, нет параллельной записи |
+| Монорепо | Разные технологии, разные жизненные циклы |
+| Синхронизация статусов | Ручной процесс устраивает |
+
+### Будущее (если понадобится)
+
+granite-crm уже имеет Django REST API (`/api/companies/`, `/api/orders/`). Если когда-нибудь понадобится автоматизация:
+1. granite-retouch делает `POST /api/orders/` при создании заказа
+2. granite-retouch делает `PATCH /api/orders/{id}/` при смене статуса
+3. granite-crm подтягивает результаты
 
 ## Соглашения об именовании
 

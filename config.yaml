@@ -20,7 +20,7 @@ processing:
     glow_opacity_min: 30
     glow_opacity_max: 40
     brightness: 1.18
-    face_brightness_target: [100, 130]
+    face_brightness_target: [230, 245]
 
   impact:
     glow_size_min: 10
@@ -28,7 +28,7 @@ processing:
     glow_opacity_min: 60
     glow_opacity_max: 80
     brightness: 1.00
-    face_brightness_target: [100, 130]
+    face_brightness_target: [185, 210]
     # Добавлять шум в глубокие тени (чтобы игла не застревала)
     shadow_noise: true
 
@@ -62,3 +62,11 @@ vignette:
   # Больше → арка шире по бокам, меньше чёрного у плеч
   # Примеры: 0.0 — эллипс строго по ширине, 0.3 — широкий захват
   horizontal_oversize: 0.2
+
+crm:
+  # Путь к репозиторию granite-crm (для доступа к data/regions.yaml и другим данным)
+  # Если не указан — CRM-функции недоступны
+  # Пример: "F:\\Dev\\Projects\\granite-crm"
+  crm_path: ""
+  # Переменная окружения для переопределения пути
+  env_var: GRANITE_CRM_PATH

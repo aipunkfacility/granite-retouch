@@ -1,5 +1,6 @@
 {
   "order_id": "TEST_ORDER",
+  "crm_company_id": "",
   "client": {
     "name": "Тестовый Заказ",
     "contact": "none"

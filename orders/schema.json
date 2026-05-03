@@ -4,7 +4,11 @@
   "type": "object",
   "properties": {
     "order_id": { "type": "string", "pattern": "^ORD-\\d{4}-\\d{3}$" },
-    "crm_company_id": { "type": "string", "description": "ID компании в granite-crm (опционально)" },
+    "crm_company_id": {
+      "type": "string",
+      "pattern": "^CMP-\\d{4}$",
+      "description": "ID компании в granite-crm (формат: CMP-NNNN, опционально)"
+    },
     "client": {
       "type": "object",
       "properties": {

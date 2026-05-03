@@ -2,6 +2,22 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [2.4.0] - 2026-05-04
+
+### 🔗 Интеграция с granite-crm (Фаза 6)
+
+- **CLI `retouch order`:** управление заказами из командной строки
+  - `retouch order list` — список активных заказов (ID, станок, статус, CRM-привязка, клиент)
+  - `retouch order validate ORD-2026-001` — валидация order.json по schema.json
+  - `retouch order create ORD-2026-042 --crm CMP-0042 -m impact` — создание заказа из шаблона с привязкой к CRM
+- **CRM-связь:** поле `crm_company_id` в order.json (формат `CMP-NNNN`) — конвенционная связь заказов с компаниями в granite-crm
+  - `schema.json`: добавлен `pattern: "^CMP-\\d{4}$"` для валидации ID
+  - `orders/template/order.json`: поле `crm_company_id` включено в шаблон
+- **config.yaml:** секция `crm:` с путём к granite-crm (`crm_path`) и переменной окружения (`GRANITE_CRM_PATH`)
+- **GIMP-команда:** помечена как experimental / not recommended (предупреждение при запуске `retouch gimp`)
+- **AGENTS.md:** обновлено дерево структуры (добавлен `retouch/` пакет, `BACKLOG.md`, `Makefile`), добавлена секция «Интеграция с granite-crm»
+- **BACKLOG.md:** создан product backlog проекта (11 задач P0–P3)
+
 ## [2.3.1] - 2026-05-04
 
 ### 🔧 Дозакрытие Фазы 5
