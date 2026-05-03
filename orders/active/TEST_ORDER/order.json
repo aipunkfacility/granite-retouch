@@ -1,0 +1,17 @@
+{
+  "order_id": "TEST_ORDER",
+  "client": {
+    "name": "Тестовый Заказ",
+    "contact": "none"
+  },
+  "machine_type": "laser",
+  "machine_model": "Mirtels L60120",
+  "source_photo": "source.jpg",
+  "status": "new",
+  "analyzer_output": {},
+  "final_prompt": "",
+  "generated_image": "",
+  "final_file": "",
+  "created_at": "2026-03-11T16:07:00+07:00",
+  "notes": "Тестовый запуск новой агентской системы"
+}

@@ -1,0 +1,21 @@
+# IDE
+.gemini/
+.agents/ctx/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+scripts/.venv/
+scripts/venv/
+*.lock
+uv.lock
+scripts/uv.lock
+

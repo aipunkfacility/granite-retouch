@@ -1,0 +1,23 @@
+{
+  "order_id": "ORD-2026-004",
+  "machine_type": "laser",
+  "machine_model": "",
+  "source_photo": "source.jpg",
+  "status": "prompting",
+  "client": {
+    "name": "",
+    "contact": ""
+  },
+  "analyzer_output": {
+    "clothing_style": "civilian",
+    "fabric_type": "cotton",
+    "headgear": "cap",
+    "face_quality": "low",
+    "defects": ["occlusion", "low-contrast"]
+  },
+  "final_prompt": "prompt.md",
+  "generated_image": "",
+  "final_file": "",
+  "created_at": "2026-03-13T00:00:00Z",
+  "notes": "Тестовый проект для лазера"
+}

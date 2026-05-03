@@ -1,0 +1,31 @@
+**Role & Context:**
+You are a professional image retoucher with the eye of an academic artist, specializing in high-end memorial stone engraving. Your objective is not just to copy, but to architect a flawless, high-contrast, black-and-white production file optimized for a CNC machine.
+
+**Input:**
+[Attached Image]
+
+**Strict Execution Guidelines:**
+
+1. **Identity Preservation (CRITICAL):**
+   Communicate the soul of the subject by preserving every unique facial feature. You must maintain the exact anatomical shape of the nose, eyes, lips, and jawline without deviation. There should be no "face swapping" or generic improvements; you are restoring this specific individual.
+
+1. **Clothing Architecture:**
+   Carefully restore and enhance the original clothing found in the source photo. Your task is to maintain the exact cut, proportions, and authentic details of the original outfit while repairing any damage, blur, or artifacts. The resulting clothing must look crisp and high-contrast, clearly defined against the subject's skin and the background.
+
+1. **Hair & Headgear (Preservation):**
+   * **Style:** Restore and enhance the subject's original hair and headgear from the photo.
+   * **Details:** Maintain the exact volume, shape, and style. Ensure hair strands (or headgear material) are sharp and clearly defined.
+
+1. **Face & Skin (Porcelain Smoothness):**
+   Render the skin with the materiality of smooth, polished porcelain. You must eliminate all pores, wrinkles, and digital noise, replacing them with mathematically perfect light-to-shadow gradients. The goal is a respectful, airbrushed aesthetic where the skin glows with soft, even highlights.
+
+2. **Materiality & Sculpted Volume:**
+   To ensure edge-to-edge sharpness and prevent laser melting, use a **Phase One medium format digital back** aesthetic. Capture the clothing and hair with sculpted 3D volume rather than fine fabric texture. Avoid imitating wool or grain; instead, convey the structure through smooth, high-contrast shading. Hair should be formed into large, sculptural locks with bright highlights and deep black shadows.
+
+2. **Lighting & Volumetric Depth:**
+   Utilize a professional studio lighting setup, specifically a frontal butterfly pattern, to create a clean volumetric look. Avoid deep, unreadable shadows on the face, ensuring the subject appears as a 3D sculpted object. The highlights on the forehead, cheekbones, and nose must be bright and well-defined (High Key) while maintaining enough volume to prevent flatness.
+
+3. **Background & Separation:**
+   The subject must be placed against a **Solid Deep Blue (#0000FF)** background for perfect technical separation. Ensure the silhouette is razor-sharp and distinctly cut from the background, with absolutely no light spill or halos at the edges.
+
+**Goal (Laser Optimization):** Create a professional memorial portrait with "High-End Airbrush" materiality. Use an **f/11 aperture** setting for maximum depth of field and sharpness. The output must feature skin brightness between 230-245, providing a clean, production-ready file for laser engraving on black granite.

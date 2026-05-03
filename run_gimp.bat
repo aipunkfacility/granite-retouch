@@ -1,0 +1,1 @@
+"F:\GIMP 2\bin\gimp-console-2.10.exe" -i -b "(begin (load \"f:/Dev/Projects/MEMORIAL/memorial_process.scm\") (memorial-process-order \"f:/Dev/Projects/MEMORIAL/orders/active/ORD-2026-007/generated/ai.png\" \"f:/Dev/Projects/MEMORIAL/orders/active/ORD-2026-007/final_vignette.tiff\"))" -b "(gimp-quit 0)"

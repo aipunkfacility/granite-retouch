@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Memorial Order",
+  "type": "object",
+  "properties": {
+    "order_id": { "type": "string" },
+    "client": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "contact": { "type": "string" }
+      }
+    },
+    "machine_type": { "type": "string", "enum": ["laser", "impact"] },
+    "machine_model": { "type": "string" },
+    "source_photo": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["new", "analyzing", "prompting", "generating", "postprocessing", "done"]
+    },
+    "analyzer_output": {
+      "type": "object",
+      "properties": {
+        "clothing_style": { "type": "string" },
+        "fabric_type": { "type": "string" },
+        "headgear": { "type": "string" },
+        "face_quality": { "type": "string" },
+        "defects": { "type": "array", "items": { "type": "string"} }
+      }
+    },
+    "final_prompt": { "type": "string" },
+    "generated_image": { "type": "string" },
+    "final_file": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "notes": { "type": "string" }
+  },
+  "required": ["order_id", "machine_type", "source_photo", "status"]
+}

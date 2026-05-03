@@ -1,0 +1,23 @@
+{
+  "order_id": "ORD-2026-005",
+  "machine_type": "laser",
+  "machine_model": "",
+  "source_photo": "source.jpg",
+  "status": "prompting",
+  "client": {
+    "name": "",
+    "contact": ""
+  },
+  "analyzer_output": {
+    "clothing_style": "civilian/military",
+    "fabric_type": "wool/cotton",
+    "headgear": "cap/none",
+    "face_quality": "medium",
+    "defects": ["scan_lines", "contrast_loss"]
+  },
+  "final_prompt": "prompt.md",
+  "generated_image": "",
+  "final_file": "",
+  "created_at": "2026-03-13T12:00:00Z",
+  "notes": "Dual portrait, laser engraving"
+}
