@@ -1,0 +1,17 @@
+[project]
+name = "granite-retouch"
+version = "2.0.0"
+description = "AI-ретушь портретов для гравировки на памятниках"
+requires-python = ">=3.10"
+dependencies = [
+    "Pillow>=10.0.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+granite-retouch = "retouch.cli:main"
