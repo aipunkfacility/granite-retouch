@@ -19,3 +19,4 @@ scripts/venv/
 uv.lock
 scripts/uv.lock
 
+projects/
