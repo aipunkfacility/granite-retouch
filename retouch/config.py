@@ -19,14 +19,14 @@ DEFAULTS = {
         "laser": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
-            "brightness": 1.18,
+            "brightness": 1.05,
             "face_brightness_target": [230, 245],
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
-            "brightness": 1.12,
-            "face_brightness_target": [220, 235],
+            "brightness": 1.00,
+            "face_brightness_target": [185, 210],
             "shadow_noise": True,
         },
     },

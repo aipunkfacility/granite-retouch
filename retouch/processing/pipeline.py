@@ -73,6 +73,16 @@ def process(input_path, output_path, machine_type="laser",
     # 5. Inner Glow
     brightness_factor = machine_cfg.get("brightness", 1.18)
     img_gray = img.convert("L")
+
+    # Отладка: яркость лица ДО glow и brightness
+    if HAS_NUMPY:
+        _arr = np.array(img_gray, dtype=np.float32)
+        _mask = np.array(subject_mask)
+        _inner = _arr[_mask > 128]
+        if len(_inner) > 0:
+            print(f"DEBUG face BEFORE glow/brightness: mean={_inner.mean():.0f}, "
+                  f"min={_inner.min():.0f}, max={_inner.max():.0f}")
+
     img_with_glow, glow_size, glow_opacity = apply_inner_glow(
         img_gray, subject_mask, machine_cfg,
         glow_size_override=glow_size_override,
@@ -84,8 +94,11 @@ def process(input_path, output_path, machine_type="laser",
     img_final = apply_unsharp_mask(img_leveled)
 
     # 7. Face brightness control
+    # Передаём glow_size — маска сжимается на glow_size px,
+    # чтобы исключить светлый контур из замера яркости
     face_target = machine_cfg.get("face_brightness_target", [230, 245])
-    img_final = check_face_brightness(img_final, face_target, subject_mask)
+    img_final = check_face_brightness(img_final, face_target, subject_mask,
+                                       glow_size=glow_size)
 
     # 8. Vignette
     background, arch_mask = apply_vignette(img_final, width, height, vign_cfg)
