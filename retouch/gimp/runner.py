@@ -73,7 +73,7 @@ def find_gimp(gimp_config=None):
 
 def find_scm_script():
     """Найти retouch_process.scm в корне проекта."""
-    script_dir = Path(__file__).resolve().parent.parent  # retouch/gimp/ → project root
+    script_dir = Path(__file__).resolve().parent.parent.parent  # retouch/gimp/runner.py → project root
     scm_path = script_dir / "retouch_process.scm"
     if not scm_path.is_file():
         raise FileNotFoundError(f"Script-Fu не найден: {scm_path}")
