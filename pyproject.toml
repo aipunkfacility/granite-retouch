@@ -1,6 +1,6 @@
 [project]
 name = "granite-retouch"
-version = "2.3.0"
+version = "2.3.1"
 description = "AI-ретушь портретов для гравировки на памятниках"
 requires-python = ">=3.10"
 dependencies = [
