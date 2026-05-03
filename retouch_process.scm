@@ -1,4 +1,18 @@
-(define (retouch-process-order input-path output-path machine-type)
+;; retouch_process.scm — GIMP Script-Fu для постобработки портретов
+;;
+;; Параметры виньетки передаются из run_gimp.py (который читает config.yaml).
+;; Функция НЕ содержит захардкоженных значений виньетки.
+;;
+;; Сигнатура:
+;;   (retouch-process-order input-path output-path machine-type
+;;      vignette-v-offset vignette-v-diameter vignette-headroom
+;;      vignette-h-oversize vignette-blur-radius)
+;;
+;; Все vignette-* — float (доли от размера изображения), кроме blur-radius (int, px).
+
+(define (retouch-process-order input-path output-path machine-type
+         vignette-v-offset vignette-v-diameter vignette-headroom
+         vignette-h-oversize vignette-blur-radius)
   (let* (
          (image (car (gimp-file-load RUN-NONINTERACTIVE input-path input-path)))
          (layer (car (gimp-image-get-active-layer image)))
@@ -9,15 +23,10 @@
          (feather-px (if (string=? machine-type "impact") 20 60))
          (fill-opacity (if (string=? machine-type "impact") 70 35))
          (levels-gamma (if (string=? machine-type "impact") 1.12 1.15))
-         ;; Scalable vignette (params match config.yaml → vignette)
-         ;; vertical_offset = 0.10  → v-offset = height * 0.10 = height / 10
-         ;; vertical_diameter = 0.50 → v-diameter = height * 0.50 = height / 2
-         ;; headroom = 0.60          → arch extends height*0.60 above v-diameter
-         ;; horizontal_oversize = 0.20 → not used in GIMP (gimp-ellipse-select has no oversize)
-         ;; blur/feather = 60px
-         (v-offset (/ height 10))
-         (v-diameter (/ height 2))
-         (headroom (* height 0.6))
+         ;; Vignette parameters (from config.yaml → vignette)
+         (v-offset (* height vignette-v-offset))
+         (v-diameter (* height vignette-v-diameter))
+         (headroom (* height vignette-headroom))
          (arch-bottom (- height v-offset))
          (arch-top (- arch-bottom v-diameter headroom))
         )
@@ -49,8 +58,10 @@
     (plug-in-unsharp-mask RUN-NONINTERACTIVE image layer 1.5 1.2 0)
 
     ;; 7. Final Vignette (scalable arch — head stays visible)
-    ;; Ellipse extends above image; only bottom corners fade to black
-    (gimp-ellipse-select image 0 arch-top width (- arch-bottom arch-top) 2 TRUE TRUE 60)
+    ;; Ellipse extends above and beyond image; only bottom corners fade to black
+    ;; gimp-ellipse-select clamps negative coords to 0, which is fine —
+    ;; the ellipse dome still covers the full width at image edges
+    (gimp-ellipse-select image 0 arch-top width (- arch-bottom arch-top) 2 TRUE TRUE (round vignette-blur-radius))
     (gimp-selection-invert image)
     (gimp-context-set-background '(0 0 0))
     (gimp-edit-clear layer)

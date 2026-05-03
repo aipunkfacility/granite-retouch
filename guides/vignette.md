@@ -180,12 +180,19 @@ vignette:
 3. Если заказ требует нестандартной арки (например, овальный медальон) —
    создать временный config.yaml с нужным пресетом и передать через `--config`
 
+Оба скрипта (Pillow и GIMP) читают параметры виньетки из **одного и того же** config.yaml.
+`run_gimp.py` передаёт значения в Scheme-функцию как аргументы — в .scm нет захардкоженных значений.
+
 ```bash
-# Стандартная обработка (параметры из config.yaml)
+# Стандартная обработка — Pillow (параметры из config.yaml)
 python prepare_vignette.py -i ai.png -o final.tiff -m laser
 
-# Нестандартная арка (временный конфиг)
+# Стандартная обработка — GIMP (параметры из config.yaml)
+python run_gimp.py -i ai.png -o final.tiff -m laser
+
+# Нестандартная арка (временный конфиг) — оба скрипта поддерживают --config
 python prepare_vignette.py -i ai.png -o final.tiff -m laser -c /tmp/config_oval.yaml
+python run_gimp.py -i ai.png -o final.tiff -m laser -c /tmp/config_oval.yaml
 ```
 
 ### Когда менять пресет
