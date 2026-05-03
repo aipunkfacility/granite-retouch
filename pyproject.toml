@@ -1,6 +1,6 @@
 [project]
 name = "granite-retouch"
-version = "2.2.0"
+version = "2.3.0"
 description = "AI-ретушь портретов для гравировки на памятниках"
 requires-python = ">=3.10"
 dependencies = [
@@ -13,15 +13,21 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "jsonschema>=4.0",
 ]
+
+[project.scripts]
+retouch = "retouch.cli:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = ["prepare_vignette", "run_gimp"]
-packages = []
+[tool.setuptools.packages.find]
+include = ["retouch*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.scm", "*.yaml", "*.json"]
+retouch = ["*.yaml", "*.json"]
+
+# Legacy scripts kept in root for backward compatibility
+# prepare_vignette.py and run_gimp.py still work standalone

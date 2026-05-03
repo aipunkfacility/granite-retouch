@@ -2,6 +2,25 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [2.3.0] - 2026-05-04
+
+### 🏗️ Реструктуризация архитектуры (Фаза 5)
+
+- **Пакет `retouch/`:** код вынесен из монолитных скриптов в модульную структуру
+  - `retouch/config.py` — загрузка config.yaml
+  - `retouch/cli.py` — единая точка входа (`python -m retouch process|validate|gimp`)
+  - `retouch/processing/chromakey.py` — удаление синего фона + fringe removal
+  - `retouch/processing/glow.py` — Inner Glow (contour light)
+  - `retouch/processing/levels.py` — Levels + Unsharp Mask + контроль яркости
+  - `retouch/processing/vignette.py` — арховая виньетка
+  - `retouch/processing/pipeline.py` — полный пайплайн
+  - `retouch/gimp/runner.py` — поиск и запуск GIMP
+  - `retouch/validation/image.py` — валидация изображения и хромакея
+  - `retouch/validation/order.py` — валидация order.json по schema.json
+- **CLI:** `python -m retouch process -i ... -o ... -m laser`
+- **pyproject.toml:** `retouch` CLI entry point, `packages = ["retouch"]`
+- **Обратная совместимость:** `prepare_vignette.py` и `run_gimp.py` в корне по-прежнему работают
+
 ## [2.2.0] - 2026-05-04
 
 ### ⚡ Оптимизация обработки (Фаза 4)
