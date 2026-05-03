@@ -10,6 +10,9 @@ processing:
   min_resolution: 512
   # Минимальная доля чёрного фона в результате (проверка корректности)
   result_min_black_ratio: 0.25
+  # Радиус расширения маски для удаления синих рефлексов (fringe) по краям
+  # 0 — без fringe removal, 3 — стандарт, 5 — агрессивное удаление
+  fringe_radius: 3
 
   laser:
     glow_size_min: 40

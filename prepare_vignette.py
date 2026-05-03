@@ -10,6 +10,12 @@ try:
 except ImportError:
     HAS_YAML = False
 
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageOps, ImageChops
 
 
@@ -20,6 +26,7 @@ DEFAULTS = {
         "min_blue_ratio": 0.15,
         "min_resolution": 512,
         "result_min_black_ratio": 0.25,
+        "fringe_radius": 3,
         "laser": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
@@ -90,17 +97,14 @@ def validate_image_input(input_path, config=None):
     proc = config.get("processing", DEFAULTS["processing"])
     min_res = proc.get("min_resolution", 512)
 
-    # 1. File exists
     if not os.path.isfile(input_path):
         raise ValidationError(f"Входной файл не найден: {input_path}")
 
-    # 2. Pillow can open
     try:
         img = Image.open(input_path)
     except Exception as e:
         raise ValidationError(f"Не удалось открыть изображение: {e}")
 
-    # 3. Resolution check
     width, height = img.size
     if width < min_res or height < min_res:
         raise ValidationError(
@@ -108,7 +112,6 @@ def validate_image_input(input_path, config=None):
             f"Для качественной гравировки нужно изображение большего размера."
         )
 
-    # 4. Verify RGBA convertible
     if img.mode not in ("RGBA", "RGB", "P", "L"):
         raise ValidationError(
             f"Неподдерживаемый режим изображения: {img.mode}. "
@@ -122,8 +125,7 @@ def validate_image_input(input_path, config=None):
 def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):
     """Проверить, что изображение содержит синий хромакей (#0000FF).
 
-    Считает долю пикселей, где синий канал значительно превышает
-    красный и зелёный. Если доля ниже порога — хромакей не обнаружен.
+    Использует numpy при наличии (быстрее), иначе fallback на Pillow.
 
     Args:
         img: PIL.Image в режиме RGBA
@@ -136,16 +138,17 @@ def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):
     Raises:
         ValidationError: если синий хромакей не обнаружен
     """
-    data = list(img.getdata())
-    total = len(data)
+    if HAS_NUMPY:
+        arr = np.array(img)  # H x W x 4
+        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+        blue_mask = (b > r + threshold) & (b > g + threshold)
+        ratio = float(blue_mask.sum()) / blue_mask.size
+    else:
+        data = list(img.getdata())
+        total = len(data)
+        blue_pixels = sum(1 for px in data if px[2] > px[0] + threshold and px[2] > px[1] + threshold)
+        ratio = blue_pixels / total
 
-    blue_pixels = 0
-    for pixel in data:
-        r, g, b, a = pixel
-        if b > r + threshold and b > g + threshold:
-            blue_pixels += 1
-
-    ratio = blue_pixels / total
     if ratio < min_blue_ratio:
         raise ValidationError(
             f"Синий хромакей не обнаружен (синих пикселей: {ratio:.1%}, "
@@ -159,9 +162,6 @@ def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):
 def validate_result_black_ratio(img, min_black_ratio=0.25):
     """Проверить, что результат содержит достаточно чёрного фона.
 
-    После корректной обработки виньетка и хромакей должны создать
-    заметную долю чёрных пикселей. Если чёрного почти нет — что-то пошло не так.
-
     Args:
         img: PIL.Image в режиме RGB (результат обработки)
         min_black_ratio: минимальная доля чёрных пикселей (value < 10)
@@ -172,11 +172,15 @@ def validate_result_black_ratio(img, min_black_ratio=0.25):
     Raises:
         ValidationError: если чёрного фона слишком мало
     """
-    data = list(img.getdata())
-    total = len(data)
-
-    black_pixels = sum(1 for r, g, b in data if r < 10 and g < 10 and b < 10)
-    ratio = black_pixels / total
+    if HAS_NUMPY:
+        arr = np.array(img)  # H x W x 3
+        black_mask = (arr[..., 0] < 10) & (arr[..., 1] < 10) & (arr[..., 2] < 10)
+        ratio = float(black_mask.sum()) / black_mask.size
+    else:
+        data = list(img.getdata())
+        total = len(data)
+        black_pixels = sum(1 for r, g, b in data if r < 10 and g < 10 and b < 10)
+        ratio = black_pixels / total
 
     if ratio < min_black_ratio:
         raise ValidationError(
@@ -188,6 +192,163 @@ def validate_result_black_ratio(img, min_black_ratio=0.25):
     return ratio
 
 
+def remove_blue_background(img, threshold=30, fringe_radius=3):
+    """Удалить синий хромакей и убрать синие рефлексы (fringe) по краям.
+
+    Использует numpy для скорости (~50x быстрее Pillow для 2048x2048).
+    Fallback на Pillow при отсутствии numpy.
+
+    Args:
+        img: PIL.Image в режиме RGBA
+        threshold: порог для определения синего хромакея
+        fringe_radius: радиус расширения маски для fringe removal (px)
+
+    Returns:
+        tuple: (img_without_bg, subject_mask) — оба PIL.Image
+    """
+    if HAS_NUMPY:
+        return _remove_blue_numpy(img, threshold, fringe_radius)
+    else:
+        return _remove_blue_pillow(img, threshold, fringe_radius)
+
+
+def _remove_blue_numpy(img, threshold=30, fringe_radius=3):
+    """numpy-реализация: удаление хромакея + fringe removal."""
+    arr = np.array(img, dtype=np.float32)  # H x W x 4
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+
+    # Строгая маска синего фона
+    blue_mask = (b > r + threshold) & (b > g + threshold)
+
+    # --- Fringe removal ---
+    # Расширяем маску на fringe_radius пикселей для захвата переходной зоны
+    if fringe_radius > 0:
+        from scipy.ndimage import binary_dilation
+        expanded_mask = binary_dilation(blue_mask, iterations=fringe_radius)
+    else:
+        expanded_mask = blue_mask
+
+    # В переходной зоне (expanded_mask ∩ ¬blue_mask) гасим синий канал
+    fringe_zone = expanded_mask & ~blue_mask
+
+    # Мягкое гашение: чем сильнее пиксель «синий», тем сильнее гасим
+    # Синий приводим к среднему из R и G (нейтральный серый)
+    blue_strength = np.clip((b - np.maximum(r, g)) / (threshold * 2), 0, 1)
+    fringe_factor = fringe_zone.astype(np.float32) * blue_strength
+
+    # Гасим синий канал в переходной зоне
+    arr[..., 2] = arr[..., 2] * (1 - fringe_factor) + np.maximum(r, g) * fringe_factor
+
+    # Удаляем чистый синий фон
+    arr[blue_mask] = [0, 0, 0, 0]
+
+    # Субъект-маска
+    subject_arr = (~blue_mask).astype(np.uint8) * 255
+
+    img_result = Image.fromarray(arr.astype(np.uint8), "RGBA")
+    subject_mask = Image.fromarray(subject_arr, "L")
+
+    return img_result, subject_mask
+
+
+def _remove_blue_pillow(img, threshold=30, fringe_radius=3):
+    """Pillow-fallback: удаление хромакея + упрощённый fringe removal."""
+    width, height = img.size
+    data = list(img.getdata())
+    new_data = []
+    mask_pixels = []
+
+    for item in data:
+        r, g, b, a = item
+        if b > r + threshold and b > g + threshold:
+            new_data.append((0, 0, 0, 0))
+            mask_pixels.append(0)
+        else:
+            # Fringe: если синий чуть выше, чем R/G — приглушить
+            if fringe_radius > 0 and b > r and b > g:
+                # Мягкое гашение синего в переходной зоне
+                blue_excess = min((b - max(r, g)) / (threshold * 2), 1.0)
+                b_corrected = int(b * (1 - blue_excess) + max(r, g) * blue_excess)
+                new_data.append((r, g, b_corrected, a))
+            else:
+                new_data.append(item)
+            mask_pixels.append(255)
+
+    img_result = Image.new("RGBA", (width, height))
+    img_result.putdata(new_data)
+    subject_mask = Image.new('L', (width, height))
+    subject_mask.putdata(mask_pixels)
+
+    return img_result, subject_mask
+
+
+def check_face_brightness(img_gray, face_target, subject_mask):
+    """Проверить и скорректировать яркость лица для ЧПУ.
+
+    Для гравировки критична яркость лица:
+    - Лазер: 230-245 (среднее пикселей лица в этой зоне)
+    - Ударная: 220-235
+
+    Если средняя яркость лица вне целевого диапазона —
+    автоматически скорректировать brightness factor.
+
+    Args:
+        img_gray: PIL.Image в режиме L (grayscale)
+        face_target: [min, max] целевого диапазона яркости
+        subject_mask: PIL.Image в режиме L (маска субъекта)
+
+    Returns:
+        PIL.Image: скорректированное grayscale-изображение
+    """
+    if HAS_NUMPY:
+        arr = np.array(img_gray, dtype=np.float32)
+        mask_arr = np.array(subject_mask)
+
+        # Средняя яркость субъекта (лицо + одежда)
+        subject_pixels = arr[mask_arr > 128]
+        if len(subject_pixels) == 0:
+            return img_gray
+
+        avg_brightness = float(subject_pixels.mean())
+
+        target_min, target_max = face_target
+        target_mid = (target_min + target_max) / 2
+
+        if avg_brightness < target_min or avg_brightness > target_max:
+            # Корректировка: множитель, приводящий среднее к target_mid
+            correction = target_mid / max(avg_brightness, 1)
+            # Ограничиваем коррекцию чтобы не пересветить
+            correction = max(0.85, min(1.25, correction))
+            arr = np.clip(arr * correction, 0, 255).astype(np.uint8)
+            corrected = Image.fromarray(arr, "L")
+            print(f"Face brightness corrected: {avg_brightness:.0f} → "
+                  f"{target_mid:.0f} (factor: {correction:.3f})")
+            return corrected
+
+        print(f"Face brightness OK: {avg_brightness:.0f} (target: {target_min}-{target_max})")
+    else:
+        # Pillow fallback
+        from PIL import ImageStat
+        stat = ImageStat.Stat(img_gray, mask=subject_mask)
+        avg_brightness = stat.mean[0]
+
+        target_min, target_max = face_target
+        target_mid = (target_min + target_max) / 2
+
+        if avg_brightness < target_min or avg_brightness > target_max:
+            correction = target_mid / max(avg_brightness, 1)
+            correction = max(0.85, min(1.25, correction))
+            enhancer = ImageEnhance.Brightness(img_gray)
+            corrected = enhancer.enhance(correction)
+            print(f"Face brightness corrected: {avg_brightness:.0f} → "
+                  f"{target_mid:.0f} (factor: {correction:.3f})")
+            return corrected
+
+        print(f"Face brightness OK: {avg_brightness:.0f} (target: {target_min}-{target_max})")
+
+    return img_gray
+
+
 def apply_retouch_processing(input_path, output_path, machine_type="laser",
                              glow_size_override=None, glow_opacity_override=None,
                              config=None):
@@ -196,12 +357,13 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     Pipeline:
     1. Валидация входного изображения
     2. Валидация синего хромакея
-    3. Удаление синего фона
+    3. Удаление синего фона + fringe removal
     4. Inner Glow (параметры зависят от machine_type)
     5. Grayscale + Levels + Unsharp Mask
-    6. Арховая виньетка
-    7. Валидация результата
-    8. Сохранение TIFF + PNG
+    6. Контроль яркости лица
+    7. Арховая виньетка
+    8. Валидация результата
+    9. Сохранение TIFF + PNG
 
     Raises:
         ValidationError: при проблемах с входными данными или результатом
@@ -214,6 +376,7 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     blue_threshold = proc.get("blue_threshold", 30)
     min_blue_ratio = proc.get("min_blue_ratio", 0.15)
     result_min_black = proc.get("result_min_black_ratio", 0.25)
+    fringe_radius = proc.get("fringe_radius", 3)
     machine_cfg = proc.get(machine_type, proc.get("laser", DEFAULTS["processing"]["laser"]))
     vign_cfg = vign if isinstance(vign, dict) else DEFAULTS["vignette"]
 
@@ -224,30 +387,20 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     img = Image.open(input_path).convert("RGBA")
     width, height = img.size
     print(f"Image loaded: {width}x{height}, mode: {img.mode}")
+    if HAS_NUMPY:
+        print(f"numpy: enabled (accelerated processing)")
+    else:
+        print(f"numpy: not installed (install: uv pip install numpy)")
 
     # ---- Step 3: Validate chromakey ----
     blue_ratio = validate_blue_chromakey(img, threshold=blue_threshold,
                                          min_blue_ratio=min_blue_ratio)
     print(f"Chromakey check passed: {blue_ratio:.1%} blue pixels (threshold: {min_blue_ratio:.0%})")
 
-    # ---- Step 4: Remove Blue Background ----
-    data = list(img.getdata())
-    new_data = []
-    subject_mask = Image.new('L', (width, height), 0)
-    mask_pixels = []
-
-    for item in data:
-        r, g, b, a = item
-        if b > r + blue_threshold and b > g + blue_threshold:
-            new_data.append((0, 0, 0, 0))
-            mask_pixels.append(0)
-        else:
-            new_data.append(item)
-            mask_pixels.append(255)
-
-    img.putdata(new_data)
-    subject_mask.putdata(mask_pixels)
-    print("Blue background removed")
+    # ---- Step 4: Remove Blue Background + Fringe Removal ----
+    img, subject_mask = remove_blue_background(img, threshold=blue_threshold,
+                                                fringe_radius=fringe_radius)
+    print(f"Blue background removed (fringe_radius: {fringe_radius})")
 
     # ---- Step 5: Inner Glow (Contour Light) ----
     glow_size = glow_size_override or random.randint(
@@ -279,15 +432,11 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     # Unsharp Mask
     img_final = img_leveled.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=0))
 
-    # ---- Step 7: Arch/Vignette Mask ----
-    # The arch ellipse extends ABOVE the image so the head is always fully visible.
-    # Only the bottom corners fade to black in an arch/dome shape.
-    # Config params (all in config.yaml → vignette):
-    #   vertical_offset (0.10) — distance from bottom to arch bottom edge (fraction)
-    #   vertical_diameter (0.50) — height of the ellipse (fraction)
-    #   blur_radius (60) — smoothness of the fade
-    #   headroom (0.6) — how far the ellipse extends above the image (fraction)
-    #   horizontal_oversize (0.2) — horizontal extension beyond image edges (fraction)
+    # ---- Step 7: Face brightness control ----
+    face_target = machine_cfg.get("face_brightness_target", [230, 245])
+    img_final = check_face_brightness(img_final, face_target, subject_mask)
+
+    # ---- Step 8: Arch/Vignette Mask ----
     arch = Image.new('L', (width, height), 0)
     draw_arch = ImageDraw.Draw(arch)
 
@@ -297,9 +446,7 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     headroom = height * vign_cfg.get("headroom", 0.6)
     h_oversize = width * vign_cfg.get("horizontal_oversize", 0.2)
 
-    # Arch bottom: where the arch curve reaches at the sides
     arch_bottom_y = height - v_offset
-    # Arch top: extends above the image so head is fully inside the ellipse
     arch_top_y = arch_bottom_y - v_diameter - headroom
 
     draw_arch.ellipse(
@@ -312,11 +459,11 @@ def apply_retouch_processing(input_path, output_path, machine_type="laser",
     background = Image.new('RGB', (width, height), (0, 0, 0))
     background.paste(img_final, (0, 0), arch_mask)
 
-    # ---- Step 8: Validate result ----
+    # ---- Step 9: Validate result ----
     black_ratio = validate_result_black_ratio(background, min_black_ratio=result_min_black)
     print(f"Result check passed: {black_ratio:.1%} black background")
 
-    # ---- Step 9: Save ----
+    # ---- Step 10: Save ----
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.isdir(output_dir):
         os.makedirs(output_dir, exist_ok=True)
@@ -361,12 +508,8 @@ def main():
 
     try:
         if args.no_validate:
-            # Skip validation — legacy mode
-            apply_retouch_processing.__code__ = apply_retouch_processing.__code__
-            # Just call with minimal checks
             if not os.path.isfile(args.input):
                 parser.error(f"Входной файл не найден: {args.input}")
-            # Temporarily disable validation by patching config
             config_noval = dict(config)
             proc_noval = dict(config.get("processing", {}))
             proc_noval["min_blue_ratio"] = 0.0

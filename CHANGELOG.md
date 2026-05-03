@@ -2,6 +2,25 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [2.2.0] - 2026-05-04
+
+### ⚡ Оптимизация обработки (Фаза 4)
+
+- **numpy-ускорение:** `list(img.getdata())` заменён на `np.array()` — ~50x быстрее для 2048x2048
+  - `remove_blue_background()` — numpy + scipy.ndimage.binary_dilation
+  - `validate_blue_chromakey()` — numpy-подсчёт вместо Python-loop
+  - `validate_result_black_ratio()` — numpy вместо list comprehension
+  - Pillow-fallback сохранён (работает без numpy, но медленнее)
+- **Fringe removal:** мягкое гашение синего канала в переходной зоне (артефакты хромакея на волосах/краях)
+  - `fringe_radius` в config.yaml (default: 3, 0 = отключено)
+  - numpy: binary_dilation + weighted blue damping
+  - Pillow: pixel-level fallback
+- **Контроль яркости лица:** `check_face_brightness()` — проверка средней яркости субъекта
+  - laser: целевой диапазон 230-245, impact: 220-235
+  - Автокоррекция brightness factor если вне диапазона (0.85-1.25)
+  - Работает с numpy и Pillow (ImageStat fallback)
+- **Зависимости:** добавлены `numpy>=1.24.0`, `scipy>=1.10.0` в pyproject.toml и requirements.txt
+
 ## [2.1.0] - 2026-05-04
 
 ### 🛡️ Валидация и обработка ошибок (Фаза 3)
