@@ -1,5 +1,6 @@
 {
   "order_id": "ORD-2026-000",
+  "crm_company_id": "",
   "client": {
     "name": "Имя Клиента",
     "contact": ""

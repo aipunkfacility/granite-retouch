@@ -1,4 +1,4 @@
 {
-  "project_name": "MEMORIAL",
-  "system_instructions": "### SYSTEM ARCHITECTURE & PATH OVERRIDE\n- Environment: Windows 10 LTSC 1809, Acer Aspire V5-471 (4GB RAM).\n- Python Core: 3.14 (managed via PyManager).\n- Mandatory Execution Path: C:\\\\Users\\\\Аня\\\\AppData\\\\Local\\\\Python\\\\pythoncore-3.14-64\\\\Scripts\\\\cli-anything-gimp.exe\n- GIMP Location: F:\\\\GIMP 2\\\\bin\\\\gimp-2.10.exe\n- Strategy: Headless mode via JSON-payloads for Gabbro granite engraving."
+  "project_name": "granite-retouch",
+  "system_instructions": "### SYSTEM ARCHITECTURE\n- Environment: Windows 10 LTSC 1809\n- Python Core: 3.14 (managed via PyManager)\n- GIMP: external application, found via config.yaml or GIMP_PATH env var\n- Strategy: Headless mode via JSON-payloads for Gabbro granite engraving"
 }

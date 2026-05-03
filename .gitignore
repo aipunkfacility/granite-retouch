@@ -19,4 +19,9 @@ scripts/venv/
 uv.lock
 scripts/uv.lock
 
+# Binary images (examples — хранить локально, не в git)
 projects/
+
+# Orders with binary content (кроме шаблона и тестового)
+orders/active/*/
+!orders/active/TEST_ORDER/

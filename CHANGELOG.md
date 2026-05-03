@@ -1,6 +1,31 @@
 # Changelog
 
-Все заметные изменения в проекте MEMORIAL фиксируются в этом файле.
+Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
+
+## [2.0.0] - 2026-05-04
+
+### 🔄 Миграция
+
+- Проект переименован: MEMORIAL → granite-retouch
+- funeral-scraper удалён из документации (функции перенесены в granite-crm)
+- `.agents/skills/` переименованы: memorial-* → retouch-*
+- `memorial_process.scm` → `retouch_process.scm`
+- `prepare_vignette.py`: функция `apply_memorial_processing` → `apply_retouch_processing`
+- `run_gimp.bat` → `run_gimp.py` (Python CLI с автопоиском GIMP)
+- Удалены `vibe.bat`, `projects/`, `sdk_page_reader_agent_guide.md`, `cities_russia_500k.md`
+
+### 🐛 Исправления
+
+- **prepare_vignette.py:** параметр `machine_type` теперь реально используется — impact и laser имеют разные параметры Inner Glow и яркости
+- **retouch_process.scm:** виньетка масштабируется по размеру изображения (вместо захардкоженных 400/800 px)
+- **retouch_process.scm:** добавлен параметр `machine-type` для дифференциации Inner Glow (shrink, feather, opacity)
+
+### ✨ Новые возможности
+
+- **prepare_vignette.py:** CLI через argparse (`--input`, `--output`, `--machine`, `--glow-size`, `--glow-opacity`)
+- **run_gimp.py:** Python-скрипт с автопоиском GIMP по стандартным путям и env var `GIMP_PATH`
+- **orders/schema.json:** добавлен `pattern` для `order_id`, `enum` для `clothing_style`/`headgear`/`face_quality`, поле `crm_company_id`
+- **.gitignore:** защита от попадания бинарников из orders/active/
 
 ## [1.2.0] - 2026-03-14
 

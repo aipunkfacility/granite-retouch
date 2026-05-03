@@ -1,9 +1,9 @@
 ---
-name: memorial-prompter
+name: retouch-prompter
 description: Собирает финальный промпт для генерации на основе данных из order.json и prompt_blocks.
 ---
 
-# Memorial Prompter Skill
+# Retouch Prompter Skill
 
 Вы — мастер промпт-инжиниринга. Ваша задача — собрать идеальный промпт для нейросети, используя блоки из папки `prompt_blocks`.
 

@@ -1,20 +1,20 @@
-# AI-to-CNC Memorial Retouching (Agentic Workflow)
+# granite-retouch — AI-ретушь портретов для гравировки на памятниках
 
-## 📌 О проекте
+## О проекте
 
 Система автоматизированной подготовки и ретуши портретов для гравировальных станков по камню (габбро/гранит) с использованием мультиагентного ИИ-пайплайна в среде **Google Antigravity IDE**.
 
 Главная проблема отрасли: генеративные нейросети создают "мягкие" изображения, которые плохо гравируются. Система решает это через разделение задач между специализированными ИИ-агентами (Skills) и техническую постобработку.
 
-## 🤖 Агентная архитектура (Antigravity Skills)
+## Агентная архитектура (Antigravity Skills)
 
 Процесс полностью структурирован и проходит через следующих агентов:
 
-1. **[Analyzer Agent](.agents/skills/memorial-analyzer/SKILL.md):**
+1. **[Analyzer Agent](.agents/skills/retouch-analyzer/SKILL.md):**
    * Анализирует исходное фото (`source.jpg`).
    * *Выход:* Редактирует `order.json`, заполняя профиль заказа (тип одежды, дефекты, качество лица).
 
-2. **[Prompter Agent](.agents/skills/memorial-prompter/SKILL.md):**
+2. **[Prompter Agent](.agents/skills/retouch-prompter/SKILL.md):**
    * Читает JSON-профиль и тип станка.
    * Собирает финальный промпт из атомарных блоков в `prompt_blocks/`.
    * *Выход:* Готовый промпт для генерации в Nano Banana.
@@ -22,23 +22,22 @@
 3. **Generation Step (Manual):**
    * Оператор выполняет генерацию строго на синем хромакее (`#0000FF`).
 
-4. **[Post-Processing Step](.agents/skills/memorial-postprocessing/CHECKLIST.md):**
+4. **[Post-Processing Step](.agents/skills/retouch-postprocessing/CHECKLIST.md):**
    * Ретушер в Photoshop по строгому чек-листу выполняет техническую подготовку файла.
 
-## 📂 Структура проекта
+## Структура проекта
 
 * `.agents/skills/` — Инструкции для ИИ-агентов Antigravity.
-  * `memorial-prompter/prompt_blocks/` — Библиотека фрагментов промптов (одежда, станки и т.д.).
+  * `retouch-prompter/prompt_blocks/` — Библиотека фрагментов промптов (одежда, станки и т.д.).
 * `knowledge/` — База знаний по технологиям гравировки.
   * `machines/` — Специфика [Лазерных](knowledge/machines/laser.md) и [Ударных](knowledge/machines/impact.md) станков.
   * [principles.md](knowledge/principles.md) — Фундаментальные принципы (синий фон, резкость).
 * `orders/` — Система учета заказов.
   * `schema.json` — Единый стандарт данных.
   * `template/` — Шаблон нового заказа.
-* `funeral-agency-db/` — База ритуальных агентств и производителей памятников для поиска подрядчиков (ретушеров).
 * `workflow.md` — Интерактивный навигатор по системе.
 
-## ⚙️ Базовые принципы
+## Базовые принципы
 
 * **Синий хромакей:** Все генерации идут на фоне `Solid Deep Blue (#0000FF)` для чистой вырезки.
 * **Идентичность:** Строгий запрет на изменение геометрии лица.

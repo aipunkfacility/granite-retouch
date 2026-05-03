@@ -78,7 +78,7 @@ $out  = "orders\active\ORD-XXXX\final.tiff"
 
 Для сложного постобработки (удаление синего хромакея, полукруглый вырез "Memorial Arch", Inner Glow) используется скрипт `prepare_vignette.py`.
 
-**Скрипт:** `./prepare_vignette.py` (в корне проекта MEMORIAL)
+**Скрипт:** `./prepare_vignette.py` (в корне проекта granite-retouch)
 
 Установка Pillow (если не установлен):
 ```powershell
@@ -118,8 +118,8 @@ C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe -c "from PIL 
 Если cli-anything-gimp падает с MemoryError (4ГБ ОЗУ не хватает
 при рендере сложных масок), вся логика переносится в .scm-скрипт:
 
-Скрипт размещается в: `memorial_process.scm`
-Запуск через bat-обертку: `run_gimp.bat`
+Скрипт размещается в: `retouch_process.scm`
+Запуск через: `python run_gimp.py -i <input> -o <output> -m <laser|impact>`
 
 Причина: GIMP использует GEGL и файл подкачки Windows (swap) как буфер,
 поэтому не падает при нехватке ОЗУ там, где Python+Pillow не справляется.
@@ -136,4 +136,4 @@ C:\Users\Аня\AppData\Local\Python\pythoncore-3.14-64\python.exe -c "from PIL 
 | `Error: Neither GIMP nor Pillow available` | Не задан `GIMP_EXECUTABLE` | Установить переменную окружения |
 | `MemoryError` при рендере | 4ГБ ОЗУ, Pillow загружает всё в RAM | Перейти на Script-Fu режим |
 | `Error reading string` в gimp-console | Кавычки не правильно экранированы в PS | Завернуть команду в .bat-файл |
-| `unbound variable: memorial-process-order` | Функция не загружена в ту же сессию | Свернуть load и вызов в один `(begin ...)` |
+| `unbound variable: retouch-process-order` | Функция не загружена в ту же сессию | Свернуть load и вызов в один `(begin ...)` |

@@ -1,9 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Memorial Order",
+  "title": "granite-retouch Order",
   "type": "object",
   "properties": {
-    "order_id": { "type": "string" },
+    "order_id": { "type": "string", "pattern": "^ORD-\\d{4}-\\d{3}$" },
+    "crm_company_id": { "type": "string", "description": "ID компании в granite-crm (опционально)" },
     "client": {
       "type": "object",
       "properties": {
@@ -21,15 +22,21 @@
     "analyzer_output": {
       "type": "object",
       "properties": {
-        "clothing_style": { "type": "string" },
+        "clothing_style": { "type": "string", "enum": ["civilian", "military", "preserve"] },
         "fabric_type": { "type": "string" },
-        "headgear": { "type": "string" },
-        "face_quality": { "type": "string" },
+        "headgear": { "type": "string", "enum": ["none", "cap", "preserve"] },
+        "face_quality": { "type": "string", "enum": ["high", "medium", "low"] },
         "defects": { "type": "array", "items": { "type": "string"} }
       }
     },
     "final_prompt": { "type": "string" },
     "generated_image": { "type": "string" },
+    "postprocessing": {
+      "type": "object",
+      "properties": {
+        "gimp_processed": { "type": "string" }
+      }
+    },
     "final_file": { "type": "string" },
     "created_at": { "type": "string", "format": "date-time" },
     "notes": { "type": "string" }

@@ -2,7 +2,7 @@
 
 ## Обзор проекта
 
-MEMORIAL — система автоматизации подготовки промптов для генерации портретов,
+granite-retouch — система автоматизации подготовки промптов для генерации портретов,
 предназначенных для гравировки на станках по камню (габбро/гранит).
 
 **Важно:** Агенты генерируют только текстовые промпты для Nano Banana,
@@ -15,33 +15,38 @@ MEMORIAL — система автоматизации подготовки пр
 ## Структура проекта
 
 ```
-MEMORIAL/
-├── .agents/skills/           # ИИ-агенты (Antigravity Skills)
-│   ├── memorial-analyzer/    # Агент анализа фото
-│   ├── memorial-prompter/    # Агент создания промптов
-│   │   └── prompt_blocks/    # Промпт-блоки для сборки
+granite-retouch/
+├── .agents/skills/              # ИИ-агенты (Antigravity Skills)
+│   ├── retouch-analyzer/        # Агент анализа фото
+│   ├── retouch-prompter/        # Агент создания промптов
+│   │   └── prompt_blocks/       # Промпт-блоки для сборки
 │   │       ├── base.md
 │   │       ├── laser.md
 │   │       ├── impact.md
 │   │       ├── clothing/
 │   │       └── headgear/
-│   └── memorial-postprocessing/ # Чек-лист постобработки
-├── guides/                    # Руководства
-│   ├── cli-anything-gimp.md  # Воркфлоу постобработки
-│   └── nano_banana_guide.md  # Генерация изображений
-├── knowledge/                # База знаний
-│   ├── machines/             # Специфика станков
-│   │   ├── laser.md         # Лазерные станки
-│   │   └── impact.md        # Ударные станки
-│   └── principles.md        # Принципы гравировки
-├── orders/                  # Система учета заказов
-│   ├── schema.json           # JSON-схема заказа
-│   ├── template/             # Шаблон нового заказа
-│   └── active/               # Активные заказы
-├── prepare_vignette.py       # Скрипт виньетирования
-├── memorial_process.scm      # GIMP Script-Fu (запасной)
-├── run_gimp.bat              # Запуск GIMP скрипта
-└── projects/                 # Примеры работ (в gitignore)
+│   └── retouch-postprocessing/  # Чек-лист постобработки
+├── .antigravity/                # Конфигурация Antigravity IDE
+├── guides/                      # Руководства
+│   ├── cli-anything-gimp.md     # Воркфлоу постобработки
+│   ├── nano_banana_guide.md     # Генерация изображений
+│   └── style_guide_laser.md     # Лазерный стиль
+├── knowledge/                   # База знаний
+│   ├── machines/                # Специфика станков
+│   │   ├── laser.md             # Лазерные станки
+│   │   └── impact.md            # Ударные станки
+│   └── principles.md            # Принципы гравировки
+├── orders/                      # Система учета заказов
+│   ├── schema.json              # JSON-схема заказа
+│   ├── template/                # Шаблон нового заказа
+│   └── active/                  # Активные заказы
+├── prepare_vignette.py          # Скрипт виньетирования
+├── retouch_process.scm          # GIMP Script-Fu (запасной)
+├── run_gimp.py                  # Запуск GIMP скрипта
+├── AGENTS.md
+├── CHANGELOG.md
+├── README.md
+└── workflow.md
 ```
 
 ## Команды
@@ -121,7 +126,7 @@ markdownlint orders/
 
 ## Работа с агентами
 
-### memorial-analyzer
+### retouch-analyzer
 
 **Назначение:** Анализ исходного фото и заполнение профиля заказа.
 
@@ -142,7 +147,7 @@ markdownlint orders/
 3. Запустить агент для анализа
 4. Скопировать результат в поле analyzer_output
 
-### memorial-prompter
+### retouch-prompter
 
 **Назначение:** Сборка финального промпта из атомарных блоков.
 
@@ -166,9 +171,9 @@ markdownlint orders/
 - Высокое разрешение: `8k, high resolution`
 - Стиль гравировки: `engraving style, stone carving`
 
-**Расположение блоков:** `.agents/skills/memorial-prompter/prompt_blocks/`
+**Расположение блоков:** `.agents/skills/retouch-prompter/prompt_blocks/`
 
-### memorial-postprocessing
+### retouch-postprocessing
 
 **Назначение:** Чек-лист для технической подготовки файла в Photoshop.
 
@@ -180,11 +185,10 @@ markdownlint orders/
 
 1. **cli-anything-gimp** — преобразование в ЧБ, резкость, контраст
 2. **prepare_vignette.py** — удаление хромакея, виньетирование, финальная обработка
-3. Скопировать `prepare_vignette.py` из корня проекта в папку заказа
-4. Запустить: `python orders/active/ORD-XXXX-XXX/prepare_vignette.py`
-5. Проверить результат в `generated/final_vignette.tiff`
+3. Запустить: `python prepare_vignette.py -i <input> -o <output> -m <laser|impact>`
+4. Проверить результат в `generated/final_vignette.tiff`
 
-**Опционально:** GIMP-скрипт `memorial_process.scm` (запасной вариант).
+**Опционально:** GIMP-скрипт `retouch_process.scm` через `python run_gimp.py`.
 
 **См. подробнее:** `guides/cli-anything-gimp.md`
 
@@ -195,43 +199,7 @@ markdownlint orders/
 - [ ] Воротник чёткий
 - [ ] Края плавные
 
-### funeral-scraper
-
-**Назначение:** Сбор базы ритуальных агентств и производителей памятников по городам России для поиска подрядчиков (ретушеров).
-
-**Приоритет контактов:**
-- **Telegram** — ссылка t.me/username
-- **WhatsApp** — ссылка wa.me/79xxxxxxxxx
-- **Email**
-- **Телефон**
-
-**Входные данные:**
-- Название города от пользователя
-
-**Выходные данные:**
-- Файлы в `funeral-agency-db/cities/{city}/`:
-  - `data.md` — собранные данные о компаниях
-  - `summary.md` — саммари с таблицей контактов
-  - `report.md` — отчёт с рекомендациями
-
-**Процесс работы:**
-1. Создать папку `cities/{city}/`
-2. Найти организации в справочниках (2GIS, Яндекс, Yell.ru, JSprav.ru)
-3. Для каждой организации собрать контакты
-4. Для КАЖДОГО номера найти Telegram и WhatsApp
-5. Записать полные ссылки в формате t.me, wa.me
-6. Создать summary.md и report.md
-7. Показать результат и ждать подтверждения
-
-**Поиск аккаунтов по номеру (ОБЯЗАТЕЛЬНО):**
-```
-"{номер}" Telegram
-"{номер}" WhatsApp
-```
-
-Примеры:
-- `+7 903 955 81 17 Telegram` → t.me/evlitos
-- `8 937 821 77 77 WhatsApp` → wa.me/79378217777
+> **Скрапинг ритуальных агентств** — см. [granite-crm](https://github.com/aipunkfacility/granite-crm)
 
 ## Соглашения об именовании
 
@@ -249,21 +217,11 @@ markdownlint orders/
 orders/active/ORD-2026-001/
 ├── order.json           # Данные заказа
 ├── prompt.md            # Чистый промпт для копирования
-├── prepare_vignette.py  # Скрипт постобработки (копия из корня проекта)
 └── generated/          # Все изображения
     ├── source.jpg           # Исходное фото
     ├── ai.png               # Нейро-ретушь (синий фон)
     ├── final_vignette.tiff  # Готовый файл (черный фон)
     └── final_vignette.png   # Превью
-```
-
-### Папки городов (funeral-agency-db)
-
-```
-funeral-agency-db/cities/saratov/
-├── data.md         # Все компании с контактами
-├── summary.md      # Таблица контактов
-└── report.md       # Рекомендации
 ```
 
 ### Изображения
@@ -290,7 +248,7 @@ funeral-agency-db/cities/saratov/
 1. Создать тестовый заказ в `orders/active/TEST_ORDER/`
 2. Запустить полный цикл: analyzer → prompter
 3. Проверить итоговый промпт вручную в Nano Banana
-4. При необходимости — корректировать блоки в `.agents/skills/memorial-prompter/prompt_blocks/`
+4. При необходимости — корректировать блоки в `.agents/skills/retouch-prompter/prompt_blocks/`
 
 ## Рекомендации по работе
 
@@ -304,7 +262,7 @@ funeral-agency-db/cities/saratov/
 ### Работа с промптами
 
 1. Сначала определить тип станка (laser/impact)
-2. Выбрать соответствующий блок из `.agents/skills/memorial-prompter/prompt_blocks/`
+2. Выбрать соответствующий блок из `.agents/skills/retouch-prompter/prompt_blocks/`
 3. Проверить наличие всех необходимых модификаторов
 4. Добавить `engraving-ready` если станок ударный
 
@@ -314,13 +272,6 @@ funeral-agency-db/cities/saratov/
 2. Лицо должно быть в фокусе, без размытия
 3. Освещение равномерное, без глубоких теней
 
-### Работа с funeral-agency-db
-
-1. Приоритет — Telegram: всегда искать полную ссылку t.me
-2. Формат WhatsApp: wa.me/номер (без пробелов)
-3. Не придумывать данные — только факты из источников
-4. Проверять актуальность ссылок
-
 ---
 
-Обновлено: 2026-03-29
+Обновлено: 2026-05-04
