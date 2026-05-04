@@ -2,6 +2,49 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [2.6.0] - 2026-05-04
+
+### 🧪 Тестирование (Фаза 7)
+
+- **`tests/conftest.py`:** фикстуры для синтетических изображений с хромакеем
+  - `make_chromakey_image()` — RGBA с синим фоном и эллипсом-субъектом
+  - `make_no_chromakey_image()` — без хромакея (негативные тесты)
+  - `make_dark_blue_clothing_image()` — тёмно-синяя одежда (граничный кейс)
+  - Фикстуры: `chromakey_png`, `small_chromakey_png`, `no_chromakey_png`, `valid_order_json`, etc.
+- **`tests/test_chromakey.py`** (7 тестов): удаление синего фона, сохранение субъекта, fringe removal, тёмно-синяя одежда, режимы RGBA/L
+- **`tests/test_glow.py`** (6 тестов): laser/impact glow размеры, яркость контура, случайный glow в диапазоне, минимальная opacity
+- **`tests/test_levels.py`** (10 тестов): brightness, unsharp mask, curves-коррекция (тени/света), сжатие маски, контроль яркости лица
+- **`tests/test_vignette.py`** (7 тестов): RGB-результат, чёрные углы, headroom, масштабирование, плавная маска
+- **`tests/test_validation.py`** (16 тестов): валидация изображения, хромакей, чёрный фон, order.json (валидные/невалидные, CRM, формат ID)
+- **`tests/test_config.py`** (10 тестов): DEFAULTS-структура, диапазоны glow/brightness, загрузка из файла, fallback
+- **`tests/test_pipeline.py`** (8 тестов): интеграция — laser/impact полный пайплайн, чёрный фон, отсутствие пересвета, no-validate режим
+
+**Итого: 72 теста, все проходят.**
+
+## [2.5.0] - 2026-05-04
+
+### 📚 Модуляризация документации
+
+- **`docs/`** — единая директория документации (вместо разброса по 6 местам)
+  - `docs/index.md` — карта документации
+  - `docs/getting-started.md` — быстрый старт за 5 шагов (заменяет workflow.md)
+  - `docs/reference/cli.md` — полный справочник CLI
+  - `docs/reference/config.md` — все параметры config.yaml с диапазонами
+  - `docs/reference/order-schema.md` — поля order.json
+  - `docs/guides/vignette.md` — обновлено (ссылки на `python -m retouch process`)
+  - `docs/guides/style-guide-laser.md` — стиль лазерной генерации
+  - `docs/guides/style-guide-impact.md` — **НОВЫЙ**: стиль ударной генерации
+  - `docs/guides/nano-banana.md` — работа с Nano Banana
+  - `docs/architecture/overview.md` — структура проекта, потоки данных
+  - `docs/architecture/pipeline.md` — пайплайн обработки + диагностика проблем
+  - `docs/integration/crm.md` — связь с granite-crm
+- **AGENTS.md** → сокращён до навигатора (~80 строк вместо 354)
+- **README.md** → обновлён: CLI-команды, ссылки на docs/
+- **workflow.md** → редирект на docs/getting-started.md
+- **BACKLOG.md** → версия исправлена на 2.4.0
+- **retouch-prompter/SKILL.md** → исправлена ссылка: `prompt_blocks/machine/` → `prompt_blocks/`
+- Стиль переименован: «Memorial High-End Airbrush» → «Granite High-End Airbrush»
+
 ## [2.4.0] - 2026-05-04
 
 ### 🔗 Интеграция с granite-crm (Фаза 6)

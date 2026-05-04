@@ -1,0 +1,230 @@
+"""Общие фикстуры для тестов granite-retouch.
+
+Создаёт синтетические PNG-изображения с синим хромакеем
+для воспроизводимого тестирования без реальных фото.
+"""
+
+import json
+import os
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import pytest
+from PIL import Image
+
+
+# ---------------------------------------------------------------------------
+# Синтетические изображения
+# ---------------------------------------------------------------------------
+
+def make_chromakey_image(width=512, height=512,
+                         subject_color=(180, 140, 120),
+                         bg_color=(0, 0, 255)):
+    """Создать синтетическое RGBA-изображение с синим хромакеем.
+
+    Центральный эллипс — «субъект», остальное — синий фон #0000FF.
+
+    Returns:
+        tuple: (PIL.Image RGBA, subject_mask L)
+    """
+    arr = np.zeros((height, width, 4), dtype=np.uint8)
+    mask = np.zeros((height, width), dtype=np.uint8)
+
+    # Синий фон
+    arr[..., 0] = bg_color[0]
+    arr[..., 1] = bg_color[1]
+    arr[..., 2] = bg_color[2]
+    arr[..., 3] = 255
+
+    # Эллипс-субъект в центре (60% ширины, 70% высоты)
+    cx, cy = width // 2, height // 2
+    rx, ry = int(width * 0.30), int(height * 0.35)
+
+    y_coords, x_coords = np.ogrid[:height, :width]
+    ellipse = ((x_coords - cx) / rx) ** 2 + ((y_coords - cy) / ry) ** 2 <= 1.0
+
+    arr[ellipse, 0] = subject_color[0]
+    arr[ellipse, 1] = subject_color[1]
+    arr[ellipse, 2] = subject_color[2]
+    arr[ellipse, 3] = 255
+    mask[ellipse] = 255
+
+    img = Image.fromarray(arr, "RGBA")
+    subject_mask = Image.fromarray(mask, "L")
+    return img, subject_mask
+
+
+def make_no_chromakey_image(width=512, height=512):
+    """Изображение БЕЗ синего хромакея — для негативных тестов."""
+    arr = np.full((height, width, 4), [120, 100, 80, 255], dtype=np.uint8)
+    return Image.fromarray(arr, "RGBA")
+
+
+def make_small_image(width=100, height=100):
+    """Маленькое изображение с хромакеем (ниже min_resolution)."""
+    return make_chromakey_image(width, height)
+
+
+def make_dark_blue_clothing_image(width=512, height=512):
+    """Изображение с тёмно-синей «одеждой» — не должна удаляться как хромакей.
+
+    Верхняя треть — субъект (кожа), нижняя треть — тёмно-синяя одежда (B=80),
+    остальное — хромакей #0000FF.
+    """
+    arr = np.zeros((height, width, 4), dtype=np.uint8)
+
+    # Синий хромакей
+    arr[..., 0] = 0
+    arr[..., 1] = 0
+    arr[..., 2] = 255
+    arr[..., 3] = 255
+
+    # Субъект — верхняя треть (кожа)
+    arr[:height // 3, :, 0] = 180
+    arr[:height // 3, :, 1] = 140
+    arr[:height // 3, :, 2] = 120
+
+    # Тёмно-синяя одежда — нижняя треть
+    # B=80, R=30, G=40 — НЕ хромакей (B - R = 50, но B не > R + 80)
+    # С threshold=30: B(80) > R(30)+30=60 → да, B(80) > G(40)+30=70 → да
+    # Это граничный случай — с threshold=30 тёмно-синяя одежда МОЖЕТ попасть в маску
+    # Но с threshold=60 — уже нет
+    arr[2 * height // 3:, :, 0] = 30
+    arr[2 * height // 3:, :, 1] = 40
+    arr[2 * height // 3:, :, 2] = 80
+
+    return Image.fromarray(arr, "RGBA")
+
+
+# ---------------------------------------------------------------------------
+# Фикстуры pytest
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def chromakey_img():
+    """Синтетическое изображение с синим хромакеем."""
+    img, mask = make_chromakey_image()
+    return img, mask
+
+
+@pytest.fixture
+def no_chromakey_img():
+    """Изображение без синего хромакея."""
+    return make_no_chromakey_image()
+
+
+@pytest.fixture
+def small_chromakey_img():
+    """Маленькое изображение с хромакеем (100x100)."""
+    return make_chromakey_image(100, 100)
+
+
+@pytest.fixture
+def dark_blue_clothing_img():
+    """Изображение с тёмно-синей одеждой."""
+    return make_dark_blue_clothing_image()
+
+
+@pytest.fixture
+def tmp_output_dir(tmp_path):
+    """Временная директория для выходных файлов."""
+    out = tmp_path / "output"
+    out.mkdir()
+    return out
+
+
+@pytest.fixture
+def chromakey_png(tmp_path, chromakey_img):
+    """Сохранить chromakey-изображение как PNG и вернуть путь."""
+    img, _ = chromakey_img
+    p = tmp_path / "test_input.png"
+    img.save(str(p), "PNG")
+    return str(p)
+
+
+@pytest.fixture
+def small_chromakey_png(tmp_path, small_chromakey_img):
+    """Маленький PNG (100x100) для тестов валидации разрешения."""
+    img, _ = small_chromakey_img
+    p = tmp_path / "small_input.png"
+    img.save(str(p), "PNG")
+    return str(p)
+
+
+@pytest.fixture
+def no_chromakey_png(tmp_path, no_chromakey_img):
+    """PNG без хромакея для негативных тестов."""
+    img = no_chromakey_img
+    p = tmp_path / "no_chroma.png"
+    img.save(str(p), "PNG")
+    return str(p)
+
+
+@pytest.fixture
+def default_config():
+    """Конфигурация DEFAULTS из retouch.config."""
+    from retouch.config import DEFAULTS
+    return DEFAULTS
+
+
+@pytest.fixture
+def laser_config(default_config):
+    """Конфигурация с laser-параметрами."""
+    return default_config
+
+
+@pytest.fixture
+def impact_config(default_config):
+    """Конфигурация с impact-параметрами."""
+    return default_config
+
+
+@pytest.fixture
+def schema_path():
+    """Путь к orders/schema.json."""
+    return str(Path(__file__).resolve().parent.parent / "orders" / "schema.json")
+
+
+@pytest.fixture
+def valid_order_json(tmp_path, schema_path):
+    """Создать валидный order.json и вернуть путь."""
+    order = {
+        "order_id": "ORD-2026-042",
+        "machine_type": "laser",
+        "source_photo": "source.jpg",
+        "status": "new",
+    }
+    p = tmp_path / "order.json"
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(order, f, indent=2, ensure_ascii=False)
+    return str(p)
+
+
+@pytest.fixture
+def invalid_order_json(tmp_path):
+    """Создать невалидный order.json (нет обязательных полей)."""
+    order = {
+        "order_id": "BAD-ID",
+        # Нет machine_type, source_photo, status
+    }
+    p = tmp_path / "bad_order.json"
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(order, f, indent=2, ensure_ascii=False)
+    return str(p)
+
+
+@pytest.fixture
+def order_with_crm(tmp_path, schema_path):
+    """Заказ с привязкой к CRM."""
+    order = {
+        "order_id": "ORD-2026-007",
+        "crm_company_id": "CMP-0042",
+        "machine_type": "impact",
+        "source_photo": "source.jpg",
+        "status": "done",
+    }
+    p = tmp_path / "order_crm.json"
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(order, f, indent=2, ensure_ascii=False)
+    return str(p)
