@@ -1,353 +1,86 @@
-# AGENTS.md — Руководство для ИИ-агентов
+# AGENTS.md — Навигатор для ИИ-агентов
 
-## Обзор проекта
+## Обзор
 
-granite-retouch — система автоматизации подготовки промптов для генерации портретов,
-предназначенных для гравировки на станках по камню (габбро/гранит).
+granite-retouch — система автоматизации подготовки промптов для генерации портретов, предназначенных для гравировки на станках по камню (габбро/гранит).
 
-**Важно:** Агенты генерируют только текстовые промпты для Nano Banana,
-а не изображения напрямую. Генерация выполняется оператором вручную.
+**Важно:** Агенты генерируют только текстовые промпты для Nano Banana, а не изображения напрямую. Генерация выполняется оператором вручную.
 
-Основные форматы файлов:
-- Markdown (.md) — документация, скилы агентов, промпт-блоки
-- JSON (.json) — схемы данных, заказы
+## Документация
 
-## Структура проекта
+Полная документация в `docs/`. См. [docs/index.md](docs/index.md).
 
-```
-granite-retouch/
-├── .agents/skills/              # ИИ-агенты (Antigravity Skills)
-│   ├── retouch-analyzer/        # Агент анализа фото
-│   ├── retouch-prompter/        # Агент создания промптов
-│   │   └── prompt_blocks/       # Промпт-блоки для сборки
-│   │       ├── base.md
-│   │       ├── laser.md
-│   │       ├── impact.md
-│   │       ├── clothing/
-│   │       └── headgear/
-│   └── retouch-postprocessing/  # Чек-лист постобработки
-├── .antigravity/                # Конфигурация Antigravity IDE
-├── guides/                      # Руководства
-│   ├── cli-anything-gimp.md     # Воркфлоу постобработки
-│   ├── nano_banana_guide.md     # Генерация изображений
-│   └── style_guide_laser.md     # Лазерный стиль
-├── knowledge/                   # База знаний
-│   ├── machines/                # Специфика станков
-│   │   ├── laser.md             # Лазерные станки
-│   │   └── impact.md            # Ударные станки
-│   └── principles.md            # Принципы гравировки
-├── orders/                      # Система учета заказов
-│   ├── schema.json              # JSON-схема заказа
-│   ├── template/                # Шаблон нового заказа
-│   └── active/                  # Активные заказы
-├── retouch/                     # Python-пакет
-│   ├── __init__.py
-│   ├── __main__.py              # python -m retouch
-│   ├── cli.py                   # CLI (process, validate, gimp, order)
-│   ├── config.py                # Загрузка config.yaml
-│   ├── processing/              # Модули обработки
-│   │   ├── chromakey.py         # Удаление синего фона
-│   │   ├── glow.py              # Inner Glow
-│   │   ├── levels.py            # Levels + Brightness + Unsharp
-│   │   ├── vignette.py          # Арховая виньетка
-│   │   └── pipeline.py          # Полный пайплайн
-│   ├── gimp/                    # GIMP-интеграция (experimental)
-│   │   └── runner.py            # Поиск и запуск GIMP
-│   └── validation/              # Валидация
-│       ├── image.py             # Валидация изображения
-│       └── order.py             # Валидация order.json
-├── config.yaml                  # Параметры обработки
-├── pyproject.toml               # Пакетная конфигурация
-├── Makefile                     # Команды сборки
-├── BACKLOG.md                   # Product backlog
-├── AGENTS.md
-├── CHANGELOG.md
-├── README.md
-└── workflow.md
-```
+Ключевые документы:
+- [docs/getting-started.md](docs/getting-started.md) — 5 шагов от заказа до файла
+- [docs/reference/cli.md](docs/reference/cli.md) — все команды `retouch` CLI
+- [docs/reference/config.md](docs/reference/config.md) — все параметры config.yaml
+- [docs/architecture/pipeline.md](docs/architecture/pipeline.md) — пайплайн обработки
 
-## Команды
+## ИИ-агенты (Antigravity Skills)
 
-### Валидация JSON
+| Агент | SKILL.md | Назначение |
+|-------|----------|------------|
+| retouch-analyzer | `.agents/skills/retouch-analyzer/SKILL.md` | Анализ фото → `analyzer_output` в order.json |
+| retouch-prompter | `.agents/skills/retouch-prompter/SKILL.md` | Сборка промпта из блоков → `prompt.md` |
+| retouch-postprocessing | `.agents/skills/retouch-postprocessing/CHECKLIST.md` | Чек-лист Photoshop |
+
+## Быстрые команды
 
 ```bash
-# Проверка синтаксиса JSON (Node.js)
-node -e "JSON.parse(require('fs').readFileSync('путь/к/файлу.json'))"
-
-# Валидация по схеме (требует ajv)
-npx ajv validate -s orders/schema.json -d orders/active/*/order.json
-```
-
-### Полезные команды
-
-```bash
-# Создание нового заказа (CLI)
-python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
-
-# Список активных заказов
-python -m retouch order list
-
-# Валидация заказа
-python -m retouch order validate ORD-2026-042
-
 # Обработка портрета
-python -m retouch process -i input.png -o output.tiff -m laser
+python -m retouch process -i ai.png -o final.tiff -m laser
+
+# Управление заказами
+python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
+python -m retouch order list
+python -m retouch order validate ORD-2026-042
 ```
-
-## Стиль кода
-
-### Markdown
-
-- **Длина строки:** 100 символов максимум
-- **Язык:** русский (предпочтительно для документации)
-- **Заголовки:** иерархия h1 → h2 → h3, один h1 на файл
-- **Списки:** маркированные с дефисом, вложенные — 2 пробела отступа
-- **Код:** обратные кавычки для команд и путей
-- **Ссылки:** относительные для внутренних файлов
-
-Пример:
-
-```markdown
-# Заголовок первого уровня
-
-Описание раздела. Максимальная длина строки — 100 символов.
-
-## Подраздел
-
-- Пункт списка
-  - Вложенный пункт (2 пробела)
-
-Команда: `node -e "..."`
-```
-
-### JSON
-
-- **Отступ:** 2 пробела
-- **Кавычки:** двойные всегда
-- **Trailing commas:** разрешены
-- **Кодировка:** UTF-8
-- **Именование ключей:** camelCase
-
-Пример:
-
-```json
-{
-  "orderId": "ORD-2026-001",
-  "machineType": "laser",
-  "analyzerOutput": {
-    "clothingStyle": "civilian",
-    "faceQuality": "good"
-  }
-}
-```
-
-### Файлы и папки
-
-- **Именование:** kebab-case для файлов и папок
-- **Регистр:** нижний регистр для новых файлов
-- **Пробелы:** заменяются дефисами
-
-## Работа с агентами
-
-### retouch-analyzer
-
-**Назначение:** Анализ исходного фото и заполнение профиля заказа.
-
-**Входные данные:**
-- Файл `source.jpg` в папке заказа
-
-**Выходные данные:**
-- Поле `analyzer_output` в `order.json`:
-  - `clothingStyle` — стиль одежды
-  - `fabricType` — тип ткани
-  - `headgear` — головной убор
-  - `faceQuality` — качество лица
-  - `defects` — дефекты (массив)
-
-**Использование:**
-1. Скопировать шаблон заказа
-2. Поместить source.jpg в папку заказа
-3. Запустить агент для анализа
-4. Скопировать результат в поле analyzer_output
-
-### retouch-prompter
-
-**Назначение:** Сборка финального промпта из атомарных блоков.
-
-**Входные данные:**
-- Заполненный `order.json` с `analyzer_output`
-- Тип станка: `machine_type` (laser/impact)
-
-**Выходные данные:**
-- Поле `final_prompt` в `order.json`
-- Готовый промпт для Nano Banana
-
-**Структура промпта (порядок блоков):**
-
-1. **base.md** — базовые требования (синий хромакей, разрешение)
-2. **clothing/** — одежда (military, civilian, preserve)
-3. **headgear/** — головной убор (none, cap, preserve)
-4. **machine/** — тип станка (laser.md или impact.md)
-
-**Важно:** Промпт должен содержать:
-- Синий фон: `solid deep blue background #0000FF`
-- Высокое разрешение: `8k, high resolution`
-- Стиль гравировки: `engraving style, stone carving`
-
-**Расположение блоков:** `.agents/skills/retouch-prompter/prompt_blocks/`
-
-### retouch-postprocessing
-
-**Назначение:** Чек-лист для технической подготовки файла в Photoshop.
-
-**Применение:** После генерации изображения оператором.
-
-### Постобработка изображения
-
-Полный воркфлоу подготовки файла для гравировки:
-
-1. **cli-anything-gimp** — преобразование в ЧБ, резкость, контраст
-2. **prepare_vignette.py** — удаление хромакея, виньетирование, финальная обработка
-3. Запустить: `python prepare_vignette.py -i <input> -o <output> -m <laser|impact>`
-4. Проверить результат в `generated/final_vignette.tiff`
-
-**Опционально:** GIMP-скрипт `retouch_process.scm` через `python run_gimp.py` (**experimental / not recommended** — используйте `retouch process`).
-
-**См. подробнее:** `guides/cli-anything-gimp.md`
-
-**Обязательная проверка после обработки:**
-- [ ] Фон чёрный (#000000), без градиента
-- [ ] Лицо не пересвечено
-- [ ] Детали волос сохранены
-- [ ] Воротник чёткий
-- [ ] Края плавные
-
-> **Скрапинг ритуальных агентств** — см. [granite-crm](https://github.com/aipunkfacility/granite-crm)
-
-## Интеграция с granite-crm
-
-granite-retouch и granite-crm — отдельные репозитории. Связь между ними — **конвенционная**, через поле `crm_company_id` в `order.json`.
-
-### Как связать заказ с CRM
-
-1. Создайте заказ с привязкой к компании:
-   ```bash
-   python -m retouch order create ORD-2026-042 --crm CMP-0042
-   ```
-2. Или добавьте `crm_company_id` вручную в `order.json`:
-   ```json
-   {
-     "order_id": "ORD-2026-042",
-     "crm_company_id": "CMP-0042",
-     ...
-   }
-   ```
-3. Формат `crm_company_id`: `CMP-NNNN` (напр. `CMP-0042`)
-
-### Что даёт связь
-
-- В `order list` видно, к какой компании в CRM относится заказ
-- При поиске заказа можно отследить клиента в granite-crm
-- В будущем: автоматический обмен статусами через API
-
-### Конфигурация
-
-В `config.yaml` можно указать путь к granite-crm:
-
-```yaml
-crm:
-  crm_path: "F:\\Dev\\Projects\\granite-crm"
-  env_var: GRANITE_CRM_PATH
-```
-
-Или через переменную окружения: `GRANITE_CRM_PATH=F:\Dev\Projects\granite-crm`
-
-### Что НЕ делается
-
-| Подход | Почему нет |
-|--------|------------|
-| API-интеграция (HTTP-запросы) | Overkill для одного пользователя |
-| Общая БД | Разные стеки, нет параллельной записи |
-| Монорепо | Разные технологии, разные жизненные циклы |
-| Синхронизация статусов | Ручной процесс устраивает |
-
-### Будущее (если понадобится)
-
-granite-crm уже имеет Django REST API (`/api/companies/`, `/api/orders/`). Если когда-нибудь понадобится автоматизация:
-1. granite-retouch делает `POST /api/orders/` при создании заказа
-2. granite-retouch делает `PATCH /api/orders/{id}/` при смене статуса
-3. granite-crm подтягивает результаты
 
 ## Соглашения об именовании
 
 ### Order ID
 
-Формат: `ORD-YYYY-NNN`
+Формат: `ORD-YYYY-NNN` (напр. `ORD-2026-042`).
 
-Примеры:
-- `ORD-2026-001`
-- `ORD-2026-045`
+### CRM Company ID
+
+Формат: `CMP-NNNN` (напр. `CMP-0042`).
 
 ### Папки заказов
 
 ```
 orders/active/ORD-2026-001/
 ├── order.json           # Данные заказа
-├── prompt.md            # Чистый промпт для копирования
-└── generated/          # Все изображения
-    ├── source.jpg           # Исходное фото
-    ├── ai.png               # Нейро-ретушь (синий фон)
-    ├── final_vignette.tiff  # Готовый файл (черный фон)
-    └── final_vignette.png   # Превью
+├── prompt.md            # Промпт для копирования
+└── generated/
+    ├── source.jpg       # Исходное фото
+    ├── ai.png           # Нейро-ретушь (синий фон)
+    ├── final.tiff       # Готовый файл (чёрный фон)
+    └── final.png        # Превью
 ```
 
-### Изображения
+## Стиль кода
 
-- Исходное фото: `source.jpg`
-- Сгенерированные: `generated_001.jpg`, `generated_002.jpg`
-- Финальный файл: `final.png`
+### Markdown
+
+- Длина строки: 100 символов максимум
+- Язык: русский (предпочтительно для документации)
+- Заголовки: иерархия h1 → h2 → h3, один h1 на файл
+- Списки: маркированные с дефисом, вложенные — 2 пробела отступа
+
+### JSON
+
+- Отступ: 2 пробела
+- Кавычки: двойные всегда
+- Кодировка: UTF-8
+- Именование ключей: camelCase
 
 ## Обработка ошибок
-
-### Валидация JSON
 
 - Всегда проверять JSON по схеме `orders/schema.json`
 - Обязательные поля: `order_id`, `machine_type`, `source_photo`, `status`
 - Тип станка: только `laser` или `impact`
-
-### Проверка SKILL.md
-
-- Убедиться в наличии всех секций: Description, Instructions, Examples
-- Проверить относительные пути в ссылках
-
-### Тестирование промптов
-
-1. Создать тестовый заказ в `orders/active/TEST_ORDER/`
-2. Запустить полный цикл: analyzer → prompter
-3. Проверить итоговый промпт вручную в Nano Banana
-4. При необходимости — корректировать блоки в `.agents/skills/retouch-prompter/prompt_blocks/`
-
-## Рекомендации по работе
-
-### Работа с заказами
-
-1. Всегда копировать шаблон, а не создавать с нуля
-2. Заполнять все обязательные поля схемы
-3. Использовать русский язык для клиентских данных
-4. Статусы: new → analyzing → prompting → generating → postprocessing → done
-
-### Работа с промптами
-
-1. Сначала определить тип станка (laser/impact)
-2. Выбрать соответствующий блок из `.agents/skills/retouch-prompter/prompt_blocks/`
-3. Проверить наличие всех необходимых модификаторов
-4. Добавить `engraving-ready` если станок ударный
-
-### Работа с изображениями
-
-1. Исходное фото должно быть хорошего качества
-2. Лицо должно быть в фокусе, без размытия
-3. Освещение равномерное, без глубоких теней
+- При валидации изображения: `ValidationError` + понятное сообщение
 
 ---
 
