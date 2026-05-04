@@ -30,10 +30,20 @@ granite-retouch/
 │   ├── schema.json              # JSON-схема
 │   ├── template/                # Шаблон нового заказа
 │   └── active/                  # Активные заказы
+├── tests/                       # Автотесты (98 тестов)
+│   ├── conftest.py              # Фикстуры: синтетические PNG с хромакеем
+│   ├── test_chromakey.py        # Удаление синего фона, fringe, одежда
+│   ├── test_glow.py             # Laser/impact glow размеры и opacity
+│   ├── test_levels.py           # Brightness, unsharp, curves, face brightness
+│   ├── test_vignette.py         # Арховая виньетка, масштабирование
+│   ├── test_validation.py       # Валидация изображения и order.json
+│   ├── test_config.py           # Загрузка конфига, defaults, fallback
+│   ├── test_order_schema.py     # JSON Schema: валидные/невалидные заказы
+│   └── test_pipeline.py         # Интеграция: полный пайплайн
 ├── docs/                        # Документация
 ├── config.yaml                  # Параметры обработки
 ├── pyproject.toml               # Пакетная конфигурация
-├── Makefile                     # Шорткаты
+├── Makefile                     # Шорткаты (make test, make process, ...)
 ├── AGENTS.md                    # Агентский навигатор
 ├── BACKLOG.md                   # Product backlog
 ├── CHANGELOG.md                 # История изменений
@@ -75,3 +85,27 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
 Конвенционная связь через поле `crm_company_id` в order.json. Без API-вызовов — ручное связывание.
 
 См. [integration/crm.md](../integration/crm.md).
+
+## Тестирование
+
+98 автотестов покрывают все модули обработки. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
+
+```bash
+# Запуск всех тестов
+make test
+# или
+python -m pytest tests/ -v
+```
+
+| Модуль | Файл | Тестов | Что проверяет |
+|--------|------|--------|---------------|
+| Chromakey | `test_chromakey.py` | 7 | Удаление синего фона, сохранение субъекта, fringe removal, тёмно-синяя одежда |
+| Inner Glow | `test_glow.py` | 6 | Laser/impact glow размеры, яркость контура, random range, opacity |
+| Levels | `test_levels.py` | 10 | Brightness, unsharp mask, curves, mask shrink, face brightness |
+| Vignette | `test_vignette.py` | 7 | RGB выход, чёрные углы, headroom, масштабирование, плавная маска |
+| Validation | `test_validation.py` | 16 | Валидация изображения, хромакей, чёрный фон, order.json |
+| Config | `test_config.py` | 10 | DEFAULTS структура, диапазоны glow/brightness, загрузка, fallback |
+| Order Schema | `test_order_schema.py` | 25 | Schema integrity, валидные/невалидные заказы, CRM ID, validate_order() |
+| Pipeline | `test_pipeline.py` | 8 | Интеграция: laser/impact пайплайн, >25% чёрного, нет пересвета |
+
+Dev-зависимости: `pytest>=7.0`, `jsonschema>=4.0`. Установка: `uv pip install -e ".[dev]"`.

@@ -29,8 +29,12 @@
 
 Для разработчиков и отладки.
 
-- **[architecture/overview.md](architecture/overview.md)** — структура проекта, модули, потоки данных
+- **[architecture/overview.md](architecture/overview.md)** — структура проекта, модули, потоки данных, тестирование
 - **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → glow → levels → vignette → export
+
+## Тестирование
+
+98 автотестов покрывают все модули. Запуск: `make test` или `pytest tests/ -v`. Подробнее в [architecture/overview.md](architecture/overview.md#тестирование).
 
 ## Интеграции
 

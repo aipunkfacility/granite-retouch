@@ -34,6 +34,9 @@ python -m retouch process -i ai.png -o final.tiff -m laser
 python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 python -m retouch order list
 python -m retouch order validate ORD-2026-042
+
+# Тесты (98 автотестов, не требуют GIMP/фото)
+make test
 ```
 
 ## Соглашения об именовании
