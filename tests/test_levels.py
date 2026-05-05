@@ -95,6 +95,23 @@ class TestCurvesCorrection:
         result = _curves_correction(arr, 1.5)
         assert result.min() >= 0 and result.max() <= 255
 
+    def test_highlight_start_parameter(self):
+        """highlight_start контролирует затухание коррекции."""
+        arr = np.array([180, 200, 220, 240], dtype=np.float32)
+        correction = 1.3
+
+        # С высоким highlight_start — коррекция полная для 200
+        result_high = _curves_correction(arr, correction, highlight_start=240)
+        # С низким highlight_start — коррекция затухает для 200
+        result_low = _curves_correction(arr, correction, highlight_start=100)
+
+        # При highlight_start=240 пиксель 200 получает почти полную коррекцию
+        # При highlight_start=100 пиксель 200 получает затухающую коррекцию
+        diff_high = abs(result_high[1] - arr[1])
+        diff_low = abs(result_low[1] - arr[1])
+        assert diff_high >= diff_low, \
+            "Более высокий highlight_start → больше коррекция для средних тонов"
+
 
 class TestShrinkMask:
     """Тесты сжатия маски (для исключения glow-зоны)."""
@@ -141,9 +158,12 @@ class TestCheckFaceBrightness:
         mask = Image.new("L", (200, 200), 255)  # всё — субъект
         target = [180, 200]
 
-        result = check_face_brightness(gray, target, mask, glow_size=0)
+        result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
         assert result_arr.mean() > 80, "Тёмное лицо должно стать ярче"
+        assert before == 80.0, f"before должен быть 80.0, а не {before}"
+        assert after > 80.0, f"after должен быть > 80.0, а не {after}"
+        assert factor > 1.0, f"factor должен быть > 1.0 для тёмного лица, а не {factor}"
 
     def test_bright_face_gets_darkened(self):
         """Слишком яркое лицо (среднее 240) корректируется вниз."""
@@ -151,9 +171,10 @@ class TestCheckFaceBrightness:
         mask = Image.new("L", (200, 200), 255)
         target = [180, 200]
 
-        result = check_face_brightness(gray, target, mask, glow_size=0)
+        result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
         assert result_arr.mean() < 240, "Яркое лицо должно стать темнее"
+        assert factor < 1.0, f"factor должен быть < 1.0 для яркого лица"
 
     def test_correct_face_unchanged(self):
         """Лицо в целевом диапазоне не корректируется."""
@@ -161,11 +182,12 @@ class TestCheckFaceBrightness:
         mask = Image.new("L", (200, 200), 255)
         target = [180, 200]
 
-        result = check_face_brightness(gray, target, mask, glow_size=0)
+        result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
         # Должно быть почти неизменным
         assert abs(result_arr.mean() - 190) < 3, \
             f"Лицо в диапазоне не должно корректироваться: {result_arr.mean():.0f}"
+        assert factor == 1.0, f"factor должен быть 1.0 без коррекции"
 
     def test_empty_mask_returns_original(self):
         """Пустая маска — изображение не меняется."""
@@ -173,5 +195,23 @@ class TestCheckFaceBrightness:
         mask = Image.new("L", (200, 200), 0)  # пустая
         target = [180, 200]
 
-        result = check_face_brightness(gray, target, mask, glow_size=0)
+        result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         assert np.array(result).mean() == 100, "Пустая маска — без коррекции"
+        assert before == 0.0, "before = 0.0 при пустой маске"
+        assert factor == 1.0, "factor = 1.0 при пустой маске"
+
+    def test_face_region_top_parameter(self):
+        """face_region_top ограничивает зону замера верхней частью."""
+        # Изображение 200x200: верхняя часть темная (80), нижняя — светлая (240)
+        arr = np.full((200, 200), 240, dtype=np.uint8)
+        arr[:100, :] = 80  # верхняя половина — тёмная
+        gray = Image.fromarray(arr, "L")
+        mask = Image.new("L", (200, 200), 255)  # всё — субъект
+        target = [180, 200]
+
+        # С face_region_top=0.5 — замеряем только верхнюю половину (тёмную)
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0, face_region_top=0.5
+        )
+        # before должен быть ближе к 80 (верхняя часть), а не к 160 (среднее всего)
+        assert before < 120, f"before должен отражать верхнюю часть: {before}"

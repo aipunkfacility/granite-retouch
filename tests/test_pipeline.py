@@ -160,3 +160,93 @@ class TestPipelineIntegration:
         # Не должно упасть — валидация отключена
         process(input_path, output_tiff, machine_type="laser", config=config)
         assert os.path.isfile(output_tiff)
+
+
+class TestPipelineStepsAPI:
+    """Тесты нового API: process_steps, process_preview, process_export."""
+
+    def _save_chromakey_png(self, tmp_path, width=512, height=512):
+        """Создать и сохранить синтетический PNG с хромакеем."""
+        arr = np.zeros((height, width, 4), dtype=np.uint8)
+        # Синий фон
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        # Субъект — центральный эллипс
+        cx, cy = width // 2, height // 2
+        rx, ry = int(width * 0.25), int(height * 0.30)
+        y_c, x_c = np.ogrid[:height, :width]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 180
+        arr[ellipse, 1] = 140
+        arr[ellipse, 2] = 120
+        arr[ellipse, 3] = 255
+
+        img = Image.fromarray(arr, "RGBA")
+        path = str(tmp_path / "input.png")
+        img.save(path, "PNG")
+        return path
+
+    def test_process_steps_returns_pipeline_result(self, tmp_path):
+        """process_steps() возвращает PipelineResult без сохранения файлов."""
+        from retouch.processing.pipeline import process_steps, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+
+        assert isinstance(result, PipelineResult)
+        assert result.img_final is not None
+        assert result.img_chromakey is not None
+        assert result.width == 512
+        assert result.height == 512
+        assert result.glow_size > 0
+        assert 0.0 <= result.face_brightness_before <= 255.0
+
+    def test_process_preview_returns_small_result(self, tmp_path):
+        """process_preview() уменьшает изображение до max_size."""
+        from retouch.processing.pipeline import process_preview, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path, width=2048, height=2048)
+        result = process_preview(input_path, machine_type="laser",
+                                  config=DEFAULTS, max_size=768)
+
+        assert isinstance(result, PipelineResult)
+        assert result.width <= 768
+        assert result.height <= 768
+
+    def test_process_export_saves_files(self, tmp_path):
+        """process_export() сохраняет TIFF + PNG и освобождает промежуточные."""
+        from retouch.processing.pipeline import process_export, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path)
+        output_tiff = str(tmp_path / "output.tiff")
+
+        result = process_export(input_path, output_tiff,
+                                 machine_type="laser", config=DEFAULTS)
+
+        assert isinstance(result, PipelineResult)
+        assert os.path.isfile(output_tiff), "TIFF не создан"
+        assert result.img_final is not None
+        assert result.img_chromakey is None  # Освобождено
+
+    def test_release_intermediates_keeps_final(self, tmp_path):
+        """release_intermediates() освобождает всё кроме img_final."""
+        from retouch.processing.pipeline import process_steps, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+
+        # До release — все промежуточные доступны
+        assert result.img_chromakey is not None
+        assert result.img_final is not None
+
+        result.release_intermediates()
+
+        # После release — промежуточные None, img_final доступен
+        assert result.img_chromakey is None
+        assert result.img_gray is None
+        assert result.img_glow is None
+        assert result.img_leveled is None
+        assert result.img_face_corrected is None
+        assert result.img_final is not None  # Важно!
+        assert result.arch_mask is None
+        assert result.subject_mask is None

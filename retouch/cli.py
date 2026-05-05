@@ -12,6 +12,7 @@
 
 import argparse
 import json
+import logging
 import os
 import shutil
 import sys
@@ -228,6 +229,10 @@ def cmd_order_create(args):
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+    )
     parser = argparse.ArgumentParser(
         prog="retouch",
         description="granite-retouch — AI-ретушь портретов для гравировки"
