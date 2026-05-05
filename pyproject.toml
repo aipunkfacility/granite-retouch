@@ -30,5 +30,10 @@ include = ["retouch*"]
 [tool.setuptools.package-data]
 retouch = ["*.yaml", "*.json"]
 
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+]
+
 # Legacy scripts kept in root for backward compatibility
 # prepare_vignette.py and run_gimp.py still work standalone

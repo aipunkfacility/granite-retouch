@@ -190,3 +190,104 @@ class TestValidateConfig:
         config["processing"]["laser"]["glow_opacity_max"] = 30
         warnings = validate_config(config)
         assert any("glow_opacity_min > glow_opacity_max" in w for w in warnings)
+
+    def test_bad_brightness_warns(self):
+        """brightness out of range produces a warning."""
+        bad_config = deep_merge(DEFAULTS, {"processing": {"laser": {"brightness": 9.99}}})
+        warnings = validate_config(bad_config)
+        assert len(warnings) > 0
+
+    def test_impact_inverted_ranges_warn(self):
+        """Impact inverted glow ranges also produce warnings."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["impact"]["glow_size_min"] = 100
+        config["processing"]["impact"]["glow_size_max"] = 5
+        warnings = validate_config(config)
+        assert any("glow_size_min > glow_size_max" in w for w in warnings)
+
+
+class TestDeepMergeAdvanced:
+    """Additional deep_merge tests for Phase 4."""
+
+    def test_deep_merge_list_override(self):
+        """deep_merge: lists are replaced entirely, not merged."""
+        base = {"processing": {"laser": {"face_brightness_target": [200, 230]}}}
+        override = {"processing": {"laser": {"face_brightness_target": [185, 210]}}}
+        result = deep_merge(base, override)
+        assert result["processing"]["laser"]["face_brightness_target"] == [185, 210]
+
+    def test_deep_merge_does_not_mutate_defaults(self):
+        """deep_merge does not mutate DEFAULTS (A9)."""
+        original = copy.deepcopy(DEFAULTS)
+        override = {"processing": {"laser": {"brightness": 9.99}}}
+        result = deep_merge(DEFAULTS, override)
+
+        # DEFAULTS unchanged
+        assert DEFAULTS["processing"]["laser"]["brightness"] == original["processing"]["laser"]["brightness"]
+        # Result contains override
+        assert result["processing"]["laser"]["brightness"] == 9.99
+        # Other laser keys preserved from DEFAULTS
+        assert "glow_size_min" in result["processing"]["laser"]
+
+    def test_partial_yaml_merged_with_defaults(self):
+        """Partial YAML is supplemented by DEFAULTS via deep_merge."""
+        partial = {"processing": {"laser": {"brightness": 1.30}}}
+        result = deep_merge(DEFAULTS, partial)
+        assert result["processing"]["laser"]["brightness"] == 1.30
+        assert "glow_size_min" in result["processing"]["laser"]
+        assert "vignette" in result
+
+    def test_deep_merge_nested_dicts_correctly(self):
+        """deep_merge correctly merges nested dicts."""
+        base = {"a": 1, "b": {"c": 2, "d": 3}}
+        override = {"b": {"c": 99}}
+        result = deep_merge(base, override)
+        assert result == {"a": 1, "b": {"c": 99, "d": 3}}
+
+    def test_deep_merge_empty_override(self):
+        """deep_merge with empty override returns copy of base."""
+        base = {"processing": {"blue_threshold": 30}}
+        result = deep_merge(base, {})
+        assert result == base
+        assert result is not base  # Must be a copy
+
+    def test_deep_merge_new_keys_added(self):
+        """deep_merge adds new keys from override."""
+        base = {"a": 1}
+        override = {"b": 2}
+        result = deep_merge(base, override)
+        assert result == {"a": 1, "b": 2}
+
+
+class TestPydanticModel:
+    """Tests for Pydantic model and DEFAULTS consistency (A9)."""
+
+    def test_defaults_validate_no_warnings(self):
+        """DEFAULTS pass validation without warnings."""
+        warnings = validate_config(DEFAULTS)
+        assert len(warnings) == 0, f"DEFAULTS have warnings: {warnings}"
+
+    @pytest.mark.skipif(
+        not __import__("retouch.config", fromlist=["HAS_PYDANTIC"]).HAS_PYDANTIC,
+        reason="Pydantic not installed",
+    )
+    def test_pydantic_model_available(self):
+        """Pydantic model is available when pydantic is installed."""
+        from retouch.config import RetouchConfig
+        config = RetouchConfig()
+        assert config.processing.laser.brightness > 0
+
+    @pytest.mark.skipif(
+        not __import__("retouch.config", fromlist=["HAS_PYDANTIC"]).HAS_PYDANTIC,
+        reason="Pydantic not installed",
+    )
+    def test_defaults_match_pydantic(self):
+        """DEFAULTS and Pydantic model contain matching default values (A9)."""
+        from retouch.config import RetouchConfig
+        pydantic_defaults = RetouchConfig().model_dump()
+        # Compare keys present in both sources
+        for machine in ("laser", "impact"):
+            for key in DEFAULTS["processing"][machine]:
+                if key in pydantic_defaults["processing"][machine]:
+                    assert DEFAULTS["processing"][machine][key] == pydantic_defaults["processing"][machine][key], \
+                        f"DEFAULTS mismatch for processing.{machine}.{key}"

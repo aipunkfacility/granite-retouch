@@ -250,3 +250,81 @@ class TestPipelineStepsAPI:
         assert result.img_final is not None  # Важно!
         assert result.arch_mask is None
         assert result.subject_mask is None
+
+    def test_process_preview_fixed_glow(self, tmp_path):
+        """process_preview() fixes glow at midpoint of range."""
+        from retouch.processing.pipeline import process_preview, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_preview(input_path, machine_type="laser", config=DEFAULTS)
+
+        # Glow at midpoint: (40 + 80) // 2 = 60
+        assert result.glow_size == 60
+
+    def test_process_export_creates_png_alongside_tiff(self, tmp_path):
+        """process_export() creates both TIFF and PNG files."""
+        from retouch.processing.pipeline import process_export
+
+        input_path = self._save_chromakey_png(tmp_path)
+        output_tiff = str(tmp_path / "output.tiff")
+        output_png = str(tmp_path / "output.png")
+
+        result = process_export(input_path, output_tiff,
+                                 machine_type="laser", config=DEFAULTS)
+
+        assert os.path.isfile(output_tiff), "TIFF not created"
+        assert os.path.isfile(output_png), "PNG not created"
+        assert os.path.getsize(output_tiff) > 0
+        assert os.path.getsize(output_png) > 0
+        # Intermediates released
+        assert result.img_chromakey is None
+        assert result.img_final is not None
+
+    def test_process_backward_compatible(self, tmp_path):
+        """process() is the backward-compatible CLI wrapper."""
+        from retouch.processing.pipeline import process
+
+        input_path = self._save_chromakey_png(tmp_path)
+        output_tiff = str(tmp_path / "output.tiff")
+
+        result = process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        assert os.path.isfile(output_tiff)
+        assert result.img_final is not None
+
+    def test_process_steps_result_has_diagnostics(self, tmp_path):
+        """process_steps() result includes all diagnostic fields."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+
+        assert result.glow_size > 0
+        assert 0.0 <= result.glow_opacity <= 1.0
+        assert result.face_brightness_before >= 0
+        assert result.face_brightness_after >= 0
+        assert result.black_ratio >= 0
+        assert result.blue_ratio >= 0
+        assert result.width == 512
+        assert result.height == 512
+
+    def test_process_steps_img_final_is_rgb(self, tmp_path):
+        """process_steps() img_final is always RGB mode."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+
+        assert result.img_final is not None
+        assert result.img_final.mode == "RGB"
+
+    def test_process_preview_impact_machine(self, tmp_path):
+        """process_preview() works with impact machine type."""
+        from retouch.processing.pipeline import process_preview, PipelineResult
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_preview(input_path, machine_type="impact", config=DEFAULTS)
+
+        assert isinstance(result, PipelineResult)
+        assert result.img_final is not None
+        # Impact glow midpoint: (10 + 25) // 2 = 17
+        assert result.glow_size == 17
