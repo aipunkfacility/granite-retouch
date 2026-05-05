@@ -108,7 +108,7 @@ export function BeforeAfter({
         </p>
         <div
           ref={resultContainerRef}
-          className="bg-bg-secondary rounded-lg overflow-hidden flex items-center justify-center min-h-[200px] relative"
+          className="bg-bg-secondary rounded-lg overflow-visible flex items-center justify-center min-h-[200px] relative"
         >
           {images[selectedStep] ? (
             <img

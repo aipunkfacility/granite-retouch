@@ -159,16 +159,25 @@ export function VignetteOverlay({
   // ─── Render ────────────────────────────────────────────────────────
   if (renderedWidth === 0 || renderedHeight === 0) return null;
 
+  // SVG dimensions must match viewBox aspect ratio to prevent distortion.
+  // viewBox is wider than the image (oversize padding), so the SVG element
+  // must be proportionally wider than the rendered image.
+  const svgScale = renderedWidth / imageWidth; // = renderedHeight / imageHeight
+  const svgWidth = (imageWidth + 2 * viewboxPadding) * svgScale;
+  const svgHeight = (imageHeight + 20) * svgScale;
+  const svgLeft = offsetX - viewboxPadding * svgScale;
+  const svgTop = offsetY - 10 * svgScale;
+
   return (
     <svg
       ref={svgRef}
       viewBox={`${-viewboxPadding} ${-10} ${imageWidth + 2 * viewboxPadding} ${imageHeight + 20}`}
-      width={renderedWidth}
-      height={renderedHeight}
+      width={svgWidth}
+      height={svgHeight}
       className="absolute pointer-events-none"
       style={{
-        left: offsetX - (viewboxPadding / imageWidth) * renderedWidth,
-        top: offsetY - (10 / imageHeight) * renderedHeight,
+        left: svgLeft,
+        top: svgTop,
       }}
       onPointerMove={handleDragMove}
       onPointerUp={handleDragEnd}
