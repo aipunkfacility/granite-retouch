@@ -137,8 +137,13 @@ def process_steps(
     img_leveled = apply_unsharp_mask(img_leveled)
 
     # 5. Face brightness correction
-    # Breaking Change: check_face_brightness теперь возвращает кортеж
-    face_target = machine_cfg.get("face_brightness_target", [200, 230])
+    # Support both old list format [min, max] and new separate keys
+    if "face_brightness_target" in machine_cfg:
+        face_target = machine_cfg["face_brightness_target"]
+    else:
+        t_min = machine_cfg.get("face_brightness_target_min", 200)
+        t_max = machine_cfg.get("face_brightness_target_max", 230)
+        face_target = [t_min, t_max]
     face_region_top = machine_cfg.get("face_region_top", 0.45)
     highlight_start = machine_cfg.get("highlight_start", 200)
     img_face_corrected, face_before, face_after, correction_factor = check_face_brightness(

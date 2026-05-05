@@ -2,10 +2,9 @@ processing:
   blue_threshold: 30
   fringe_radius: 3
   impact:
-    brightness: 1
-    face_brightness_target:
-    - 185
-    - 210
+    brightness: 1.0
+    face_brightness_target_min: 185
+    face_brightness_target_max: 210
     face_region_top: 0.45
     glow_opacity_max: 80
     glow_opacity_min: 60
@@ -13,10 +12,9 @@ processing:
     glow_size_min: 10
     highlight_start: 200
   laser:
-    brightness: 0.7
-    face_brightness_target:
-    - 230
-    - 245
+    brightness: 1.18
+    face_brightness_target_min: 230
+    face_brightness_target_max: 245
     face_region_top: 0.45
     glow_opacity_max: 40
     glow_opacity_min: 30

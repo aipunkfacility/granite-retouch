@@ -27,7 +27,8 @@ DEFAULTS = {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "brightness": 1.18,
-            "face_brightness_target": [230, 245],
+            "face_brightness_target_min": 230,
+            "face_brightness_target_max": 245,
             "face_region_top": 0.45,
             "highlight_start": 200,
         },
@@ -35,7 +36,8 @@ DEFAULTS = {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "brightness": 1.00,
-            "face_brightness_target": [185, 210],
+            "face_brightness_target_min": 185,
+            "face_brightness_target_max": 210,
             "face_region_top": 0.45,
             "highlight_start": 200,
         },
@@ -59,9 +61,12 @@ if HAS_PYDANTIC:
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
         brightness: float = Field(1.18, ge=0.5, le=1.5)
-        face_brightness_target: list[int] = Field([230, 245])
+        face_brightness_target_min: int = Field(230, ge=100, le=255)
+        face_brightness_target_max: int = Field(245, ge=100, le=255)
         face_region_top: float = Field(0.45, ge=0.2, le=0.8)
         highlight_start: int = Field(200, ge=100, le=250)
+        # Backward compat: accept old list format
+        face_brightness_target: list[int] | None = Field(None, exclude=True)
 
     class ProcessingConfig(BaseModel):
         blue_threshold: int = Field(30, ge=10, le=80)
@@ -69,10 +74,10 @@ if HAS_PYDANTIC:
         fringe_radius: int = Field(3, ge=0, le=10)
         laser: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            brightness=1.18, face_brightness_target=[230, 245]))
+            brightness=1.18, face_brightness_target_min=230, face_brightness_target_max=245))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            brightness=1.00, face_brightness_target=[185, 210]))
+            brightness=1.00, face_brightness_target_min=185, face_brightness_target_max=210))
 
     class VignetteConfig(BaseModel):
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
@@ -111,6 +116,22 @@ def find_config_path() -> Path | None:
     return None
 
 
+def _migrate_face_target(config: dict) -> dict:
+    """Конвертировать face_brightness_target: [min, max] → отдельные ключи _min/_max.
+
+    Старый формат (список) использовался до v3.1. Новый формат — два отдельных
+    ключа для совместимости с UI-слайдерами. Вызывается автоматически в load_config().
+    """
+    for machine in ("laser", "impact"):
+        mc = config.get("processing", {}).get(machine, {})
+        if "face_brightness_target" in mc and isinstance(mc["face_brightness_target"], list):
+            target = mc.pop("face_brightness_target")
+            if len(target) >= 2:
+                mc["face_brightness_target_min"] = target[0]
+                mc["face_brightness_target_max"] = target[1]
+    return config
+
+
 def load_config(config_path=None):
     """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS.
     DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS.
@@ -130,7 +151,8 @@ def load_config(config_path=None):
             return defaults
         with open(config_path, "r", encoding="utf-8") as f:
             yaml_config = yaml.safe_load(f) or {}
-        return deep_merge(defaults, yaml_config)
+        merged = deep_merge(defaults, yaml_config)
+        return _migrate_face_target(merged)
 
     return defaults
 
@@ -153,5 +175,7 @@ def validate_config(config: dict) -> list[str]:
             warnings.append(f"processing.{machine}: glow_size_min > glow_size_max")
         if mc.get("glow_opacity_min", 0) > mc.get("glow_opacity_max", 0):
             warnings.append(f"processing.{machine}: glow_opacity_min > glow_opacity_max")
+        if mc.get("face_brightness_target_min", 0) > mc.get("face_brightness_target_max", 0):
+            warnings.append(f"processing.{machine}: face_brightness_target_min > face_brightness_target_max")
 
     return warnings

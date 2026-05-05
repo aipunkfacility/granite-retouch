@@ -25,7 +25,8 @@ class TestDefaults:
         assert "glow_size_min" in laser
         assert "glow_size_max" in laser
         assert "brightness" in laser
-        assert "face_brightness_target" in laser
+        assert "face_brightness_target_min" in laser
+        assert "face_brightness_target_max" in laser
         assert "face_region_top" in laser
         assert "highlight_start" in laser
 
@@ -58,11 +59,11 @@ class TestDefaults:
         assert impact["glow_opacity_min"] < impact["glow_opacity_max"]
 
     def test_face_brightness_target_ranges(self):
-        """face_brightness_target: min < max для обоих станков."""
+        """face_brightness_target_min < face_brightness_target_max для обоих станков."""
         for mtype in ["laser", "impact"]:
-            target = DEFAULTS["processing"][mtype]["face_brightness_target"]
-            assert len(target) == 2, f"{mtype}: target должен быть [min, max]"
-            assert target[0] < target[1], f"{mtype}: min < max"
+            mc = DEFAULTS["processing"][mtype]
+            assert mc["face_brightness_target_min"] < mc["face_brightness_target_max"], \
+                f"{mtype}: min < max"
 
 
 class TestDeepMerge:
@@ -109,7 +110,7 @@ class TestLoadConfig:
                 "blue_threshold": 50,
                 "laser": {
                     "brightness": 1.30,
-                    "face_brightness_target": [220, 240],
+                    "face_brightness_target": [220, 240],  # old list format
                 },
             },
         }
@@ -120,6 +121,10 @@ class TestLoadConfig:
         config = load_config(str(config_file))
         assert config["processing"]["blue_threshold"] == 50
         assert config["processing"]["laser"]["brightness"] == 1.30
+        # Миграция: старый список → отдельные ключи
+        assert config["processing"]["laser"]["face_brightness_target_min"] == 220
+        assert config["processing"]["laser"]["face_brightness_target_max"] == 240
+        assert "face_brightness_target" not in config["processing"]["laser"]
         # deep_merge: defaults дополняются
         assert config["processing"]["laser"]["glow_size_min"] == 40
         assert "vignette" in config
@@ -211,10 +216,10 @@ class TestDeepMergeAdvanced:
 
     def test_deep_merge_list_override(self):
         """deep_merge: lists are replaced entirely, not merged."""
-        base = {"processing": {"laser": {"face_brightness_target": [200, 230]}}}
-        override = {"processing": {"laser": {"face_brightness_target": [185, 210]}}}
+        base = {"processing": {"laser": {"some_list": [200, 230]}}}
+        override = {"processing": {"laser": {"some_list": [185, 210]}}}
         result = deep_merge(base, override)
-        assert result["processing"]["laser"]["face_brightness_target"] == [185, 210]
+        assert result["processing"]["laser"]["some_list"] == [185, 210]
 
     def test_deep_merge_does_not_mutate_defaults(self):
         """deep_merge does not mutate DEFAULTS (A9)."""
