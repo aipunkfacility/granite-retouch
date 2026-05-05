@@ -19,6 +19,20 @@
 
 ---
 
+## ⚠ Зависимость от `__init__.py` (A13)
+
+Тесты backend API используют relative imports (`from ..main import app` и т.д.). Это работает только если в Фазе 1 созданы `__init__.py` файлы:
+
+```
+retouch_ui/__init__.py
+retouch_ui/backend/__init__.py
+retouch_ui/backend/routers/__init__.py
+```
+
+Если `__init__.py` отсутствуют — relative imports вызовут `ImportError`. Перед запуском тестов убедитесь, что Фаза 1 завершена полностью.
+
+---
+
 ## ⚠ Совместимость asyncio.to_thread + TestClient
 
 Роутеры используют `asyncio.to_thread()` для CPU-bound операций. `TestClient` — синхронный WSGI-клиент, который создаёт event loop внутри `anyio`. На практике `asyncio.to_thread` работает корректно с `TestClient`, но если установлен `pytest-asyncio`, его режим по умолчанию (`auto`) может вызвать конфликты вложенных event loops.
@@ -98,6 +112,8 @@ def uploaded_file_id(client, sample_chromakey_png):
     assert res.status_code == 200
     return res.json()["file_id"]
 ```
+
+> **A13**: Обратите внимание на `from ..main import app` — relative import. Он работает благодаря `__init__.py` файлам, созданным в Фазе 1. Если при запуске тестов возникает `ImportError: attempted relative import with no known parent package`, проверьте наличие `retouch_ui/__init__.py`, `retouch_ui/backend/__init__.py`.
 
 ### test_process.py
 
@@ -490,7 +506,22 @@ def test_pydantic_model_available():
     from retouch.config import RetouchConfig
     config = RetouchConfig()
     assert config.processing.laser.brightness > 0
+
+
+@pytest.mark.skipif(not HAS_PYDANTIC, reason="Pydantic not installed")
+def test_defaults_match_pydantic():
+    """DEFAULTS и Pydantic-модель содержат одинаковые дефолтные значения (A9)."""
+    from retouch.config import RetouchConfig
+    pydantic_defaults = RetouchConfig().model_dump()
+    # Сравниваем ключи, которые присутствуют в обоих
+    for machine in ("laser", "impact"):
+        for key in DEFAULTS["processing"][machine]:
+            if key in pydantic_defaults["processing"][machine]:
+                assert DEFAULTS["processing"][machine][key] == pydantic_defaults["processing"][machine][key], \
+                    f"DEFAULTS mismatch for processing.{machine}.{key}"
 ```
+
+> **A9**: Тест `test_defaults_match_pydantic` критически важен — DEFAULTS и Pydantic-модель являются двумя источниками истины. Без этого теста рассинхрон может остаться незамеченным. Тест сравнивает только ключи, присутствующие в обоих источниках, чтобы не ломаться при добавлении новых полей в Pydantic-модель (например, с дефолтами, вычисляемыми динамически).
 
 ---
 
@@ -500,9 +531,12 @@ def test_pydantic_model_available():
 - [ ] `pytest tests/ -v` — все существующие тесты + новые pipeline-тесты проходят
 - [ ] Backend API тесты покрывают: upload, preview (by file_id + fallback), export, config, presets
 - [ ] Тесты Pydantic модели покрывают: валидацию, deep_merge, неизменяемость DEFAULTS
+- [ ] Тест `test_defaults_match_pydantic` проходит — DEFAULTS и Pydantic синхронизированы (A9)
 - [ ] Тест config/presets изолирован от реальной файловой системы (tmp_path / monkeypatch)
 - [ ] Обратная совместимость process() проверена тестом
-- [ ] Количество тестов ≥ 115 (было 89 + ~25 новых)
+- [ ] Relative imports в тестах работают (`__init__.py` из Фазы 1 на месте) (A13)
+- [ ] Количество тестов ≥ 116 (было 89 + ~27 новых)
+- [ ] BACKLOG.md обновлён — завершённые задачи отмечены (A8)
 - [ ] Git-тег `phase4-done` создан
 
 ---
@@ -515,6 +549,6 @@ def test_pydantic_model_available():
 | Фаза 0 | 4–6 | process_steps/preview/export, PipelineResult, logging, deep_merge (deepcopy!), Pydantic (optional) |
 | Фаза 1 | 6–8 | FastAPI backend: file_id upload, asyncio.to_thread, BackgroundTask cleanup, health+version |
 | Фаза 2 | 8–12 | React + Vite frontend: до/после, слайдеры, диагностика, api.ts с file_id |
-| Фаза 3 | 3–4 | Интеграция, пресеты, обработка ошибок, make ui, production-сборка |
-| Фаза 4 | 3–4 | Тесты backend API + pipeline + Pydantic + изоляция |
-| **Итого** | **25–35** | |
+| Фаза 3 | 3–5 | Интеграция, пресеты, обработка ошибок, make ui, production-сборка, документация, CHANGELOG |
+| Фаза 4 | 3–4 | Тесты backend API + pipeline + Pydantic + изоляция + DEFAULTS/Pydantic consistency |
+| **Итого** | **25–36** | |

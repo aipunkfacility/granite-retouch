@@ -1,9 +1,20 @@
 # Фаза 2: React + Vite Frontend
 
+**Версия плана**: 3.4 (исправления по аудиту — A6, A7, A17)
 **Предыдущий этап**: [Фаза 1](dev-plan-phase1-backend.md) (можно параллелить с мок-API)
 **Следующий этап**: [Фаза 3](dev-plan-phase3-integration.md)
 **Время**: 8–12 часов
 **Цель**: Интерактивный UI для настройки параметров ретуши с предпросмотром до/после.
+
+---
+
+## Изменения v3.4 относительно v3.3
+
+| # | Критичность | Изменение |
+|---|-------------|-----------|
+| A6 | 🟠 High | Добавлена **полная реализация** `hooks/use-config.ts` (вместо отсутствующей) |
+| A7 | 🟠 High | `params-panel.tsx` и `config-actions.tsx` — **заполнены рабочие каркасы** (вместо заглушек-комментариев) |
+| A17 | 🟢 Low | `image-upload.tsx` — добавлен `useRef` и `onClick` для программного клика по скрытому `<input>` |
 
 ---
 
@@ -38,21 +49,21 @@ granite-retouch/
             ├── index.css                # CSS-переменные + Tailwind
             ├── components/
             │   ├── ui/                  # shadcn/ui (автоген)
-            │   ├── image-upload.tsx      # Drag & drop загрузка → file_id
+            │   ├── image-upload.tsx      # Drag & drop загрузка → file_id [A17: useRef + onClick]
             │   ├── before-after.tsx      # До/После (side-by-side или табы)
             │   ├── step-selector.tsx     # Переключатель промежуточных шагов
-            │   ├── params-panel.tsx      # Слайдеры параметров
+            │   ├── params-panel.tsx      # Слайдеры параметров [A7: рабочий каркас]
             │   ├── machine-switch.tsx    # Переключатель laser/impact
             │   ├── diagnostics-panel.tsx # Диагностика обработки
-            │   ├── config-actions.tsx    # Сохранить / Сброс / Пресеты
+            │   ├── config-actions.tsx    # Сохранить / Сброс / Пресеты [A7: рабочий каркас]
             │   └── export-buttons.tsx    # Экспорт TIFF/PNG
             ├── lib/
             │   ├── api.ts               # Фетчеры: uploadImage → file_id, fetchPreview(fileId, ...)
-            │   ├── config-schema.ts     # Типы + диапазоны параметров
+            │   ├── config-schema.ts     # Типы + диапазоны параметров (+ face_region_top, highlight_start)
             │   └── utils.ts             # cn() и утилиты
             └── hooks/
                 ├── use-preview.ts        # Предпросмотр с debounce (по file_id)
-                └── use-config.ts         # Управление конфигом
+                └── use-config.ts         # Управление конфигом [A6: полная реализация]
 ```
 
 ---
@@ -175,6 +186,7 @@ h1, h2, h3, h4, h5, h6 {
 ## Задача 3: config-schema.ts
 
 Типы и диапазоны параметров для UI-слайдеров. Один источник истины для min/max/step/label.
+Включает `face_region_top` и `highlight_start` в MachineParams (A1 — синхронизация с DEFAULTS).
 
 ```typescript
 /** Диапазон параметра для UI-слайдера */
@@ -195,8 +207,8 @@ export interface MachineParams {
   brightness: ParamRange;
   face_brightness_target_min: ParamRange;
   face_brightness_target_max: ParamRange;
-  face_region_top: ParamRange;
-  highlight_start: ParamRange;
+  face_region_top: ParamRange;       // A1: добавлен в v3.4
+  highlight_start: ParamRange;       // A1: добавлен в v3.4
 }
 
 /** Общие параметры обработки */
@@ -328,7 +340,7 @@ export async function fetchPreview(
   fileId: string,
   machineType: "laser" | "impact",
   configOverride?: Record<string, any>,
-  signal?: AbortSignal,            // H2: передаём AbortSignal для отмены HTTP-запроса
+  signal?: AbortSignal,            // передаём AbortSignal для отмены HTTP-запроса
 ): Promise<PreviewResult> {
   const formData = new FormData();
   formData.append("file_id", fileId);
@@ -503,11 +515,12 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
 
 Каждый компонент — отдельный файл в `src/components/`. Используют shadcn/ui примитивы.
 
-### image-upload.tsx
+### image-upload.tsx **[A17 — исправлено]**
+
+> **A17 (Low)**: В v3.3 скрытый `<input type="file">` не имел программного клика — работала только зона drag & drop. Добавлен `useRef` и `onClick` на обёрточный `<div>`.
 
 ```typescript
-/** Drag & drop загрузка изображения → file_id */
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { uploadImage } from "../lib/api";
 
 interface Props {
@@ -515,6 +528,7 @@ interface Props {
 }
 
 export function ImageUpload({ onImageUploaded }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -533,25 +547,34 @@ export function ImageUpload({ onImageUploaded }: Props) {
     }
   }, [onImageUploaded]);
 
-  // Drag handlers + file input — стандартный паттерн
-  // Использует стили: border-dashed border-border bg-bg-card
-  // При dragOver: border-accent-blue bg-bg-hover
-
   return (
     <div
-      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors
+      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
         ${dragOver ? "border-accent-blue bg-bg-hover" : "border-border bg-bg-card"}`}
+      onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
     >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
+        className="hidden"
+      />
       {uploading ? "Загрузка..." : "Перетащите PNG/TIFF или нажмите для выбора"}
-      <input type="file" accept="image/*" onChange={(e) => handleFile(e.target.files[0])} className="hidden" />
       {error && <p className="text-accent-red mt-2">{error}</p>}
     </div>
   );
 }
 ```
+
+**Что изменилось (A17)**:
+- Добавлен `const inputRef = useRef<HTMLInputElement>(null)`
+- `<input ref={inputRef} ...>` — привязка ref
+- `onClick={() => inputRef.current?.click()}` — клик по зоне открывает файловый диалог
+- `onChange` — безопасная проверка `e.target.files?.[0]` (вместо `e.target.files[0]`)
 
 ### before-after.tsx
 
@@ -635,11 +658,13 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps }: Pro
 }
 ```
 
-### params-panel.tsx
+### params-panel.tsx **[A7 — заполнен рабочий каркас]**
+
+> **A7 (High)**: В v3.3 содержал только комментарии вместо JSX. Добавлен полный рабочий каркас: рендер слайдеров по CONFIG_SCHEMA, вкладки по PARAM_GROUPS, чтение/запись значений из config.
 
 ```typescript
-/** Слайдеры параметров — сгруппированы по вкладкам */
-import { CONFIG_SCHEMA, PARAM_GROUPS } from "../lib/config-schema";
+import { CONFIG_SCHEMA, PARAM_GROUPS, type ParamRange } from "../lib/config-schema";
+import { useState } from "react";
 
 interface Props {
   machineType: "laser" | "impact";
@@ -648,17 +673,80 @@ interface Props {
 }
 
 export function ParamsPanel({ machineType, config, onConfigChange }: Props) {
-  // Вкладки: Общие | Laser/Impact | Виньетка
-  // Каждая вкладка рендерит слайдеры из CONFIG_SCHEMA
-  // Слайдер: shadcn Slider + Label + значение
-  // При изменении → onConfigChange(["processing", machineType, "brightness"], 1.25)
-  //
-  // Структура слайдера:
-  // <Label>Яркость</Label>
-  // <Slider min={0.5} max={1.5} step={0.01} value={[1.18]} onValueChange={...} />
-  // <span>1.18x</span>
+  const [activeTab, setActiveTab] = useState<string>("common");
+
+  const renderSlider = (path: string[], param: ParamRange, value: number) => (
+    <div key={path.join(".")} className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <label className="text-text-secondary">{param.label}</label>
+        <span className="text-text-muted">{value}{param.unit ? ` ${param.unit}` : ""}</span>
+      </div>
+      <input
+        type="range"
+        min={param.min}
+        max={param.max}
+        step={param.step}
+        value={value}
+        onChange={(e) => onConfigChange(path, parseFloat(e.target.value))}
+        className="w-full accent-accent-blue"
+      />
+    </div>
+  );
+
+  const getParamRange = (groupKey: string, paramKey: string): ParamRange | null => {
+    if (groupKey === "common") return CONFIG_SCHEMA.processing[paramKey as keyof typeof CONFIG_SCHEMA.processing] as ParamRange;
+    if (groupKey === "vignette") return CONFIG_SCHEMA.vignette[paramKey as keyof typeof CONFIG_SCHEMA.vignette] as ParamRange;
+    return CONFIG_SCHEMA.processing[groupKey as "laser" | "impact"]?.[paramKey as keyof typeof CONFIG_SCHEMA.processing.laser] as ParamRange ?? null;
+  };
+
+  const getValue = (path: string[]): number => {
+    let obj: any = config;
+    for (const key of path) obj = obj?.[key];
+    return obj ?? 0;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {PARAM_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            onClick={() => setActiveTab(g.key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors
+              ${activeTab === g.key ? "border-accent-blue text-accent-blue" : "border-transparent text-text-muted hover:text-text-secondary"}`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+      {/* Sliders */}
+      <div className="space-y-3">
+        {PARAM_GROUPS.filter(g => g.key === activeTab).map((g) =>
+          g.params.map((paramKey) => {
+            const range = getParamRange(g.key, paramKey);
+            if (!range) return null;
+            const path = g.key === "common"
+              ? ["processing", paramKey]
+              : g.key === "vignette"
+                ? ["vignette", paramKey]
+                : ["processing", g.key, paramKey];
+            return renderSlider(path, range, getValue(path));
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 ```
+
+**Структура каркаса (A7)**:
+- **Вкладки** по `PARAM_GROUPS` — Общие / Laser / Impact / Виньетка
+- **renderSlider()** — рендерит `<input type="range">` + label + текущее значение
+- **getParamRange()** — получает ParamRange из CONFIG_SCHEMA по группе и ключу
+- **getValue()** — извлекает значение из config по path (массив ключей)
+- При изменении слайдера вызывается `onConfigChange(path, value)` — App.tsx обновляет конфиг
+- Агент может заменить `<input type="range">` на shadcn `<Slider>` при необходимости
 
 ### machine-switch.tsx
 
@@ -750,11 +838,12 @@ export function DiagnosticsPanel({ diagnostics, warnings }: Props) {
 }
 ```
 
-### config-actions.tsx
+### config-actions.tsx **[A7 — заполнен рабочий каркас]**
+
+> **A7 (High)**: В v3.3 содержал только комментарии вместо JSX. Добавлен полный рабочий каркас: кнопки сохранения/сброса, раскрывающийся список пресетов, создание/удаление пресетов.
 
 ```typescript
-/** Сохранить / Сброс / Пресеты */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { saveConfig, fetchDefaults, fetchPresets, createPreset, deletePreset } from "../lib/api";
 import type { PresetItem } from "../lib/api";
 
@@ -767,16 +856,89 @@ interface Props {
 export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) {
   const [presets, setPresets] = useState<PresetItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [showPresets, setShowPresets] = useState(false);
 
-  // Сохранить: saveConfig(config) → показывает результат
-  // Сброс: fetchDefaults() → onConfigReset(defaults)
-  // Пресеты: fetchPresets() → список → клик применяет → onConfigChange(preset.config)
-  // Создать пресет: диалог с именем → createPreset(name, config)
-  // Удалить пресет: deletePreset(name)
-  // L2: при сохранении с warnings — чекбокс «Сохранить несмотря на предупреждения»
-  //    (warnings приходят в ответе saveConfig, по умолчанию сохраняем — это локальный инструмент)
+  useEffect(() => {
+    fetchPresets().then((res) => setPresets(res.presets)).catch(() => {});
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await saveConfig(config);
+    } finally {
+      setSaving(false);
+    }
+  }, [config]);
+
+  const handleReset = useCallback(async () => {
+    const result = await fetchDefaults();
+    onConfigReset(result.config);
+  }, [onConfigReset]);
+
+  const handleCreatePreset = useCallback(async () => {
+    if (!presetName.trim()) return;
+    await createPreset(presetName, config);
+    setPresetName("");
+    const res = await fetchPresets();
+    setPresets(res.presets);
+  }, [presetName, config]);
+
+  const handleDeletePreset = useCallback(async (name: string) => {
+    await deletePreset(name);
+    setPresets(prev => prev.filter(p => p.name !== name));
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <button onClick={handleSave} disabled={saving}
+          className="flex-1 px-3 py-2 bg-accent-blue text-white rounded text-sm hover:opacity-90 disabled:opacity-50">
+          {saving ? "Сохранение..." : "Сохранить config.yaml"}
+        </button>
+        <button onClick={handleReset}
+          className="px-3 py-2 bg-bg-card text-text-secondary rounded text-sm hover:bg-bg-hover">
+          Сброс
+        </button>
+      </div>
+
+      <button onClick={() => setShowPresets(!showPresets)}
+        className="w-full text-left text-sm text-text-muted hover:text-text-secondary">
+        Пресеты ({presets.length}) ▾
+      </button>
+
+      {showPresets && (
+        <div className="space-y-2">
+          {presets.map((p) => (
+            <div key={p.name} className="flex items-center gap-2">
+              <button onClick={() => onConfigChange(p.config)}
+                className="flex-1 text-left px-2 py-1 text-sm bg-bg-card rounded hover:bg-bg-hover">
+                {p.name}
+              </button>
+              <button onClick={() => handleDeletePreset(p.name)}
+                className="text-accent-red text-xs hover:underline">✕</button>
+            </div>
+          ))}
+          <div className="flex gap-1">
+            <input value={presetName} onChange={(e) => setPresetName(e.target.value)}
+              placeholder="Имя пресета" className="flex-1 bg-bg-input text-sm px-2 py-1 rounded" />
+            <button onClick={handleCreatePreset}
+              className="px-2 py-1 text-sm bg-bg-card rounded hover:bg-bg-hover">+</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 ```
+
+**Структура каркаса (A7)**:
+- **Сохранить config.yaml** — `saveConfig(config)` с индикатором загрузки
+- **Сброс** — `fetchDefaults()` → `onConfigReset(result.config)`
+- **Пресеты** — раскрывающийся список с `fetchPresets()`, клик применяет конфиг, `✕` удаляет
+- **Создать пресет** — инпут имени + кнопка `+`
+- Агент может заменить на shadcn `<Dialog>` для создания пресета
 
 ### export-buttons.tsx
 
@@ -832,6 +994,61 @@ export function ExportButtons({ fileId, machineType, config }: Props) {
   );
 }
 ```
+
+---
+
+## Задача 6a: hooks/use-config.ts **[A6 — полная реализация]**
+
+> **A6 (High)**: В v3.3 хук `useConfig` использовался в App.tsx, но его реализация отсутствовала. Добавлена полная реализация: загрузка конфига с бэкенда, updateConfig, resetConfig, warnings.
+
+```typescript
+import { useState, useEffect, useCallback } from "react";
+import { fetchConfig, fetchDefaults, type ConfigResult } from "../lib/api";
+
+interface UseConfigReturn {
+  config: Record<string, any>;
+  warnings: string[];
+  updateConfig: (newConfig: Record<string, any>) => void;
+  resetConfig: (defaults?: Record<string, any>) => void;
+}
+
+export function useConfig(): UseConfigReturn {
+  const [config, setConfig] = useState<Record<string, any>>({});
+  const [warnings, setWarnings] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchConfig().then((result: ConfigResult) => {
+      setConfig(result.config);
+      setWarnings(result.warnings);
+    }).catch(() => {
+      // Backend unavailable — use empty config
+    });
+  }, []);
+
+  const updateConfig = useCallback((newConfig: Record<string, any>) => {
+    setConfig(newConfig);
+  }, []);
+
+  const resetConfig = useCallback(async (defaults?: Record<string, any>) => {
+    if (defaults) {
+      setConfig(defaults);
+    } else {
+      const result = await fetchDefaults();
+      setConfig(result.config);
+      setWarnings(result.warnings);
+    }
+  }, []);
+
+  return { config, warnings, updateConfig, resetConfig };
+}
+```
+
+**Поведение хука**:
+- **Загрузка при монтировании**: `fetchConfig()` → заполнить `config` и `warnings`
+- **updateConfig(newConfig)**: заменить весь конфиг (вызывается при изменении слайдера, применении пресета)
+- **resetConfig(defaults?)**: если переданы defaults — использовать их; иначе — `fetchDefaults()` с бэкенда
+- **Backend unavailable**: `catch()` — пустой конфиг, UI показывает значения по умолчанию из CONFIG_SCHEMA
+- `warnings` — массив строк от валидации бэкенда (out-of-range и т.д.)
 
 ---
 
@@ -979,13 +1196,13 @@ export default function App() {
 2. index.css с дизайн-токенами
 3. config-schema.ts
 4. lib/api.ts (с uploadImage → file_id)
-5. hooks/use-preview.ts, hooks/use-config.ts
-6. image-upload.tsx
+5. hooks/use-preview.ts, hooks/use-config.ts ← **[A6: добавлена полная реализация]**
+6. image-upload.tsx ← **[A17: useRef + onClick]**
 7. machine-switch.tsx
-8. params-panel.tsx
+8. params-panel.tsx ← **[A7: рабочий каркас вместо заглушки]**
 9. before-after.tsx + step-selector.tsx
 10. diagnostics-panel.tsx
-11. config-actions.tsx
+11. config-actions.tsx ← **[A7: рабочий каркас вместо заглушки]**
 12. export-buttons.tsx
 13. App.tsx — сборка layout
 14. Проверка с мок-API (можно до готовности backend)
@@ -996,14 +1213,18 @@ export default function App() {
 
 - [ ] `npm run dev` запускается, RAM ≤ 300 МБ
 - [ ] Drag & drop загружает PNG → получен fileId
+- [ ] **Клик по зоне загрузки** открывает файловый диалог (A17)
 - [ ] До/После отображается side-by-side
 - [ ] Переключение шагов (chromakey, glow, levels, final) обновляет «После»
-- [ ] Слайдеры параметров работают, значения обновляются
+- [ ] **Слайдеры параметров работают**, значения обновляются (A7)
 - [ ] Переключение laser/impact меняет набор параметров
 - [ ] Диагностика отображает face brightness, glow, black ratio
-- [ ] Сохранение конфига через UI
-- [ ] Сброс к дефолтам
-- [ ] Пресеты загружаются
+- [ ] **Сохранение конфига через UI** — кнопка вызывает API (A7)
+- [ ] **Сброс к дефолтам** — загружает /config/defaults (A7)
+- [ ] **Пресеты загружаются** — раскрывающийся список с CRUD (A7)
+- [ ] **useConfig() загружает конфиг при монтировании** (A6)
+- [ ] **useConfig().resetConfig()** — с defaults или без (A6)
 - [ ] Экспорт скачивает файл
 - [ ] Тёмная тема, чистый фон #1a1a1a
 - [ ] Нет glassmorphism, нет backdrop-filter
+- [ ] Обновить BACKLOG.md — отметить завершённые задачи (A8)

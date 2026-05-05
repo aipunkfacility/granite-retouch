@@ -2,8 +2,8 @@
 
 **Предыдущий этап**: [Фаза 2](dev-plan-phase2-frontend.md)
 **Следующий этап**: [Фаза 4](dev-plan-phase4-tests.md)
-**Время**: 3–4 часа (сокращено — file_id уже в Фазе 1)
-**Цель**: Связать frontend и backend в рабочее приложение, добавить пресеты, обработку ошибок.
+**Время**: 3–5 часов (сокращено — file_id уже в Фазе 1; +документация и CHANGELOG)
+**Цель**: Связать frontend и backend в рабочее приложение, добавить пресеты, обработку ошибок, обновить документацию.
 
 ---
 
@@ -14,6 +14,8 @@
 - Обработке ошибок (frontend ↔ backend)
 - Makefile и production-сборке
 - Управлении памятью
+- Обновлении документации (A14)
+- Обновлении CHANGELOG.md (A18)
 
 ---
 
@@ -118,35 +120,35 @@ vignette:
 # === Web UI ===
 
 ui-backend:      ## Запустить FastAPI backend
-        cd retouch_ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+	cd retouch_ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 
 ui-frontend:     ## Запустить Vite frontend
-        cd retouch_ui/frontend && npm run dev
+	cd retouch_ui/frontend && npm run dev
 
 ui: ui-install   ## Запустить backend + frontend (авто-установка зависимостей)
-        cd retouch_ui/frontend && npx concurrently -n backend,frontend -c blue,green \
-                "cd ../backend && uvicorn main:app --port 8001 --workers 1" \
-                "npm run dev"
-        # ⚠ concurrently — devDependency (-D). При NODE_ENV=production npm может не установить devDependencies.
-        # ui-install проверяет наличие node_modules — это защищает от проблемы.
-        # Для production используйте `make ui-prod` (не нужен concurrently).
+	cd retouch_ui/frontend && npx concurrently -n backend,frontend -c blue,green \
+		"cd ../backend && uvicorn main:app --port 8001 --workers 1" \
+		"npm run dev"
+	# ⚠ concurrently — devDependency (-D). При NODE_ENV=production npm может не установить devDependencies.
+	# ui-install проверяет наличие node_modules — это защищает от проблемы.
+	# Для production используйте `make ui-prod` (не нужен concurrently).
 
 ui-install:      ## Установить зависимости frontend (только если node_modules отсутствует)
-        @if [ ! -d "retouch_ui/frontend/node_modules" ]; then \
-                echo "Installing frontend dependencies..."; \
-                cd retouch_ui/frontend && npm install; \
-        else \
-                echo "Frontend dependencies already installed. Run 'make ui-force-install' to reinstall."; \
-        fi
+	@if [ ! -d "retouch_ui/frontend/node_modules" ]; then \
+		echo "Installing frontend dependencies..."; \
+		cd retouch_ui/frontend && npm install; \
+	else \
+		echo "Frontend dependencies already installed. Run 'make ui-force-install' to reinstall."; \
+	fi
 
 ui-force-install: ## Принудительная переустановка зависимостей frontend
-        cd retouch_ui/frontend && npm install
+	cd retouch_ui/frontend && npm install
 
 ui-build: ui-install  ## Сборка frontend для продакшена
-        cd retouch_ui/frontend && npm run build
+	cd retouch_ui/frontend && npm run build
 
 ui-prod: ui-build     ## Production: собрать статику + запустить uvicorn (один процесс)
-        cd retouch_ui/backend && uvicorn main:app --port 8001 --workers 1
+	cd retouch_ui/backend && uvicorn main:app --port 8001 --workers 1
 ```
 
 ---
@@ -165,10 +167,14 @@ FastAPI раздаёт статику:
 # main.py — добавить после всех роутеров
 from fastapi.staticfiles import StaticFiles
 
+# ВАЖНО: StaticFiles монтируется ПОСЛЕДНИМ — все /api/* роуты имеют приоритет.
+# Новые роуты ДОЛЖНЫ использовать префикс /api, иначе будут перехвачены StaticFiles.
 app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
 ```
 
 При таком подходе нужен только один процесс: `uvicorn main:app --port 8001`. Frontend доступен на `http://localhost:8001`.
+
+> **A12**: Предупреждающий комментарий обязателен. Добавление нового роута без префикса `/api` приведёт к тому, что StaticFiles перехватит запрос, и новый роут будет недоступен. Это неочевидное поведение FastAPI — комментарий предупреждает разработчика.
 
 ---
 
@@ -191,6 +197,36 @@ app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="stati
 
 ---
 
+## Задача 6: Обновление документации (A14)
+
+После всех изменений обновить документацию:
+
+1. `docs/reference/cli.md` — сохранить `retouch gimp` с пометкой experimental
+2. `docs/architecture/overview.md` — добавить `retouch_ui/` в структуру проекта
+3. `docs/guides/style-guide-impact.md` — убрать `shadow_noise`, добавить заметку BACKLOG-006
+4. `docs/reference/config.md` — добавить `face_region_top`, `highlight_start`; убрать `shadow_noise`
+5. `docs/getting-started.md` — добавить `make ui` как способ запуска Web UI
+6. `AGENTS.md` — добавить Web UI команды
+7. `README.md` — добавить секцию Web UI
+
+Чеклист:
+- [ ] Документация обновлена
+- [ ] Нет упоминаний удалённого `shadow_noise` (кроме BACKLOG-006)
+- [ ] Новые параметры `face_region_top`, `highlight_start` описаны
+
+---
+
+## Задача 7: Обновить CHANGELOG.md (A18)
+
+Добавить секцию [3.0.0] с описанием Breaking Changes и новых возможностей.
+
+Чеклист:
+- [ ] CHANGELOG.md содержит секцию [3.0.0]
+- [ ] Breaking Changes описаны
+- [ ] Web UI отмечен как новая возможность
+
+---
+
 ## Чеклист приёмки
 
 - [ ] `make ui` запускает оба сервера одной командой
@@ -208,4 +244,9 @@ app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="stati
 - [ ] Временные файлы удаляются после обработки
 - [ ] `make ui-build` собирает статику в `dist/`
 - [ ] `make ui-prod` запускает production (один процесс uvicorn, статику раздаёт FastAPI)
+- [ ] Предупреждающий комментарий для `app.mount("/", StaticFiles(...))` добавлен (A12)
+- [ ] Документация обновлена — новые параметры, Web UI, GIMP experimental (A14)
+- [ ] Нет упоминаний удалённого `shadow_noise` в документации (кроме BACKLOG-006)
+- [ ] CHANGELOG.md содержит секцию [3.0.0] с Breaking Changes (A18)
+- [ ] BACKLOG.md обновлён — завершённые задачи отмечены (A8)
 - [ ] Git-тег `phase3-done` создан

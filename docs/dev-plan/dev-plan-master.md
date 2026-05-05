@@ -1,9 +1,36 @@
 # Granite Retouch — Дев-план рефакторинга и Web UI
 
-**Версия плана**: 3.3 (исправления по результатам 3-го аудита — 17 находок)
+**Версия плана**: 3.4 (исправления по аудиту — 19 находок + отмена удаления GIMP)
 **Дата**: 2026-05-05
 **Проект**: granite-retouch v2.6.0
 **Ограничения**: 4 ГБ RAM, локальное использование, русский язык UI
+
+---
+
+## Изменения v3.4 относительно v3.3
+
+| # | Критичность | Изменение |
+|---|-------------|-----------|
+| A1 | 🔴 Critical | `face_region_top` и `highlight_start` добавлены в DEFAULTS и config.yaml |
+| A2 | 🔴 Critical | `img.close()` добавлен в `process_steps()` после chromakey-шага |
+| A3 | 🔴 Critical | `PUT /api/config` делает `deep_merge(DEFAULTS, request.config)` перед сохранением |
+| A4 | 🟠 High | `check_face_brightness()` — исправлен псевдокод, определена `subject_mask_arr` |
+| A5 | 🟠 High | `process_preview()` — одно открытие изображения вместо двух |
+| A6 | 🟠 High | Добавлена реализация `hooks/use-config.ts` |
+| A7 | 🟠 High | `params-panel.tsx` и `config-actions.tsx` — заполнены каркасы реализаций |
+| A8 | 🟠 High | Обновление BACKLOG.md добавлено в чеклисты каждой фазы |
+| A9 | 🟡 Medium | Добавлен тест совпадения DEFAULTS и Pydantic-модели |
+| A10 | 🟡 Medium | Версия проекта поднята до 3.0.0-dev (Breaking Changes) |
+| A11 | 🟡 Medium | `_presets_dir()` использует `find_config_path()` как якорь |
+| A12 | 🟡 Medium | Предупреждающий комментарий для `app.mount("/", StaticFiles(...))` |
+| A13 | 🟡 Medium | Добавлены `__init__.py` для retouch_ui/backend/routers |
+| A14 | 🟡 Medium | Добавлена задача обновления документации в Фазу 3 |
+| A15 | 🟢 Low | Docstring для `release_intermediates()` — поведение после вызова |
+| A16 | 🟢 Low | `MAX_UPLOADED_FILES = 50` — лимит загруженных файлов |
+| A17 | 🟢 Low | `image-upload.tsx` — добавлен `useRef` и `onClick` для file input |
+| A18 | 🟢 Low | Обновление CHANGELOG.md добавлено в Фазу 3 |
+| A19 | 🟢 Low | RAM-оценка уточнена: ~100 МБ при 2048×2048 (пик 150 МБ с numpy) |
+| — | 🔵 Decision | **GIMP-пайплайн сохранён** (отмена задачи Pre-0 №5 из v3.3). BACKLOG-005 решение: пометка experimental |
 
 ---
 
@@ -22,7 +49,8 @@
 | Config-валидация | **Pydantic BaseModel** (optional import) | Один источник истины: типы + диапазоны + документация. Conditional import — без Web UI Pydantic не нужен |
 | Загрузка файлов | **file_id** (загрузить один раз, отправлять ID) | Передавать 5 МБ файл при каждом движении слайдера — плохой UX даже на localhost |
 | CPU-bound в FastAPI | **asyncio.to_thread** | Pillow/numpy блокируют event loop; без этого /api/health недоступен во время обработки |
-| CORS | **allow_origins=["*"]** | Локальный инструмент, один оператор; строгий CORS создаёт проблемы на нестандартных портах |
+| CORS | **allow_origins=["\*"]** | Локальный инструмент, один оператор; строгий CORS создаёт проблемы на нестандартных портах |
+| GIMP-пайплайн | **Сохранён** с пометкой experimental | Основной путь — Pillow (`retouch process`). GIMP остаётся для отладки и будущих экспериментов |
 
 ---
 
@@ -57,7 +85,7 @@ Git-теги между фазами — чекпоинты для агента.
 | [dev-plan-phase3-integration.md](dev-plan-phase3-integration.md) | Интеграция, пресеты, экспорт | 3–4 ч |
 | [dev-plan-phase4-tests.md](dev-plan-phase4-tests.md) | Тесты backend + frontend | 3–4 ч |
 
-**Итого**: 25–35 часов
+**Итого**: 22–34 часов
 
 ---
 
@@ -66,25 +94,31 @@ Git-теги между фазами — чекпоинты для агента.
 ```
 granite-retouch/
 ├── retouch/                        # Python-пакет (существующий)
-│   ├── __init__.py                 # версия из pyproject.toml
-│   ├── cli.py                      # + logging.basicConfig
-│   ├── config.py                   # + deep_merge (deepcopy!), + Pydantic модель (optional), - version drift
+│   ├── __init__.py                 # версия 3.0.0-dev из pyproject.toml
+│   ├── cli.py                      # + logging.basicConfig, GIMP команда сохранена (experimental)
+│   ├── config.py                   # + deep_merge (deepcopy!), + Pydantic модель (optional), + face_region_top, highlight_start в DEFAULTS
 │   ├── processing/
 │   │   ├── __init__.py             # + публичные экспорты
-│   │   ├── pipeline.py             # + process_steps, process_preview (с ресайзом!), process_export, PipelineResult
+│   │   ├── pipeline.py             # + process_steps, process_preview (с ресайзом!), process_export, PipelineResult, img.close()
 │   │   ├── chromakey.py            # без изменений
 │   │   ├── glow.py                 # без изменений
 │   │   ├── levels.py               # - print(), + face_region_top, + highlight_start, Breaking: check_face_brightness возвращает кортеж
 │   │   └── vignette.py             # без изменений
 │   ├── validation/                 # без изменений
-│   └── gimp/                       # УДАЛЕНО (в ветку experimental/gimp, переопределение BACKLOG-005)
+│   └── gimp/                       # СОХРАНЕНО — experimental / not recommended
+│       ├── __init__.py
+│       └── runner.py               # предупреждение при запуске
+├── retouch_process.scm             # СОХРАНЁН — Script-Fu для GIMP
 ├── retouch_ui/
+│   ├── __init__.py                 # пустой (для relative imports)
 │   ├── backend/
+│   │   ├── __init__.py             # пустой
 │   │   ├── main.py                 # FastAPI app + asyncio.to_thread + version в health
 │   │   ├── routers/
-│   │   │   ├── process.py          # POST /upload, /process/preview (по file_id), /process/export + BackgroundTask cleanup
-│   │   │   ├── config.py           # GET/PUT /config, /config/defaults (поиск пути делегирован retouch.config)
-│   │   │   └── presets.py          # GET/POST/DELETE /presets
+│   │   │   ├── __init__.py         # пустой
+│   │   │   ├── process.py          # POST /upload, /process/preview (по file_id), /process/export + BackgroundTask cleanup + MAX_UPLOADED_FILES
+│   │   │   ├── config.py           # GET/PUT /config (deep_merge перед сохранением!), /config/defaults
+│   │   │   └── presets.py          # GET/POST/DELETE /presets (_presets_dir через find_config_path)
 │   │   ├── schemas.py              # Pydantic модели
 │   │   └── requirements.txt
 │   └── frontend/
@@ -94,13 +128,13 @@ granite-retouch/
 │       │   ├── App.tsx
 │       │   ├── main.tsx
 │       │   ├── components/
-│       │   │   ├── image-upload.tsx
+│       │   │   ├── image-upload.tsx  # + useRef + onClick для file input
 │       │   │   ├── before-after.tsx
 │       │   │   ├── step-selector.tsx
-│       │   │   ├── params-panel.tsx
+│       │   │   ├── params-panel.tsx  # ЗАПОЛНЕН каркас реализации
 │       │   │   ├── machine-switch.tsx
 │       │   │   ├── diagnostics-panel.tsx
-│       │   │   ├── config-actions.tsx
+│       │   │   ├── config-actions.tsx # ЗАПОЛНЕН каркас реализации
 │       │   │   └── export-buttons.tsx
 │       │   ├── lib/
 │       │   │   ├── api.ts          # uploadImage() → file_id, fetchPreview(fileId, ...)
@@ -108,12 +142,12 @@ granite-retouch/
 │       │   │   └── utils.ts
 │       │   └── hooks/
 │       │       ├── use-preview.ts
-│       │       └── use-config.ts
+│       │       └── use-config.ts   # ДОБАВЛЕНА полная реализация
 │       └── index.html
 ├── presets/                         # YAML-пресеты
-├── config.yaml                      # синхронизирован с DEFAULTS
-├── pyproject.toml                   # версия = __init__.py, + pydantic как optional dep
-└── Makefile                         # + make ui, make ui-backend, make ui-frontend
+├── config.yaml                      # синхронизирован с DEFAULTS (+ face_region_top, highlight_start)
+├── pyproject.toml                   # версия 3.0.0-dev, + pydantic как optional dep
+└── Makefile                         # + make ui, make ui-backend, make ui-frontend, make ui-prod
 ```
 
 ---
@@ -123,10 +157,12 @@ granite-retouch/
 | Функция | Было | Стало | Фаза | Влияние |
 |---------|------|-------|------|---------|
 | `check_face_brightness()` | Возвращает `Image` | Возвращает `(Image, float, float, float)` | 0 | test_levels.py — обновить |
-| `load_config()` | Возвращает yaml как есть | deep_merge(yaml, DEFAULTS) — частичный yaml дополняется | 0 | Может изменить поведение при частичном config.yaml |
+| `load_config()` | Возвращает yaml как есть | `deep_merge(DEFAULTS, yaml)` — частичный yaml дополняется | 0 | Может изменить поведение при частичном config.yaml |
 | `process()` | Монолит с I/O | Тонкая обёртка над `process_export()` | 0 | CLI не ломается |
-| `retouch/gimp/` | В main | Удалено в ветку experimental/gimp | Pre-0 | CLI команда `retouch gimp` удалена |
 | `shadow_noise` | В DEFAULTS и yaml | Удалён | Pre-0 | test_config.py — обновить |
+| Версия | `2.6.0` | `3.0.0-dev` | Pre-0 | SemVer — Breaking Changes |
+
+**Примечание**: GIMP-пайплайн **сохранён** — команда `retouch gimp` остаётся с пометкой experimental.
 
 ---
 
@@ -143,9 +179,12 @@ granite-retouch/
 - [ ] Сохранение config.yaml из UI
 - [ ] Экспорт TIFF/PNG в полном разрешении
 - [ ] CLI работает без изменений (`retouch process` — обратная совместимость)
+- [ ] `retouch gimp` работает с предупреждением «experimental»
 - [ ] /api/health доступен во время обработки изображения
 - [ ] Временные файлы удаляются после обработки (нет утечки диска)
 - [ ] DEFAULTS не мутируется при вызовах load_config()
+- [ ] BACKLOG.md обновлён — завершённые задачи отмечены
+- [ ] Документация обновлена — новые параметры, Web UI, GIMP experimental
 
 ---
 
@@ -159,71 +198,51 @@ granite-retouch/
 | 4 ГБ RAM не хватает при большом изображении | Средняя | Среднее | --workers 1; preview на уменьшенной копии; release_intermediates(); asyncio.to_thread |
 | FastAPI crash при невалидном изображении | Низкая | Среднее | try/except в router; валидация файла перед обработкой |
 | CPU-bound обработка блокирует event loop | Высокая | Среднее | asyncio.to_thread для всех вызовов pipeline |
-| Утечка временных файлов на диске | Средняя | Среднее | BackgroundTask для FileResponse; TTL cleanup для uploaded files |
+| Утечка временных файлов на диске | Средняя | Среднее | BackgroundTask для FileResponse; TTL cleanup для uploaded files; MAX_UPLOADED_FILES=50 |
 | PermissionError на Windows при временных файлах | Средняя | Низкое | img.close() перед передачей пути; tmp.close() ДО записи через PIL |
 | pytest-asyncio конфликт с TestClient | Низкая | Среднее | asyncio_mode = "strict" в pyproject.toml; или убрать pytest-asyncio |
 | Preview timeout на очень больших изображениях | Низкая | Среднее | asyncio.wait_for(timeout=15.0) + HTTP 408 + подсказка уменьшить изображение |
 | _uploaded_files race condition при --workers > 1 | Низкая | Низкое | --workers 1; комментарий о необходимости threading.Lock при масштабировании |
+| DEFAULTS рассинхрон с Pydantic-моделью | Средняя | Среднее | Тест `test_defaults_match_pydantic` при каждом изменении DEFAULTS |
+| GIMP-пайплайн получает баг-репорт | Средняя | Низкое | Пометка experimental + предупреждение; приоритет — Pillow-пайплайн |
 
 ---
 
 ## История изменений
 
+### v3.4 — исправления по аудиту (19 находок + отмена удаления GIMP)
+
+| # | Критичность | Находка | Статус | Где исправлено |
+|---|-------------|---------|--------|---------------|
+| A1 | 🔴 Critical | `face_region_top` и `highlight_start` не в DEFAULTS | ✅ Добавлены в DEFAULTS, config.yaml, Pydantic | phase0 |
+| A2 | 🔴 Critical | `process_steps()` не закрывает исходное изображение | ✅ Добавлен `img.close()` после chromakey | phase0 |
+| A3 | 🔴 Critical | `PUT /api/config` затирает частичный конфиг | ✅ `deep_merge(DEFAULTS, request.config)` перед сохранением | phase1 |
+| A4 | 🟠 High | `check_face_brightness()` — неполный псевдокод | ✅ Определена `subject_mask_arr` | phase0 |
+| A5 | 🟠 High | `process_preview()` дважды открывает изображение | ✅ Один open + thumbnail в памяти | phase0 |
+| A6 | 🟠 High | `use-config.ts` не определён | ✅ Добавлена полная реализация | phase2 |
+| A7 | 🟠 High | `params-panel.tsx`, `config-actions.tsx` — заглушки | ✅ Заполнены каркасы | phase2 |
+| A8 | 🟠 High | BACKLOG.md не обновляется по завершении фаз | ✅ Добавлено в чеклисты всех фаз | все |
+| A9 | 🟡 Medium | DEFAULTS и Pydantic — два источника истины | ✅ Добавлен тест совпадения | phase4 |
+| A10 | 🟡 Medium | Версия не поднята до 3.0.0 | ✅ Версия 3.0.0-dev в Pre-0 | pre0 |
+| A11 | 🟡 Medium | `_presets_dir()` — хрупкая навигация | ✅ Использует `find_config_path()` как якорь | phase1 |
+| A12 | 🟡 Medium | `app.mount("/", StaticFiles)` — конфликт с API | ✅ Предупреждающий комментарий | phase3 |
+| A13 | 🟡 Medium | Relative imports без `__init__.py` | ✅ Добавлены `__init__.py` | phase1 |
+| A14 | 🟡 Medium | Документация не обновляется | ✅ Добавлена задача в Фазу 3 | phase3 |
+| A15 | 🟢 Low | `release_intermediates()` — нет docstring о поведении | ✅ Добавлен docstring | phase0 |
+| A16 | 🟢 Low | Нет лимита загруженных файлов | ✅ `MAX_UPLOADED_FILES = 50` | phase1 |
+| A17 | 🟢 Low | `image-upload.tsx` — скрытый input без onClick | ✅ Добавлен `useRef` + `onClick` | phase2 |
+| A18 | 🟢 Low | CHANGELOG.md не обновляется | ✅ Добавлена задача в Фазу 3 | phase3 |
+| A19 | 🟢 Low | RAM-оценка PipelineResult неточна | ✅ Уточнена: ~100 МБ (пик 150 МБ) | phase0 |
+| — | 🔵 Decision | GIMP-пайплайн удаляется в v3.3 | ❌ Отменено — GIMP сохранён с пометкой experimental | pre0 |
+
 ### v3.3 — исправления по 3-му аудиту (17 находок)
 
-| # | Критичность | Находка | Статус | Где исправлено |
-|---|-------------|---------|--------|---------------|
-| C1 | 🔴 Critical | Имя пакета `retouch-ui` — невалидно для Python (дефис) | ✅ Переименовано в `retouch_ui` во всех файлах плана | master, phase1–4 |
-| C2 | 🔴 Critical | Дублирование `load_config()` — две версии в Phase 0 | ✅ Инлайн-поиск убран из задачи 7, `find_config_path()` определена там же; задача 11.5 — подтверждение экспорта | phase0 |
-| C3 | 🔴 Critical | Пустые секции «см. v3.0» в Phase 2 (~50% фронтенда) | ✅ Заполнены: index.css, config-schema.ts, все 8 компонентов, App.tsx; заполнен routers/presets.py в Phase 1 | phase1, phase2 |
-| H1 | 🟠 High | `PreviewRequest`/`ExportRequest` — мёртвый код | ✅ Закомментированы с пояснением | phase1 |
-| H2 | 🟠 High | `AbortSignal` не передаётся в `fetch()` | ✅ Добавлен `signal?: AbortSignal` в `fetchPreview()` и передача в `fetch()` + `use-preview.ts` | phase2 |
-| H3 | 🟠 High | `asyncio.wait_for()` заявлен, но не реализован | ✅ Добавлен `asyncio.wait_for(timeout=15.0)` в роутер `process_preview` + HTTPException(408) | phase1 |
-| H4 | 🟠 High | `.gitignore` не обновлён | ✅ Добавлена задача 7 в Phase 1 — обновить `.gitignore` (node_modules, dist, __pycache__) | phase1 |
-| M1 | 🟡 Medium | `tempfile.NamedTemporaryFile(suffix=".png")` для всех загрузок | ✅ Расширение определяется из `file.filename` через `Path().suffix` | phase1 |
-| M2 | 🟡 Medium | `PipelineResult` — типы не допускают None после release | ✅ Все промежуточные поля — `Image.Image \| None`; `img_final` — `Image.Image` (всегда) | phase0 |
-| M3 | 🟡 Medium | TTL-очистка только при upload | ✅ `_cleanup_expired_files()` вызывается и в preview, и в export | phase1 |
-| M4 | 🟡 Medium | `main.py` — hardcoded версия `1.0.0` | ✅ `version=retouch.__version__` + импорт перенесён наверх | phase1 |
-| M5 | 🟡 Medium | `process_export()` — небезопасная замена расширения | ✅ `Path(output_path).with_suffix(".png")` вместо `.replace()` | phase0 |
-| L1 | 🟢 Low | Медленный фикстур (putpixel 12K итераций) | ✅ numpy: `arr = np.zeros(...)` + `Image.fromarray()` | phase4 |
-| L2 | 🟢 Low | `validate_config` не блокирует сохранение | ✅ Добавлено пояснение в тест + заметка о чекбоксе в UI | phase4, phase2 |
-| L3 | 🟢 Low | Production-режим не документирован | ✅ Добавлена цель `make ui-prod` в Makefile + чеклист | phase3 |
-| L4 | 🟢 Low | `_uploaded_files` — не потокобезопасно | ✅ Добавлен комментарий с предупреждением о race condition при --workers > 1 | phase1 |
-| L5 | 🟢 Low | `concurrently` — зависимость от devDependency | ✅ Добавлено предупреждение в Makefile + рекомендация `make ui-prod` для production | phase3 |
+(без изменений — см. v3.3)
 
-### v3.2 — исправления по 2-му ревью
+### v3.2 — исправления по 2-му ревью (7 находок)
 
-7 находок, все подтверждены и устранены:
+(без изменений — см. v3.3)
 
-| # | Критичность | Находка | Статус | Где исправлено |
-|---|-------------|---------|--------|---------------|
-| N1 | 🔴 Critical | `BackgroundTasks().add_task()` возвращает None | ✅ Уже было правильно в v3.1 — `BackgroundTask` (singular) из `starlette.background` | phase1 |
-| N2 | 🔴 Critical | `tempfile.BytesIO` не существует | ✅ Уже было правильно в v3.1 — `io.BytesIO`. Убран неиспользуемый `import tempfile` из conftest | phase4 |
-| N3 | 🟠 High | `find_config_path()` не выделена в Phase 0 | ✅ Добавлена отдельная задача 11.5 + акцент в чеклисте и порядке выполнения | phase0 |
-| N4 | 🟡 Medium | Нет `img.close()` в `process_preview` | ✅ Добавлен Windows-safe паттерн: `img.close()` + `tmp.close()` ДО записи через PIL | phase0 |
-| N5 | 🟡 Medium | `asyncio.to_thread` + TestClient | ✅ Расширен раздел с обоснованием `strict` vs `auto` | phase4 |
-| N6 | 🟢 Low | lifespan cleanup без try/except | ✅ Уже было правильно в v3.1 — `try/except` + `logger.exception()` | phase1 |
-| N7 | 🟢 Low | `make ui` без явной зависимости на ui-install | ✅ `ui-install` с проверкой `node_modules` + `ui-force-install` | phase3 |
+### v3.1 — исправления по 1-му ревью (18 находок)
 
-### v3.1 — исправления по 1-му ревью
-
-18 находок, все устранены (подтверждено 2-м ревью):
-- validate_result_black_ratio на img_final
-- Правильные имена параметров apply_inner_glow
-- Breaking Changes секция
-- max_size реализован через thumbnail() + tmp + cleanup
-- BackgroundTask для TIFF cleanup
-- uploaded_at через time.time()
-- deepcopy в deep_merge
-- logging.basicConfig в cli.py
-- Pydantic как optional dep
-- GIMP override BACKLOG-005
-- shadow_noise test update
-- Удалён мёртвый кэш
-- CORS allow_origins=["*"]
-- tmp_path для тестов
-- find_config_path extraction
-- file_id перенесён в Phase 1
-- asyncio.to_thread для CPU-bound
-- version в health endpoint
-- Git tag checkpoints
+(без изменений — см. v3.3)
