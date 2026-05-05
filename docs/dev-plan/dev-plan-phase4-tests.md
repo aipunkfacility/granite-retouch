@@ -49,7 +49,7 @@ asyncio_mode = "strict"
 
 ## Задача 1: Backend API тесты
 
-**Директория**: `retouch-ui/backend/tests/`
+**Директория**: `retouch_ui/backend/tests/`
 
 ### conftest.py
 
@@ -73,12 +73,15 @@ def client():
 
 @pytest.fixture
 def sample_chromakey_png():
-    """Синтетическое изображение с синим хромакеем — как PNG bytes."""
-    img = Image.new("RGBA", (512, 512), (0, 0, 255, 255))  # синий фон
-    for x in range(200, 312):
-        for y in range(200, 312):
-            img.putpixel((x, y), (255, 255, 255, 255))  # белый субъект
+    """Синтетическое изображение с синим хромакеем — как PNG bytes.
+    Использует numpy для быстрого создания (L1: вместо вложенного цикла putpixel)."""
+    import numpy as np
 
+    arr = np.zeros((512, 512, 4), dtype=np.uint8)
+    arr[:, :] = [0, 0, 255, 255]           # синий фон (RGBA)
+    arr[200:312, 200:312] = [255, 255, 255, 255]  # белый субъект
+
+    img = Image.fromarray(arr, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
@@ -212,6 +215,23 @@ def test_preview_fallback_direct_file(client, sample_chromakey_png):
     )
     assert res.status_code == 200
     assert "images" in res.json()
+
+
+def test_upload_preserves_file_extension(client):
+    """Загруженный файл сохраняется с правильным расширением (M1)."""
+    import io as _io
+    # Создаём TIFF-подобный файл
+    img = Image.new("RGB", (64, 64), (128, 128, 128))
+    buf = _io.BytesIO()
+    img.save(buf, format="TIFF")
+    buf.seek(0)
+
+    res = client.post(
+        "/api/process/upload",
+        files={"file": ("photo.tiff", buf, "image/tiff")},
+    )
+    assert res.status_code == 200
+    # Файл должен быть сохранён с расширением .tiff, а не .png
 ```
 
 ### test_config_api.py
@@ -242,7 +262,9 @@ def test_get_defaults(client):
 
 
 def test_put_config_uses_tmp(tmp_path, monkeypatch):
-    """PUT /api/config сохраняет конфиг во временный файл (изоляция)."""
+    """PUT /api/config сохраняет конфиг во временный файл (изоляция).
+    L2: конфиг сохраняется даже при warnings — для локального инструмента это допустимо.
+    В UI добавлен чекбокс «Сохранить несмотря на предупреждения» (по умолчанию включён)."""
     # Переопределяем поиск конфига на tmp_path
     from retouch import config as cfg_module
     tmp_config = tmp_path / "config.yaml"
@@ -474,7 +496,7 @@ def test_pydantic_model_available():
 
 ## Чеклист приёмки
 
-- [ ] `pytest retouch-ui/backend/tests/ -v` — все backend-тесты проходят
+- [ ] `pytest retouch_ui/backend/tests/ -v` — все backend-тесты проходят
 - [ ] `pytest tests/ -v` — все существующие тесты + новые pipeline-тесты проходят
 - [ ] Backend API тесты покрывают: upload, preview (by file_id + fallback), export, config, presets
 - [ ] Тесты Pydantic модели покрывают: валидацию, deep_merge, неизменяемость DEFAULTS

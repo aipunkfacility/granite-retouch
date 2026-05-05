@@ -1,6 +1,6 @@
 # Granite Retouch — Дев-план рефакторинга и Web UI
 
-**Версия плана**: 3.2 (исправления по результатам 2-го ревью)
+**Версия плана**: 3.3 (исправления по результатам 3-го аудита — 17 находок)
 **Дата**: 2026-05-05
 **Проект**: granite-retouch v2.6.0
 **Ограничения**: 4 ГБ RAM, локальное использование, русский язык UI
@@ -78,7 +78,7 @@ granite-retouch/
 │   │   └── vignette.py             # без изменений
 │   ├── validation/                 # без изменений
 │   └── gimp/                       # УДАЛЕНО (в ветку experimental/gimp, переопределение BACKLOG-005)
-├── retouch-ui/
+├── retouch_ui/
 │   ├── backend/
 │   │   ├── main.py                 # FastAPI app + asyncio.to_thread + version в health
 │   │   ├── routers/
@@ -162,10 +162,34 @@ granite-retouch/
 | Утечка временных файлов на диске | Средняя | Среднее | BackgroundTask для FileResponse; TTL cleanup для uploaded files |
 | PermissionError на Windows при временных файлах | Средняя | Низкое | img.close() перед передачей пути; tmp.close() ДО записи через PIL |
 | pytest-asyncio конфликт с TestClient | Низкая | Среднее | asyncio_mode = "strict" в pyproject.toml; или убрать pytest-asyncio |
+| Preview timeout на очень больших изображениях | Низкая | Среднее | asyncio.wait_for(timeout=15.0) + HTTP 408 + подсказка уменьшить изображение |
+| _uploaded_files race condition при --workers > 1 | Низкая | Низкое | --workers 1; комментарий о необходимости threading.Lock при масштабировании |
 
 ---
 
 ## История изменений
+
+### v3.3 — исправления по 3-му аудиту (17 находок)
+
+| # | Критичность | Находка | Статус | Где исправлено |
+|---|-------------|---------|--------|---------------|
+| C1 | 🔴 Critical | Имя пакета `retouch-ui` — невалидно для Python (дефис) | ✅ Переименовано в `retouch_ui` во всех файлах плана | master, phase1–4 |
+| C2 | 🔴 Critical | Дублирование `load_config()` — две версии в Phase 0 | ✅ Инлайн-поиск убран из задачи 7, `find_config_path()` определена там же; задача 11.5 — подтверждение экспорта | phase0 |
+| C3 | 🔴 Critical | Пустые секции «см. v3.0» в Phase 2 (~50% фронтенда) | ✅ Заполнены: index.css, config-schema.ts, все 8 компонентов, App.tsx; заполнен routers/presets.py в Phase 1 | phase1, phase2 |
+| H1 | 🟠 High | `PreviewRequest`/`ExportRequest` — мёртвый код | ✅ Закомментированы с пояснением | phase1 |
+| H2 | 🟠 High | `AbortSignal` не передаётся в `fetch()` | ✅ Добавлен `signal?: AbortSignal` в `fetchPreview()` и передача в `fetch()` + `use-preview.ts` | phase2 |
+| H3 | 🟠 High | `asyncio.wait_for()` заявлен, но не реализован | ✅ Добавлен `asyncio.wait_for(timeout=15.0)` в роутер `process_preview` + HTTPException(408) | phase1 |
+| H4 | 🟠 High | `.gitignore` не обновлён | ✅ Добавлена задача 7 в Phase 1 — обновить `.gitignore` (node_modules, dist, __pycache__) | phase1 |
+| M1 | 🟡 Medium | `tempfile.NamedTemporaryFile(suffix=".png")` для всех загрузок | ✅ Расширение определяется из `file.filename` через `Path().suffix` | phase1 |
+| M2 | 🟡 Medium | `PipelineResult` — типы не допускают None после release | ✅ Все промежуточные поля — `Image.Image \| None`; `img_final` — `Image.Image` (всегда) | phase0 |
+| M3 | 🟡 Medium | TTL-очистка только при upload | ✅ `_cleanup_expired_files()` вызывается и в preview, и в export | phase1 |
+| M4 | 🟡 Medium | `main.py` — hardcoded версия `1.0.0` | ✅ `version=retouch.__version__` + импорт перенесён наверх | phase1 |
+| M5 | 🟡 Medium | `process_export()` — небезопасная замена расширения | ✅ `Path(output_path).with_suffix(".png")` вместо `.replace()` | phase0 |
+| L1 | 🟢 Low | Медленный фикстур (putpixel 12K итераций) | ✅ numpy: `arr = np.zeros(...)` + `Image.fromarray()` | phase4 |
+| L2 | 🟢 Low | `validate_config` не блокирует сохранение | ✅ Добавлено пояснение в тест + заметка о чекбоксе в UI | phase4, phase2 |
+| L3 | 🟢 Low | Production-режим не документирован | ✅ Добавлена цель `make ui-prod` в Makefile + чеклист | phase3 |
+| L4 | 🟢 Low | `_uploaded_files` — не потокобезопасно | ✅ Добавлен комментарий с предупреждением о race condition при --workers > 1 | phase1 |
+| L5 | 🟢 Low | `concurrently` — зависимость от devDependency | ✅ Добавлено предупреждение в Makefile + рекомендация `make ui-prod` для production | phase3 |
 
 ### v3.2 — исправления по 2-му ревью
 

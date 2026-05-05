@@ -105,7 +105,7 @@ vignette:
 
 Уже реализовано в Фазе 1 через try/except в routers. Дополнительно:
 - Логирование через `logging.exception()` для 500 ошибок
-- `asyncio.wait_for()` для preview (макс 15 сек)
+- `asyncio.wait_for()` для preview (макс 15 сек) — **реализовано в Phase 1 роутере process_preview**
 - Graceful shutdown при Ctrl+C (`lifespan` cleanup)
 
 ---
@@ -118,29 +118,35 @@ vignette:
 # === Web UI ===
 
 ui-backend:      ## Запустить FastAPI backend
-        cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+        cd retouch_ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 
 ui-frontend:     ## Запустить Vite frontend
-        cd retouch-ui/frontend && npm run dev
+        cd retouch_ui/frontend && npm run dev
 
 ui: ui-install   ## Запустить backend + frontend (авто-установка зависимостей)
-        cd retouch-ui/frontend && npx concurrently -n backend,frontend -c blue,green \
+        cd retouch_ui/frontend && npx concurrently -n backend,frontend -c blue,green \
                 "cd ../backend && uvicorn main:app --port 8001 --workers 1" \
                 "npm run dev"
+        # ⚠ concurrently — devDependency (-D). При NODE_ENV=production npm может не установить devDependencies.
+        # ui-install проверяет наличие node_modules — это защищает от проблемы.
+        # Для production используйте `make ui-prod` (не нужен concurrently).
 
 ui-install:      ## Установить зависимости frontend (только если node_modules отсутствует)
-        @if [ ! -d "retouch-ui/frontend/node_modules" ]; then \
+        @if [ ! -d "retouch_ui/frontend/node_modules" ]; then \
                 echo "Installing frontend dependencies..."; \
-                cd retouch-ui/frontend && npm install; \
+                cd retouch_ui/frontend && npm install; \
         else \
                 echo "Frontend dependencies already installed. Run 'make ui-force-install' to reinstall."; \
         fi
 
 ui-force-install: ## Принудительная переустановка зависимостей frontend
-        cd retouch-ui/frontend && npm install
+        cd retouch_ui/frontend && npm install
 
 ui-build: ui-install  ## Сборка frontend для продакшена
-        cd retouch-ui/frontend && npm run build
+        cd retouch_ui/frontend && npm run build
+
+ui-prod: ui-build     ## Production: собрать статику + запустить uvicorn (один процесс)
+        cd retouch_ui/backend && uvicorn main:app --port 8001 --workers 1
 ```
 
 ---
@@ -148,10 +154,10 @@ ui-build: ui-install  ## Сборка frontend для продакшена
 ## Задача 4: Production-сборка frontend
 
 ```bash
-cd retouch-ui/frontend && npm run build
+cd retouch_ui/frontend && npm run build
 ```
 
-Результат — `retouch-ui/frontend/dist/` со статическими файлами.
+Результат — `retouch_ui/frontend/dist/` со статическими файлами.
 
 FastAPI раздаёт статику:
 
@@ -201,4 +207,5 @@ app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="stati
 - [ ] RAM в режиме разработки ≤ 2.5 ГБ
 - [ ] Временные файлы удаляются после обработки
 - [ ] `make ui-build` собирает статику в `dist/`
+- [ ] `make ui-prod` запускает production (один процесс uvicorn, статику раздаёт FastAPI)
 - [ ] Git-тег `phase3-done` создан

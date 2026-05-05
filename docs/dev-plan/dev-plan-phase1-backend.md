@@ -11,7 +11,7 @@
 
 ```
 granite-retouch/
-└── retouch-ui/
+└── retouch_ui/
     └── backend/
         ├── main.py              # FastAPI app + asyncio.to_thread + version в health
         ├── routers/
@@ -26,7 +26,7 @@ granite-retouch/
 
 ## Зависимости
 
-**`retouch-ui/backend/requirements.txt`**:
+**`retouch_ui/backend/requirements.txt`**:
 ```
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
@@ -51,18 +51,20 @@ from typing import Optional
 
 
 # === Запросы ===
+# Примечание: PreviewRequest и ExportRequest НЕ используются в роутерах —
+# роутеры принимают Form + File параметры для поддержки file upload.
+# Эти модели оставлены для OpenAPI-документации и будущей миграции на JSON-тела.
 
-class PreviewRequest(BaseModel):
-    file_id: str = Field(..., min_length=1)
-    machine_type: str = Field("laser", pattern="^(laser|impact)$")
-    config: Optional[dict] = None
+# class PreviewRequest(BaseModel):
+#     file_id: str = Field(..., min_length=1)
+#     machine_type: str = Field("laser", pattern="^(laser|impact)$")
+#     config: Optional[dict] = None
 
-
-class ExportRequest(BaseModel):
-    file_id: str = Field(..., min_length=1)
-    machine_type: str = Field("laser", pattern="^(laser|impact)$")
-    config: Optional[dict] = None
-    format: str = Field("tiff", pattern="^(tiff|png)$")
+# class ExportRequest(BaseModel):
+#     file_id: str = Field(..., min_length=1)
+#     machine_type: str = Field("laser", pattern="^(laser|impact)$")
+#     config: Optional[dict] = None
+#     format: str = Field("tiff", pattern="^(tiff|png)$")
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -137,15 +139,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import retouch
 from .routers import process, config, presets
 
-logger = logging.getLogger("retouch-ui")
+logger = logging.getLogger("retouch_ui")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown."""
-    logger.info("retouch-ui backend starting on :8001")
+    logger.info("retouch_ui backend starting on :8001")
     try:
         yield
     finally:
@@ -155,12 +158,12 @@ async def lifespan(app: FastAPI):
             _cleanup_all_files()
         except Exception:
             logger.exception("Cleanup failed during shutdown")
-        logger.info("retouch-ui backend shutting down")
+        logger.info("retouch_ui backend shutting down")
 
 
 app = FastAPI(
     title="granite-retouch API",
-    version="1.0.0",
+    version=retouch.__version__,  # ← из pyproject.toml, не hardcoded
     lifespan=lifespan,
 )
 
@@ -182,7 +185,6 @@ app.include_router(presets.router, prefix="/api", tags=["presets"])
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
     """Health check с версией — полезно для отладки."""
-    import retouch
     return {"status": "ok", "version": retouch.__version__}
 ```
 
@@ -210,10 +212,13 @@ import retouch.processing as proc
 from retouch.config import load_config, deep_merge, validate_config
 from ..schemas import PreviewResponse, DiagnosticsResponse, UploadResponse
 
-logger = logging.getLogger("retouch-ui.process")
+logger = logging.getLogger("retouch_ui.process")
 router = APIRouter()
 
 # In-memory хранилище загруженных файлов: id → (path, metadata)
+# ⚠ НЕ потокобезопасно: dict без блокировок. При --workers > 1 будет race condition.
+# Сейчас --workers 1 — безопасно. Если потребуется multi-worker — заменить на threading.Lock
+# или внешнее хранилище (Redis/файловая система).
 _uploaded_files: dict[str, tuple[str, dict]] = {}
 
 # TTL-очистка: 30 минут
@@ -274,7 +279,9 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(400, "Файл слишком большой (макс. 20 МБ)")
 
     file_id = str(uuid.uuid4())
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+    # Определяем расширение из имени загруженного файла (M1: не хардкодить .png)
+    suffix = Path(file.filename).suffix if file.filename and Path(file.filename).suffix else ".png"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(contents)
         _uploaded_files[file_id] = (tmp.name, {
             "original_name": file.filename,
@@ -304,6 +311,9 @@ async def process_preview(
     """
     import json
 
+    # M3: периодическая очистка устаревших файлов при любом обращении
+    _cleanup_expired_files()
+
     # Определяем путь к файлу
     tmp_path_cleanup = None
     if file_id and file_id in _uploaded_files:
@@ -322,13 +332,20 @@ async def process_preview(
         config = _get_config(config_override)
 
         # asyncio.to_thread — не блокировать event loop
-        result = await asyncio.to_thread(
-            proc.process_preview,
-            input_path=tmp_path,
-            machine_type=machine_type,
-            config=config,
-            max_size=768,
-        )
+        # asyncio.wait_for — таймаут 15 сек (предотвращает зависание на больших файлах)
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    proc.process_preview,
+                    input_path=tmp_path,
+                    machine_type=machine_type,
+                    config=config,
+                    max_size=768,
+                ),
+                timeout=15.0,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(408, "Превышено время обработки предпросмотра (15 сек). Попробуйте уменьшить изображение.")
 
         images = {
             "chromakey": _image_to_base64(result.img_chromakey),
@@ -380,6 +397,9 @@ async def process_export(
 ):
     """Полная обработка + скачивание файла."""
     import json
+
+    # M3: периодическая очистка устаревших файлов при любом обращении
+    _cleanup_expired_files()
 
     # Определяем путь
     tmp_in_cleanup = None
@@ -454,7 +474,7 @@ from fastapi import APIRouter, HTTPException
 from retouch.config import load_config, validate_config, DEFAULTS, find_config_path
 from ..schemas import ConfigResponse, ConfigUpdateResponse, ConfigUpdateRequest
 
-logger = logging.getLogger("retouch-ui.config")
+logger = logging.getLogger("retouch_ui.config")
 router = APIRouter()
 
 
@@ -511,7 +531,71 @@ def find_config_path() -> Path | None:
 
 ## Задача 5: routers/presets.py
 
-Без изменений — см. v3.0.
+```python
+"""Роутер пресетов: готовые наборы параметров."""
+import yaml
+import logging
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+
+from ..schemas import PresetItem, PresetsListResponse, PresetCreateRequest
+
+logger = logging.getLogger("retouch_ui.presets")
+router = APIRouter()
+
+
+def _presets_dir() -> Path:
+    """Директория с YAML-пресетами. По умолчанию — ./presets/ от корня проекта."""
+    return Path(__file__).parent.parent.parent.parent / "presets"
+
+
+@router.get("/presets", response_model=PresetsListResponse)
+async def list_presets():
+    """Список доступных пресетов."""
+    presets_dir = _presets_dir()
+    presets = []
+    if presets_dir.exists():
+        for f in sorted(presets_dir.glob("*.yaml")):
+            with open(f) as fh:
+                config = yaml.safe_load(fh) or {}
+            presets.append(PresetItem(name=f.stem, config=config))
+    return PresetsListResponse(presets=presets)
+
+
+@router.post("/presets")
+async def create_preset(request: PresetCreateRequest):
+    """Создать новый пресет."""
+    presets_dir = _presets_dir()
+    presets_dir.mkdir(parents=True, exist_ok=True)
+    preset_path = presets_dir / f"{request.name}.yaml"
+
+    if preset_path.exists():
+        raise HTTPException(409, f"Пресет '{request.name}' уже существует")
+
+    with open(preset_path, "w") as f:
+        yaml.dump(request.config, f, default_flow_style=False, allow_unicode=True)
+
+    logger.info("Preset created: %s", request.name)
+    return {"created": True, "name": request.name}
+
+
+@router.delete("/presets/{name}")
+async def delete_preset(name: str):
+    """Удалить пресет."""
+    # Валидация имени — только буквенно-цифровые и _-
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+        raise HTTPException(400, "Некорректное имя пресета")
+
+    preset_path = _presets_dir() / f"{name}.yaml"
+    if not preset_path.exists():
+        raise HTTPException(404, f"Пресет '{name}' не найден")
+
+    preset_path.unlink()
+    logger.info("Preset deleted: %s", name)
+    return {"deleted": True, "name": name}
+```
 
 ---
 
@@ -519,7 +603,7 @@ def find_config_path() -> Path | None:
 
 **Команда**:
 ```bash
-cd retouch-ui/backend
+cd retouch_ui/backend
 uvicorn main:app --port 8001 --reload --workers 1
 ```
 
@@ -528,8 +612,26 @@ uvicorn main:app --port 8001 --reload --workers 1
 **Makefile** (добавить в корневой Makefile):
 ```makefile
 ui-backend:      ## Запустить FastAPI backend
-        cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+        cd retouch_ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 ```
+
+---
+
+## Задача 7: .gitignore — обновление для retouch_ui
+
+Добавить в корневой `.gitignore`:
+
+```gitignore
+# === retouch_ui (Web UI) ===
+retouch_ui/frontend/node_modules/
+retouch_ui/frontend/dist/
+retouch_ui/frontend/.vite/
+__pycache__/
+*.pyc
+*.pyo
+```
+
+**Важно**: без этого `node_modules/` (сотни МБ) и `dist/` могут быть случайно закоммичены.
 
 ---
 
@@ -550,4 +652,5 @@ ui-backend:      ## Запустить FastAPI backend
 - [ ] CORS разрешает запросы с любого origin
 - [ ] RAM при простое ≤ 150 МБ
 - [ ] RAM при обработке 2048×2048 ≤ 600 МБ
-- [ ] TTL-очистка загруженных файлов работает (uploaded_at установлен)
+- [ ] TTL-очистка загруженных файлов работает (uploaded_at установлен) — вызывается в upload, preview и export
+- [ ] `.gitignore` обновлён — `node_modules/`, `dist/`, `__pycache__/` исключены

@@ -56,15 +56,15 @@ from PIL import Image
 class PipelineResult:
     """Результат пайплайна — все промежуточные этапы + диагностика."""
 
-    # Промежуточные изображения (PIL.Image)
-    img_chromakey: Image.Image       # После хромакея (RGBA)
-    img_gray: Image.Image            # После конвертации в L
-    img_glow: Image.Image            # После Inner Glow (L)
-    img_leveled: Image.Image         # После Levels + Unsharp (L)
-    img_face_corrected: Image.Image  # После face brightness correction (L)
-    img_final: Image.Image           # После виньетки (RGB)
-    arch_mask: Image.Image           # Маска виньетки (L)
-    subject_mask: Image.Image        # Маска субъекта (L)
+    # Промежуточные изображения (PIL.Image | None после release_intermediates)
+    img_chromakey: Image.Image | None       # После хромакея (RGBA)
+    img_gray: Image.Image | None            # После конвертации в L
+    img_glow: Image.Image | None            # После Inner Glow (L)
+    img_leveled: Image.Image | None         # После Levels + Unsharp (L)
+    img_face_corrected: Image.Image | None  # После face brightness correction (L)
+    img_final: Image.Image                  # После виньетки (RGB) — всегда сохраняется
+    arch_mask: Image.Image | None           # Маска виньетки (L)
+    subject_mask: Image.Image | None        # Маска субъекта (L)
 
     # Диагностика
     glow_size: int
@@ -306,6 +306,9 @@ def process_preview(
 ## Задача 4: process_export()
 
 ```python
+from pathlib import Path
+
+
 def process_export(
     input_path: str,
     output_path: str,
@@ -327,7 +330,7 @@ def process_export(
 
     # Сохранение TIFF + PNG
     tiff_path = output_path
-    png_path = output_path.replace(".tif", ".png").replace(".tiff", ".png")
+    png_path = str(Path(output_path).with_suffix(".png"))  # Безопасная замена расширения
     result.img_final.save(tiff_path, format="TIFF", compression="lzw")
     result.img_final.save(png_path, format="PNG")
 
@@ -419,20 +422,26 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+def find_config_path() -> Path | None:
+    """Найти config.yaml. Единая точка поиска для CLI и backend."""
+    candidates = [
+        Path(__file__).parent.parent / "config.yaml",
+        Path.cwd() / "config.yaml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_config(config_path=None):
     """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS.
-    DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS."""
+    DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS.
+    Поиск config_path делегирован find_config_path()."""
     defaults = copy.deepcopy(DEFAULTS)
 
     if config_path is None:
-        candidates = [
-            Path(__file__).parent.parent / "config.yaml",
-            Path.cwd() / "config.yaml",
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                config_path = candidate
-                break
+        config_path = find_config_path()
 
     if config_path and Path(config_path).exists():
         with open(config_path) as f:
@@ -660,37 +669,20 @@ def test_cli_process_creates_output():
 
 ---
 
-## Задача 11.5: find_config_path() — извлечение из load_config()
+## Задача 11.5: find_config_path() — подтверждение интеграции
 
 **Файл**: `retouch/config.py`
 
-Функция поиска config.yaml выделена из `load_config()` для повторного использования
-в backend (Фаза 1). Без неё backend дублирует логику поиска.
+> **Примечание**: `find_config_path()` уже определена в задаче 7 вместе с `load_config()`.
+> Эта подзадача — напоминание агенту убедиться, что `find_config_path()` экспортирована
+> и доступна для backend (Фаза 1).
 
+**Проверка**:
 ```python
-def find_config_path() -> Path | None:
-    """Найти config.yaml. Единая точка поиска для CLI и backend."""
-    candidates = [
-        Path(__file__).parent.parent / "config.yaml",
-        Path.cwd() / "config.yaml",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-```
-
-Затем `load_config()` использовать `find_config_path()`:
-```python
-def load_config(config_path=None):
-    defaults = copy.deepcopy(DEFAULTS)
-    if config_path is None:
-        config_path = find_config_path()  # ← делегируем
-    if config_path and Path(config_path).exists():
-        with open(config_path) as f:
-            yaml_config = yaml.safe_load(f) or {}
-        return deep_merge(defaults, yaml_config)
-    return defaults
+# Убедиться, что find_config_path доступна извне:
+from retouch.config import find_config_path
+path = find_config_path()
+assert path is None or isinstance(path, Path)
 ```
 
 ---
@@ -725,9 +717,9 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 6. process_export() (задача 4)
 7. process() → обёртка (задача 5)
 8. Замена print() на logging + basicConfig (задача 6)
-9. deep_merge + load_config() с deepcopy (задача 7)
+9. deep_merge + find_config_path() + load_config() с deepcopy (задача 7) — **find_config_path определена здесь же**
 10. Pydantic-модель с conditional import (задача 8)
-11. find_config_path() в retouch/config.py — **отдельная подзадача**, см. код ниже
+11. find_config_path() — **подтверждение экспорта** (задача 11.5, см. выше)
 12. Публичные экспорты (задача 10)
 13. Интеграционный CLI-тест (задача 11)
 14. `pytest tests/ -v` — все тесты проходят
@@ -755,7 +747,7 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 - [ ] `apply_inner_glow` вызывается с правильными именами параметров
 - [ ] `validate_result_black_ratio` вызывается на `img_final`, не на `Image.new`
 - [ ] test_levels.py обновлён под новую сигнатуру
-- [ ] `find_config_path()` добавлена в `retouch/config.py` как **отдельная функция** (задача 11.5) — нужна Фазе 1
+- [ ] `find_config_path()` определена в задаче 7 как часть `retouch/config.py` — единая точка поиска для CLI и backend
 - [ ] `load_config()` использует `find_config_path()` — нет дублирования логики поиска
 - [ ] Интеграционный CLI-тест проходит
 - [ ] `pytest tests/ -v` — все тесты проходят
