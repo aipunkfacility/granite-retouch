@@ -21,6 +21,10 @@ processing:
     glow_opacity_max: 40
     brightness: 1.18
     face_brightness_target: [230, 245]
+    # Доля высоты изображения для зоны лица (верхняя часть без воротника)
+    face_region_top: 0.45
+    # Порог затухания коррекции: выше этого значения коррекция не применяется (0-255)
+    highlight_start: 200
 
   impact:
     glow_size_min: 10
@@ -29,8 +33,11 @@ processing:
     glow_opacity_max: 80
     brightness: 1.00
     face_brightness_target: [185, 210]
-    # Добавлять шум в глубокие тени (чтобы игла не застревала)
-    shadow_noise: true
+    # Доля высоты изображения для зоны лица
+    face_region_top: 0.45
+    # Порог затухания коррекции
+    highlight_start: 200
+    # shadow_noise: не реализован (BACKLOG-006)
 
 export:
   formats: [tiff, png]

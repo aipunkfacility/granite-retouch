@@ -254,7 +254,7 @@ def main():
     # --- gimp ---
     p_gimp = subparsers.add_parser(
         "gimp",
-        help="GIMP-обработка портрета (experimental / not recommended)"
+        help="GIMP-обработка (experimental / не рекомендуется для production)"
     )
     p_gimp.add_argument("--input", "-i", required=True, help="Входной PNG")
     p_gimp.add_argument("--output", "-o", required=True, help="Выходной TIFF")

@@ -88,7 +88,7 @@ class TestRemoveBlueBackground:
 
         # С fringe removal
         result_with_fringe, _ = remove_blue_background(img, threshold=30, fringe_radius=3)
-        arr_with_fringe = np.array(result_no_fringe)
+        arr_with_fringe = np.array(result_with_fringe)
 
         # С fringe removal синий канал на границе должен быть ниже
         # (зона fringe обработана)

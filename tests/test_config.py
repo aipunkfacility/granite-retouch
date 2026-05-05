@@ -30,7 +30,7 @@ class TestDefaults:
         """DEFAULTS содержит параметры impact."""
         assert "impact" in DEFAULTS["processing"]
         impact = DEFAULTS["processing"]["impact"]
-        assert "shadow_noise" in impact
+        assert "shadow_noise" not in impact  # BACKLOG-006: не реализован
 
     def test_defaults_has_vignette(self):
         """DEFAULTS содержит параметры виньетки."""

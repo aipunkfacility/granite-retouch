@@ -19,15 +19,18 @@ DEFAULTS = {
         "laser": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
-            "brightness": 1.05,
+            "brightness": 1.18,
             "face_brightness_target": [230, 245],
+            "face_region_top": 0.45,
+            "highlight_start": 200,
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "brightness": 1.00,
             "face_brightness_target": [185, 210],
-            "shadow_noise": True,
+            "face_region_top": 0.45,
+            "highlight_start": 200,
         },
     },
     "vignette": {
