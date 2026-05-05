@@ -22,3 +22,11 @@ projects/
 # Orders with binary content (кроме шаблона и тестового)
 orders/active/*/
 !orders/active/TEST_ORDER/
+
+# Web UI — временные файлы
+retouch_ui/frontend/node_modules/
+retouch_ui/frontend/dist/
+retouch_ui/frontend/.vite/
+
+# Временные файлы загрузок (если backend запускался локально)
+/tmp_upload_*

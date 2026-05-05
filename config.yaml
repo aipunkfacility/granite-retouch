@@ -1,79 +1,34 @@
-# granite-retouch configuration
-# Все параметры обработки — в одном месте
-
 processing:
-  # Порог для определения синего хромакея
   blue_threshold: 30
-  # Минимальная доля синих пикселей (если ниже — хромакей не обнаружен)
-  min_blue_ratio: 0.15
-  # Минимальное разрешение изображения (px) для обработки
-  min_resolution: 512
-  # Минимальная доля чёрного фона в результате (проверка корректности)
-  result_min_black_ratio: 0.25
-  # Радиус расширения маски для удаления синих рефлексов (fringe) по краям
-  # 0 — без fringe removal, 3 — стандарт, 5 — агрессивное удаление
   fringe_radius: 3
-
-  laser:
-    glow_size_min: 40
-    glow_size_max: 80
-    glow_opacity_min: 30
-    glow_opacity_max: 40
-    brightness: 1.18
-    face_brightness_target: [230, 245]
-    # Доля высоты изображения для зоны лица (верхняя часть без воротника)
-    face_region_top: 0.45
-    # Порог затухания коррекции: выше этого значения коррекция не применяется (0-255)
-    highlight_start: 200
-
   impact:
-    glow_size_min: 10
-    glow_size_max: 25
-    glow_opacity_min: 60
-    glow_opacity_max: 80
-    brightness: 1.00
-    face_brightness_target: [185, 210]
-    # Доля высоты изображения для зоны лица
+    brightness: 1.0
+    face_brightness_target:
+    - 185
+    - 210
     face_region_top: 0.45
-    # Порог затухания коррекции
+    glow_opacity_max: 80
+    glow_opacity_min: 60
+    glow_size_max: 25
+    glow_size_min: 10
     highlight_start: 200
-    # shadow_noise: не реализован (BACKLOG-006)
-
-export:
-  formats: [tiff, png]
-  tiff_compression: none
-
-gimp:
-  # Пути поиска GIMP (первый найденный используется)
-  search_paths:
-    - "F:\\GIMP 2\\bin\\gimp-console-2.10.exe"
-    - "C:\\Program Files\\GIMP 2\\bin\\gimp-console-2.10.exe"
-  # Переменная окружения для переопределения пути
-  env_var: GIMP_PATH
-
+  laser:
+    brightness: 1.18
+    face_brightness_target:
+    - 230
+    - 245
+    face_region_top: 0.45
+    glow_opacity_max: 40
+    glow_opacity_min: 30
+    glow_size_max: 80
+    glow_size_min: 40
+    highlight_start: 200
+  min_blue_ratio: 0.15
+  min_resolution: 512
+  result_min_black_ratio: 0.25
 vignette:
-  # Отступ нижнего края арки от низа изображения (доля высоты)
-  # Больше → больше чёрного внизу. Примеры: 0.05 — почти вплотную, 0.20 — широкий отступ
-  vertical_offset: 0.10
-  # Высота эллипса арки (доля высоты)
-  # Больше → арка выше и шире, больше видно по бокам. Примеры: 0.30 — узкая, 0.60 — широкая
-  vertical_diameter: 0.50
-  # Размытие края виньетки (px)
-  # Больше → плавнее переход. Примеры: 30 — резкий, 80 — очень мягкий
   blur_radius: 60
-  # Запас над головой: насколько эллипс вынесен выше изображения (доля высоты)
-  # Больше → голова дальше от верхнего края арки, гарантированно видна
-  # Примеры: 0.3 — минимальный запас, 0.8 — большой запас
   headroom: 0.6
-  # Горизонтальное расширение эллипса за пределы изображения (доля ширины)
-  # Больше → арка шире по бокам, меньше чёрного у плеч
-  # Примеры: 0.0 — эллипс строго по ширине, 0.3 — широкий захват
   horizontal_oversize: 0.2
-
-crm:
-  # Путь к репозиторию granite-crm (для доступа к data/regions.yaml и другим данным)
-  # Если не указан — CRM-функции недоступны
-  # Пример: "F:\\Dev\\Projects\\granite-crm"
-  crm_path: ""
-  # Переменная окружения для переопределения пути
-  env_var: GRANITE_CRM_PATH
+  vertical_diameter: 0.5
+  vertical_offset: 0.1
