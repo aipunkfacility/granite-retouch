@@ -183,7 +183,10 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             # Нет пикселей субъекта — вернуть без изменений
             return img_gray, 0.0, 0.0, 1.0
 
-        avg_brightness = float(inner_pixels.mean())
+        # МЕДИАНА вместо среднего: устойчива к тёмным выбросам
+        # (волосы, тени на фоне зоны лица занижают среднее,
+        #  но не влияют на медиану — она отражает реальную яркость кожи).
+        avg_brightness = float(np.median(inner_pixels))
     else:
         from PIL import ImageStat
         stat = ImageStat.Stat(img_gray, mask=inner_mask_img)
@@ -193,7 +196,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     target_min, target_max = face_target
     target_mid = (target_min + target_max) / 2
 
-    logger.info("Face brightness: %.1f → target %d-%d", avg_brightness, target_min, target_max)
+    logger.info("Face brightness: %.1f (median) → target %d-%d", avg_brightness, target_min, target_max)
 
     if avg_brightness < target_min or avg_brightness > target_max:
         correction = target_mid / max(avg_brightness, 1)
