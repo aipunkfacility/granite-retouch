@@ -21,13 +21,20 @@
 
 ## ⚠ Совместимость asyncio.to_thread + TestClient
 
-Роутеры используют `asyncio.to_thread()` для CPU-bound операций. `TestClient` — синхронный WSGI-клиент, который создаёт event loop внутри `anyio`. На практике `asyncio.to_thread` работает корректно с `TestClient`, но если тесты запускаются с `pytest-asyncio` в режиме `asyncio_mode = "auto"`, возможны конфликты вложенных event loops.
+Роутеры используют `asyncio.to_thread()` для CPU-bound операций. `TestClient` — синхронный WSGI-клиент, который создаёт event loop внутри `anyio`. На практике `asyncio.to_thread` работает корректно с `TestClient`, но если установлен `pytest-asyncio`, его режим по умолчанию (`auto`) может вызвать конфликты вложенных event loops.
 
-**Рекомендация**: при первом запуске тестов проверить совместимость. Если возникают ошибки `RuntimeError: This event loop is already running`, добавить в `pyproject.toml`:
+**Рекомендация**: явно указать режим в `pyproject.toml`:
 ```toml
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 ```
+
+Почему `strict`, а не `auto`:
+- `auto` — помечает все `async def` тесты как asyncio-тесты, что конфликтует с TestClient (который сам создаёт event loop)
+- `strict` — запускает только тесты с явным `@pytest.mark.asyncio`, остальные — синхронно
+- Тесты с TestClient **синхронные** — `auto` приведёт к `RuntimeError: This event loop is already running`
+
+**Альтернатива**: если `pytest-asyncio` не нужен (все тесты через TestClient), убрать его из зависимостей.
 
 ---
 
@@ -48,7 +55,7 @@ asyncio_mode = "strict"
 
 ```python
 """Общие фикстуры для тестов backend API."""
-import tempfile
+import io
 from pathlib import Path
 
 import pytest
@@ -72,7 +79,6 @@ def sample_chromakey_png():
         for y in range(200, 312):
             img.putpixel((x, y), (255, 255, 255, 255))  # белый субъект
 
-    import io
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)

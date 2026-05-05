@@ -123,12 +123,20 @@ ui-backend:      ## Запустить FastAPI backend
 ui-frontend:     ## Запустить Vite frontend
         cd retouch-ui/frontend && npm run dev
 
-ui: ui-install    ## Запустить backend + frontend (авто-установка зависимостей)
+ui: ui-install   ## Запустить backend + frontend (авто-установка зависимостей)
         cd retouch-ui/frontend && npx concurrently -n backend,frontend -c blue,green \
                 "cd ../backend && uvicorn main:app --port 8001 --workers 1" \
                 "npm run dev"
 
-ui-install:      ## Установить зависимости frontend
+ui-install:      ## Установить зависимости frontend (только если node_modules отсутствует)
+        @if [ ! -d "retouch-ui/frontend/node_modules" ]; then \
+                echo "Installing frontend dependencies..."; \
+                cd retouch-ui/frontend && npm install; \
+        else \
+                echo "Frontend dependencies already installed. Run 'make ui-force-install' to reinstall."; \
+        fi
+
+ui-force-install: ## Принудительная переустановка зависимостей frontend
         cd retouch-ui/frontend && npm install
 
 ui-build: ui-install  ## Сборка frontend для продакшена

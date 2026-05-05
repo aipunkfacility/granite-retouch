@@ -269,19 +269,21 @@ def process_preview(
     # Ресайз — ключевая операция для производительности
     img = Image.open(input_path)
     needs_resize = max(img.size) > max_size
-    img.close()  # Освободить файловый дескриптор до передачи пути в process_steps
+    img.close()  # ВАЖНО: освободить файловый дескриптор до передачи пути в process_steps.
+                  # Без close() — PermissionError на Windows (файл залочен процессом).
     tmp_path = None
 
     try:
         if needs_resize:
             img = Image.open(input_path)  # Переоткрываем только если нужен ресайз
             img.thumbnail((max_size, max_size), Image.LANCZOS)
-            # Сохраняем уменьшенное во временный файл — process_steps требует путь
+            # Создаём временный файл, сразу закрываем дескриптор (Windows-safe)
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            img.save(tmp.name, format="PNG")
-            img.close()  # Освободить дескриптор временного файла
-            tmp_path = tmp.name
-            tmp.close()
+            tmp_name = tmp.name
+            tmp.close()  # Закрыть дескриптор ДО записи — иначе PermissionError на Windows
+            img.save(tmp_name, format="PNG")
+            img.close()  # Освободить дескриптор после записи
+            tmp_path = tmp_name
             work_path = tmp_path
         else:
             work_path = input_path
@@ -658,6 +660,41 @@ def test_cli_process_creates_output():
 
 ---
 
+## Задача 11.5: find_config_path() — извлечение из load_config()
+
+**Файл**: `retouch/config.py`
+
+Функция поиска config.yaml выделена из `load_config()` для повторного использования
+в backend (Фаза 1). Без неё backend дублирует логику поиска.
+
+```python
+def find_config_path() -> Path | None:
+    """Найти config.yaml. Единая точка поиска для CLI и backend."""
+    candidates = [
+        Path(__file__).parent.parent / "config.yaml",
+        Path.cwd() / "config.yaml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+```
+
+Затем `load_config()` использовать `find_config_path()`:
+```python
+def load_config(config_path=None):
+    defaults = copy.deepcopy(DEFAULTS)
+    if config_path is None:
+        config_path = find_config_path()  # ← делегируем
+    if config_path and Path(config_path).exists():
+        with open(config_path) as f:
+            yaml_config = yaml.safe_load(f) or {}
+        return deep_merge(defaults, yaml_config)
+    return defaults
+```
+
+---
+
 ## Задача 12: Обновление test_levels.py и test_pipeline.py
 
 **Файл**: `tests/test_levels.py`
@@ -690,7 +727,7 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 8. Замена print() на logging + basicConfig (задача 6)
 9. deep_merge + load_config() с deepcopy (задача 7)
 10. Pydantic-модель с conditional import (задача 8)
-11. find_config_path() в retouch/config.py (добавить в задачу 8)
+11. find_config_path() в retouch/config.py — **отдельная подзадача**, см. код ниже
 12. Публичные экспорты (задача 10)
 13. Интеграционный CLI-тест (задача 11)
 14. `pytest tests/ -v` — все тесты проходят
@@ -702,6 +739,8 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 
 - [ ] `process_steps()` возвращает `PipelineResult` без сохранения файлов
 - [ ] `process_preview()` **реально уменьшает** изображение до max_size
+- [ ] `process_preview()` вызывает `img.close()` перед передачей пути в `process_steps` — Windows-safe
+- [ ] `process_preview()` закрывает дескриптор `tmp` ДО записи через PIL — Windows-safe
 - [ ] `process_preview()` фиксирует glow на середине диапазона
 - [ ] `process_export()` сохраняет TIFF + PNG и освобождает промежуточные
 - [ ] `process()` — тонкая обёртка, CLI не сломан
@@ -716,7 +755,8 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 - [ ] `apply_inner_glow` вызывается с правильными именами параметров
 - [ ] `validate_result_black_ratio` вызывается на `img_final`, не на `Image.new`
 - [ ] test_levels.py обновлён под новую сигнатуру
-- [ ] `find_config_path()` добавлена в `retouch/config.py` (нужна Фазе 1)
+- [ ] `find_config_path()` добавлена в `retouch/config.py` как **отдельная функция** (задача 11.5) — нужна Фазе 1
+- [ ] `load_config()` использует `find_config_path()` — нет дублирования логики поиска
 - [ ] Интеграционный CLI-тест проходит
 - [ ] `pytest tests/ -v` — все тесты проходят
 - [ ] RAM: PipelineResult с intermediates при 2048×2048 < 400 МБ

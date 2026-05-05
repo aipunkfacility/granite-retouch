@@ -1,6 +1,6 @@
 # Granite Retouch — Дев-план рефакторинга и Web UI
 
-**Версия плана**: 3.1 (исправленная по результатам ревью)
+**Версия плана**: 3.2 (исправления по результатам 2-го ревью)
 **Дата**: 2026-05-05
 **Проект**: granite-retouch v2.6.0
 **Ограничения**: 4 ГБ RAM, локальное использование, русский язык UI
@@ -160,3 +160,46 @@ granite-retouch/
 | FastAPI crash при невалидном изображении | Низкая | Среднее | try/except в router; валидация файла перед обработкой |
 | CPU-bound обработка блокирует event loop | Высокая | Среднее | asyncio.to_thread для всех вызовов pipeline |
 | Утечка временных файлов на диске | Средняя | Среднее | BackgroundTask для FileResponse; TTL cleanup для uploaded files |
+| PermissionError на Windows при временных файлах | Средняя | Низкое | img.close() перед передачей пути; tmp.close() ДО записи через PIL |
+| pytest-asyncio конфликт с TestClient | Низкая | Среднее | asyncio_mode = "strict" в pyproject.toml; или убрать pytest-asyncio |
+
+---
+
+## История изменений
+
+### v3.2 — исправления по 2-му ревью
+
+7 находок, все подтверждены и устранены:
+
+| # | Критичность | Находка | Статус | Где исправлено |
+|---|-------------|---------|--------|---------------|
+| N1 | 🔴 Critical | `BackgroundTasks().add_task()` возвращает None | ✅ Уже было правильно в v3.1 — `BackgroundTask` (singular) из `starlette.background` | phase1 |
+| N2 | 🔴 Critical | `tempfile.BytesIO` не существует | ✅ Уже было правильно в v3.1 — `io.BytesIO`. Убран неиспользуемый `import tempfile` из conftest | phase4 |
+| N3 | 🟠 High | `find_config_path()` не выделена в Phase 0 | ✅ Добавлена отдельная задача 11.5 + акцент в чеклисте и порядке выполнения | phase0 |
+| N4 | 🟡 Medium | Нет `img.close()` в `process_preview` | ✅ Добавлен Windows-safe паттерн: `img.close()` + `tmp.close()` ДО записи через PIL | phase0 |
+| N5 | 🟡 Medium | `asyncio.to_thread` + TestClient | ✅ Расширен раздел с обоснованием `strict` vs `auto` | phase4 |
+| N6 | 🟢 Low | lifespan cleanup без try/except | ✅ Уже было правильно в v3.1 — `try/except` + `logger.exception()` | phase1 |
+| N7 | 🟢 Low | `make ui` без явной зависимости на ui-install | ✅ `ui-install` с проверкой `node_modules` + `ui-force-install` | phase3 |
+
+### v3.1 — исправления по 1-му ревью
+
+18 находок, все устранены (подтверждено 2-м ревью):
+- validate_result_black_ratio на img_final
+- Правильные имена параметров apply_inner_glow
+- Breaking Changes секция
+- max_size реализован через thumbnail() + tmp + cleanup
+- BackgroundTask для TIFF cleanup
+- uploaded_at через time.time()
+- deepcopy в deep_merge
+- logging.basicConfig в cli.py
+- Pydantic как optional dep
+- GIMP override BACKLOG-005
+- shadow_noise test update
+- Удалён мёртвый кэш
+- CORS allow_origins=["*"]
+- tmp_path для тестов
+- find_config_path extraction
+- file_id перенесён в Phase 1
+- asyncio.to_thread для CPU-bound
+- version в health endpoint
+- Git tag checkpoints
