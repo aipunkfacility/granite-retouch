@@ -86,18 +86,25 @@ def test_upload_limit(client, monkeypatch):
 
 
 def test_preview_by_file_id(client, uploaded_file_id):
-    """POST /api/process/preview returns PNG image with diagnostics headers."""
+    """POST /api/process/preview returns JSON with images + diagnostics."""
     res = client.post(
         "/api/process/preview",
         json={"file_id": uploaded_file_id, "machine": "laser"},
     )
     assert res.status_code == 200
-    assert res.headers["content-type"] == "image/png"
-    assert len(res.content) > 0
-    # Check diagnostic headers
-    assert "X-Diagnostics-Glow-Size" in res.headers
-    assert "X-Diagnostics-Face-Brightness-Before" in res.headers
-    assert "X-Diagnostics-Face-Brightness-After" in res.headers
+    data = res.json()
+    # Проверяем структуру ответа
+    assert "images" in data
+    assert "diagnostics" in data
+    assert "warnings" in data
+    # Должен быть минимум шаг "final"
+    assert "final" in data["images"]
+    assert data["images"]["final"].startswith("data:image/png;base64,")
+    # Диагностика
+    diag = data["diagnostics"]
+    assert "glow_size" in diag
+    assert "face_brightness_before" in diag
+    assert "face_brightness_after" in diag
 
 
 def test_preview_with_custom_params(client, uploaded_file_id):
@@ -122,7 +129,8 @@ def test_preview_laser_vs_impact(client, uploaded_file_id):
             json={"file_id": uploaded_file_id, "machine": machine},
         )
         assert res.status_code == 200
-        results[machine] = res.headers.get("X-Diagnostics-Glow-Size", "0")
+        data = res.json()
+        results[machine] = data["diagnostics"]["glow_size"]
 
     assert results["laser"] != results["impact"]
 

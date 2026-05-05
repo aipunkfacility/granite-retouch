@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import logging
 import tempfile
 import uuid
@@ -11,6 +13,7 @@ from typing import Dict, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from PIL import Image
 
 from retouch.config import load_config
 from retouch.processing.pipeline import (
@@ -22,8 +25,9 @@ from retouch.processing.pipeline import (
 from ..schemas import (
     UploadResponse,
     PreviewRequest,
+    PreviewResponse,
+    PreviewDiagnostics,
     ExportRequest,
-    DiagnosticsInfo,
 )
 
 logger = logging.getLogger("retouch_ui.process")
@@ -114,12 +118,11 @@ async def upload_image(file: UploadFile = File(...)):
     )
 
 
-@router.post("/process/preview")
+@router.post("/process/preview", response_model=PreviewResponse)
 async def preview_image(
     request: PreviewRequest,
-    background_tasks: BackgroundTasks,
 ):
-    """Предпросмотр обработки. Возвращает PNG-файл уменьшенного размера."""
+    """Предпросмотр обработки. Возвращает JSON с base64-картинками по шагам + диагностика."""
 
     # Найти загруженный файл
     entry = _uploaded_files.get(request.file_id)
@@ -131,7 +134,6 @@ async def preview_image(
     # Собрать конфиг: загрузить полный, затем наложить params
     full_config = load_config()
     if request.params:
-        # Накладываем params поверх загруженного конфига
         from retouch.config import deep_merge
         full_config = deep_merge(full_config, request.params)
 
@@ -157,38 +159,49 @@ async def preview_image(
         logger.exception("Ошибка предпросмотра: %s", exc)
         raise HTTPException(500, f"Ошибка обработки: {exc}")
 
-    # Сохранить результат во временный файл для отдачи
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    tmp_name = tmp.name
-    tmp.close()
-
-    try:
-        result.img_final.save(tmp_name, format="PNG")
-    except Exception as exc:
-        Path(tmp_name).unlink(missing_ok=True)
-        raise HTTPException(500, f"Ошибка сохранения результата: {exc}")
-
-    # Удалить временный файл после отдачи
-    background_tasks.add_task(lambda: Path(tmp_name).unlink(missing_ok=True))
-
-    # Освободить память PipelineResult
-    result.release_intermediates()
-
-    headers = {
-        "X-Diagnostics-Face-Brightness-Before": str(result.face_brightness_before),
-        "X-Diagnostics-Face-Brightness-After": str(result.face_brightness_after),
-        "X-Diagnostics-Glow-Size": str(result.glow_size),
-        "X-Diagnostics-Glow-Opacity": str(result.glow_opacity),
-        "X-Diagnostics-Black-Ratio": str(result.black_ratio),
-        "X-Diagnostics-Warnings": "; ".join(result.warnings),
+    # Кодируем каждый шаг в base64 data URI
+    step_images: dict[str, Image.Image | None] = {
+        "chromakey": result.img_chromakey,
+        "glow": result.img_glow,
+        "leveled": result.img_leveled,
+        "face_corrected": result.img_face_corrected,
+        "final": result.img_final,
     }
 
-    return FileResponse(
-        tmp_name,
-        media_type="image/png",
-        filename="preview.png",
-        headers=headers,
-        background=background_tasks,
+    images: dict[str, str] = {}
+    for key, img in step_images.items():
+        if img is None:
+            continue
+        buf = io.BytesIO()
+        # Конвертируем RGBA/L в RGB для корректного PNG
+        if img.mode == "RGBA":
+            img.save(buf, format="PNG")
+        elif img.mode == "L":
+            img.save(buf, format="PNG")
+        else:
+            img.convert("RGB").save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        images[key] = f"data:image/png;base64,{b64}"
+
+    # Освободить память PipelineResult (после кодирования!)
+    result.release_intermediates()
+
+    diagnostics = PreviewDiagnostics(
+        glow_size=result.glow_size,
+        glow_opacity=result.glow_opacity,
+        face_brightness_before=result.face_brightness_before,
+        face_brightness_after=result.face_brightness_after,
+        face_correction_factor=result.face_correction_factor,
+        black_ratio=result.black_ratio,
+        blue_ratio=result.blue_ratio,
+        width=result.width,
+        height=result.height,
+    )
+
+    return PreviewResponse(
+        images=images,
+        diagnostics=diagnostics,
+        warnings=result.warnings,
     )
 
 

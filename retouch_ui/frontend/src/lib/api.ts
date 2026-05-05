@@ -52,16 +52,18 @@ export async function fetchPreview(
   configOverride?: Record<string, any>,
   signal?: AbortSignal,
 ): Promise<PreviewResult> {
-  const formData = new FormData();
-  formData.append("file_id", fileId);
-  formData.append("machine_type", machineType);
+  const body: Record<string, any> = {
+    file_id: fileId,
+    machine: machineType,
+  };
   if (configOverride) {
-    formData.append("config_json", JSON.stringify(configOverride));
+    body.params = configOverride;
   }
 
   const res = await fetch(`${API_BASE}/process/preview`, {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -80,17 +82,19 @@ export async function fetchExport(
   format: "tiff" | "png",
   configOverride?: Record<string, any>,
 ): Promise<Blob> {
-  const formData = new FormData();
-  formData.append("file_id", fileId);
-  formData.append("machine_type", machineType);
-  formData.append("format", format);
+  const body: Record<string, any> = {
+    file_id: fileId,
+    machine: machineType,
+    format,
+  };
   if (configOverride) {
-    formData.append("config_json", JSON.stringify(configOverride));
+    body.params = configOverride;
   }
 
   const res = await fetch(`${API_BASE}/process/export`, {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {

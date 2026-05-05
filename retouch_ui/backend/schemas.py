@@ -48,14 +48,31 @@ class PresetDeleteRequest(BaseModel):
 
 # ─── Ответы ───────────────────────────────────────────────────────────
 
+class PreviewDiagnostics(BaseModel):
+    """Диагностика обработки — face_brightness, glow, black_ratio."""
+    glow_size: int = 0
+    glow_opacity: float = 0.0
+    face_brightness_before: float = 0.0
+    face_brightness_after: float = 0.0
+    face_correction_factor: float = 0.0
+    black_ratio: float = 0.0
+    blue_ratio: float = 0.0
+    width: int = 0
+    height: int = 0
+
+
 class PreviewResponse(BaseModel):
-    """Ответ POST /api/process/preview — отдаётся как PNG-файл."""
-    # На практике — FileResponse; схема нужна только для OpenAPI-документации
-    pass
+    """Ответ POST /api/process/preview — JSON с base64-картинками + диагностика."""
+    images: dict[str, str] = Field(
+        default_factory=dict,
+        description="Шаги обработки → data:image/png;base64,...",
+    )
+    diagnostics: PreviewDiagnostics = Field(default_factory=PreviewDiagnostics)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class DiagnosticsInfo(BaseModel):
-    """Диагностика обработки — face_brightness, glow, black_ratio."""
+    """Диагностика обработки — face_brightness, glow, black_ratio (legacy)."""
     face_brightness_before: Optional[float] = None
     face_brightness_after: Optional[float] = None
     glow_size: Optional[int] = None
