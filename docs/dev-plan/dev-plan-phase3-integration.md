@@ -118,21 +118,21 @@ vignette:
 # === Web UI ===
 
 ui-backend:      ## Запустить FastAPI backend
-	cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+        cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 
 ui-frontend:     ## Запустить Vite frontend
-	cd retouch-ui/frontend && npm run dev
+        cd retouch-ui/frontend && npm run dev
 
-ui:              ## Запустить backend + frontend
-	cd retouch-ui/frontend && npx concurrently -n backend,frontend -c blue,green \
-		"cd ../backend && uvicorn main:app --port 8001 --workers 1" \
-		"npm run dev"
+ui: ui-install    ## Запустить backend + frontend (авто-установка зависимостей)
+        cd retouch-ui/frontend && npx concurrently -n backend,frontend -c blue,green \
+                "cd ../backend && uvicorn main:app --port 8001 --workers 1" \
+                "npm run dev"
 
 ui-install:      ## Установить зависимости frontend
-	cd retouch-ui/frontend && npm install
+        cd retouch-ui/frontend && npm install
 
-ui-build:        ## Сборка frontend для продакшена
-	cd retouch-ui/frontend && npm run build
+ui-build: ui-install  ## Сборка frontend для продакшена
+        cd retouch-ui/frontend && npm run build
 ```
 
 ---

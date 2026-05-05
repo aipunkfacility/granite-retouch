@@ -146,11 +146,16 @@ logger = logging.getLogger("retouch-ui")
 async def lifespan(app: FastAPI):
     """Startup/shutdown."""
     logger.info("retouch-ui backend starting on :8001")
-    yield
-    # Cleanup: удалить загруженные файлы
-    from .routers.process import _cleanup_all_files
-    _cleanup_all_files()
-    logger.info("retouch-ui backend shutting down")
+    try:
+        yield
+    finally:
+        # Cleanup: удалить загруженные файлы (try/except — исключение не проглотить молча)
+        try:
+            from .routers.process import _cleanup_all_files
+            _cleanup_all_files()
+        except Exception:
+            logger.exception("Cleanup failed during shutdown")
+        logger.info("retouch-ui backend shutting down")
 
 
 app = FastAPI(
@@ -196,8 +201,9 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask  # не BackgroundTasks!
 from PIL import Image
 
 import retouch.processing as proc
@@ -407,14 +413,12 @@ async def process_export(
         media_type = "image/tiff" if format == "tiff" else "image/png"
         filename = f"retouch_result{suffix}"
 
-        # BackgroundTask для удаления временного выходного файла после отдачи
+        # BackgroundTask (из starlette, не fastapi!) для удаления файла после отдачи
         return FileResponse(
             path=tmp_out,
             media_type=media_type,
             filename=filename,
-            background=BackgroundTasks().add_task(
-                lambda p=tmp_out: Path(p).unlink(missing_ok=True)
-            ),
+            background=BackgroundTask(Path(tmp_out).unlink, missing_ok=True),
         )
 
     except ValueError as e:
@@ -524,7 +528,7 @@ uvicorn main:app --port 8001 --reload --workers 1
 **Makefile** (добавить в корневой Makefile):
 ```makefile
 ui-backend:      ## Запустить FastAPI backend
-	cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+        cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 ```
 
 ---

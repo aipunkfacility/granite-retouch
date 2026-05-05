@@ -269,15 +269,17 @@ def process_preview(
     # Ресайз — ключевая операция для производительности
     img = Image.open(input_path)
     needs_resize = max(img.size) > max_size
+    img.close()  # Освободить файловый дескриптор до передачи пути в process_steps
     tmp_path = None
 
     try:
         if needs_resize:
-            img = img.copy()
+            img = Image.open(input_path)  # Переоткрываем только если нужен ресайз
             img.thumbnail((max_size, max_size), Image.LANCZOS)
             # Сохраняем уменьшенное во временный файл — process_steps требует путь
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
             img.save(tmp.name, format="PNG")
+            img.close()  # Освободить дескриптор временного файла
             tmp_path = tmp.name
             tmp.close()
             work_path = tmp_path
@@ -688,10 +690,11 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 8. Замена print() на logging + basicConfig (задача 6)
 9. deep_merge + load_config() с deepcopy (задача 7)
 10. Pydantic-модель с conditional import (задача 8)
-11. Публичные экспорты (задача 10)
-12. Интеграционный CLI-тест (задача 11)
-13. `pytest tests/ -v` — все тесты проходят
-14. `git tag phase0-done`
+11. find_config_path() в retouch/config.py (добавить в задачу 8)
+12. Публичные экспорты (задача 10)
+13. Интеграционный CLI-тест (задача 11)
+14. `pytest tests/ -v` — все тесты проходят
+15. `git tag phase0-done`
 
 ---
 
@@ -713,6 +716,7 @@ result_img, before, after, factor = check_face_brightness(img, target, mask, glo
 - [ ] `apply_inner_glow` вызывается с правильными именами параметров
 - [ ] `validate_result_black_ratio` вызывается на `img_final`, не на `Image.new`
 - [ ] test_levels.py обновлён под новую сигнатуру
+- [ ] `find_config_path()` добавлена в `retouch/config.py` (нужна Фазе 1)
 - [ ] Интеграционный CLI-тест проходит
 - [ ] `pytest tests/ -v` — все тесты проходят
 - [ ] RAM: PipelineResult с intermediates при 2048×2048 < 400 МБ

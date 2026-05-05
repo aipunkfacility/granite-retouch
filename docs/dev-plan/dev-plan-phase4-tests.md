@@ -19,6 +19,18 @@
 
 ---
 
+## ⚠ Совместимость asyncio.to_thread + TestClient
+
+Роутеры используют `asyncio.to_thread()` для CPU-bound операций. `TestClient` — синхронный WSGI-клиент, который создаёт event loop внутри `anyio`. На практике `asyncio.to_thread` работает корректно с `TestClient`, но если тесты запускаются с `pytest-asyncio` в режиме `asyncio_mode = "auto"`, возможны конфликты вложенных event loops.
+
+**Рекомендация**: при первом запуске тестов проверить совместимость. Если возникают ошибки `RuntimeError: This event loop is already running`, добавить в `pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+```
+
+---
+
 ## Принцип тестирования
 
 - **Backend**: pytest + FastAPI TestClient (синхронный, без uvicorn)
@@ -60,7 +72,8 @@ def sample_chromakey_png():
         for y in range(200, 312):
             img.putpixel((x, y), (255, 255, 255, 255))  # белый субъект
 
-    buf = tempfile.BytesIO()
+    import io
+    buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
     return buf
