@@ -16,15 +16,29 @@
 
 ---
 
+## Breaking Changes
+
+> ⚠ Внимание: эта фаза меняет сигнатуры функций. Все Breaking Changes собраны здесь.
+
+| Функция | Было | Стало | Влияние |
+|---------|------|-------|---------|
+| `check_face_brightness()` | Возвращает `Image` | Возвращает `(Image, float, float, float)` | test_levels.py — обновить все вызовы |
+| `load_config()` | Возвращает yaml как есть | `deep_merge(DEFAULTS, yaml)` — частичный yaml дополняется дефолтами | Может изменить поведение при частичном config.yaml |
+| `process()` | Монолит с I/O | Тонкая обёртка над `process_export()` | CLI не ломается (обратная совместимость сохранена) |
+
+---
+
 ## Затрагиваемые файлы
 
 | Файл | Изменение |
 |------|-----------|
 | `retouch/processing/pipeline.py` | Основной рефакторинг |
 | `retouch/processing/__init__.py` | Добавить публичные экспорты |
-| `retouch/processing/levels.py` | Заменить print() на logging, добавить face_region_top, вынести highlight_start |
-| `retouch/config.py` | Добавить deep_merge(), Pydantic-модель, убрать version drift |
-| `retouch/cli.py` | Адаптировать под новый API (process() остаётся обёрткой) |
+| `retouch/processing/levels.py` | Заменить print() на logging, добавить face_region_top, вынести highlight_start, **изменить возвращаемое значение check_face_brightness()** |
+| `retouch/config.py` | Добавить deep_merge() с deepcopy, Pydantic-модель (optional import), убрать version drift |
+| `retouch/cli.py` | Адаптировать под новый API + logging.basicConfig |
+| `tests/test_levels.py` | Обновить вызовы check_face_brightness() под новую сигнатуру |
+| `tests/test_pipeline.py` | Обновить под новый API |
 
 **Без изменений**: chromakey.py, glow.py, vignette.py — их API уже чистый.
 
@@ -76,8 +90,6 @@ class PipelineResult:
         self.subject_mask = None
 ```
 
-**Важно**: Метод `release_intermediates()` нужен для управления RAM при 4 ГБ. Полный PipelineResult с 8 изображениями 2048×2048 занимает ~200–400 МБ. В export-режиме промежуточные изображения не нужны.
-
 ---
 
 ## Задача 2: process_steps()
@@ -87,6 +99,11 @@ class PipelineResult:
 Новый API — «чистый» пайплайн без I/O:
 
 ```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def process_steps(
     input_path: str,
     machine_type: str = "laser",
@@ -126,17 +143,21 @@ def process_steps(
 
     # 1. Хромакей
     fringe_radius = proc_cfg.get("fringe_radius", 3)
-    img_chromakey, subject_mask = remove_blue_background(img, threshold=threshold, fringe_radius=fringe_radius)
+    img_chromakey, subject_mask = remove_blue_background(
+        img, threshold=threshold, fringe_radius=fringe_radius
+    )
 
     # 2. Grayscale
     img_gray = img_chromakey.convert("L")
 
     # 3. Inner Glow
+    # ВАЖНО: имена параметров — glow_size_override / glow_opacity_override
+    # (соответствуют текущей сигнатуре apply_inner_glow в glow.py)
     machine_cfg = proc_cfg.get(machine_type, {})
     img_glow, glow_size, glow_opacity = apply_inner_glow(
         img_gray, subject_mask, machine_cfg,
-        size_override=glow_size_override,
-        opacity_override=glow_opacity_override,
+        glow_size_override=glow_size_override,
+        glow_opacity_override=glow_opacity_override,
     )
 
     # 4. Levels + Unsharp
@@ -145,6 +166,7 @@ def process_steps(
     img_leveled = apply_unsharp_mask(img_leveled)
 
     # 5. Face brightness correction
+    # Breaking Change: check_face_brightness теперь возвращает кортеж
     face_target = machine_cfg.get("face_brightness_target", [200, 230])
     face_region_top = machine_cfg.get("face_region_top", 0.45)
     img_face_corrected, face_before, face_after, correction_factor = check_face_brightness(
@@ -158,14 +180,19 @@ def process_steps(
     img_final, arch_mask = apply_vignette(img_face_corrected, width, height, vign_cfg)
 
     # 7. Валидация результата
+    # ВАЖНО: передаём img_final, а не Image.new — иначе валидация всегда 100%
     black_ratio = 0.0
+    blue_ratio = 0.0
     if not no_validate:
-        r, g, b = img_final.split()
-        background = Image.new("RGB", img_final.size, (0, 0, 0))
-        black_ratio = validate_result_black_ratio(background, min_black_ratio=0.25)
+        result_min_black = config.get("result_min_black_ratio", 0.25)
+        black_ratio = validate_result_black_ratio(img_final, min_black_ratio=result_min_black)
+        # Blue ratio — из исходного изображения
+        blue_ratio = sum(1 for p in img.getdata() if p[2] > threshold) / (width * height)
 
-    # Диагностика
-    blue_ratio = sum(1 for p in img.getdata() if p[2] > threshold) / (width * height) if not no_validate else 0.0
+    logger.info(
+        "Pipeline complete: %dx%d, glow=%dpx/%.0f%%, face=%.0f→%.0f",
+        width, height, glow_size, glow_opacity * 100, face_before, face_after,
+    )
 
     return PipelineResult(
         img_chromakey=img_chromakey,
@@ -195,13 +222,18 @@ def process_steps(
 - Нет `output_path` в параметрах
 - Возвращает структурированный `PipelineResult`
 - `face_region_top` читается из конфига
-- `warnings` от валидации конфига включены в результат
+- `validate_result_black_ratio` вызывается на `img_final`, **не на `Image.new`**
+- Параметры `apply_inner_glow` — `glow_size_override`/`glow_opacity_override` (в точности как в текущей сигнатуре glow.py)
 
 ---
 
-## Задача 3: process_preview()
+## Задача 3: process_preview() — с ресайзом
 
 ```python
+import tempfile
+from pathlib import Path
+
+
 def process_preview(
     input_path: str,
     machine_type: str = "laser",
@@ -212,9 +244,10 @@ def process_preview(
     """Предпросмотр — уменьшенная копия для Web UI.
 
     1. Загружает полное изображение
-    2. Уменьшает до max_size по длинной стороне
-    3. Вызывает process_steps() на уменьшенном
-    4. Возвращает PipelineResult (все картинки уменьшенные)
+    2. Уменьшает до max_size по длинной стороне (thumbnail)
+    3. Сохраняет уменьшенное во временный файл
+    4. Вызывает process_steps() на уменьшенном
+    5. Возвращает PipelineResult (все картинки уменьшенные)
 
     Glow фиксируется на середине диапазона для стабильности preview:
     glow_size = (glow_size_min + glow_size_max) // 2
@@ -233,17 +266,36 @@ def process_preview(
     opacity_max = machine_cfg.get("glow_opacity_max", 40)
     opacity_mid = (opacity_min + opacity_max) / 2 / 100.0
 
-    return process_steps(
-        input_path=input_path,
-        machine_type=machine_type,
-        config=config,
-        glow_size_override=glow_mid,
-        glow_opacity_override=opacity_mid,
-        **kwargs,
-    )
-```
+    # Ресайз — ключевая операция для производительности
+    img = Image.open(input_path)
+    needs_resize = max(img.size) > max_size
+    tmp_path = None
 
-**Почему max_size=768, а не 1024**: При 4 ГБ RAM уменьшение до 768px вместо 1024px снижает потребление памяти на ~40% при обработке, при этом качество достаточно для оценки яркости и контраста. Если на практике предпросмотр быстрый — можно поднять до 1024.
+    try:
+        if needs_resize:
+            img = img.copy()
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+            # Сохраняем уменьшенное во временный файл — process_steps требует путь
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            img.save(tmp.name, format="PNG")
+            tmp_path = tmp.name
+            tmp.close()
+            work_path = tmp_path
+        else:
+            work_path = input_path
+
+        return process_steps(
+            input_path=work_path,
+            machine_type=machine_type,
+            config=config,
+            glow_size_override=glow_mid,
+            glow_opacity_override=opacity_mid,
+            **kwargs,
+        )
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+```
 
 ---
 
@@ -303,9 +355,9 @@ def process(input_path, output_path, machine_type="laser",
 
 ---
 
-## Задача 6: Замена print() на logging
+## Задача 6: Замена print() на logging + basicConfig
 
-**Файлы**: `retouch/processing/pipeline.py`, `retouch/processing/levels.py`
+**Файлы**: `retouch/processing/pipeline.py`, `retouch/processing/levels.py`, `retouch/cli.py`
 
 В начале каждого файла:
 ```python
@@ -322,16 +374,39 @@ logger = logging.getLogger(__name__)
 | `print(f"Applied curves correction: factor={correction:.3f}")` | `logger.info("Curves correction: factor=%.3f", correction)` |
 | Любой другой `print()` | `logger.debug()` или `logger.info()` |
 
+**ВАЖНО**: Без `basicConfig` логгер молчит. Добавить в `retouch/cli.py`:
+
+```python
+import logging
+
+def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+    )
+    # ... остальной код CLI ...
+```
+
+И в `retouch/__main__.py`:
+```python
+from .cli import main
+main()
+```
+
 ---
 
-## Задача 7: deep_merge в load_config()
+## Задача 7: deep_merge в load_config() — с deepcopy
 
 **Файл**: `retouch/config.py`
 
 ```python
+import copy
+
+
 def deep_merge(base: dict, override: dict) -> dict:
-    """Рекурсивно сливает override в base. override побеждает."""
-    result = base.copy()
+    """Рекурсивно сливает override в base. override побеждает.
+    base копируется глубоко (deepcopy) — мутация результата не затрагивает оригинал."""
+    result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge(result[key], value)
@@ -341,14 +416,14 @@ def deep_merge(base: dict, override: dict) -> dict:
 
 
 def load_config(config_path=None):
-    """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS."""
-    defaults = DEFAULTS.copy()
+    """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS.
+    DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS."""
+    defaults = copy.deepcopy(DEFAULTS)
 
     if config_path is None:
-        # Поиск config.yaml
         candidates = [
-            Path(__file__).parent.parent / "config.yaml",  # проект
-            Path.cwd() / "config.yaml",                     # cwd
+            Path(__file__).parent.parent / "config.yaml",
+            Path.cwd() / "config.yaml",
         ]
         for candidate in candidates:
             if candidate.exists():
@@ -363,57 +438,72 @@ def load_config(config_path=None):
     return defaults
 ```
 
-**Критическое изменение**: Раньше `load_config()` возвращал yaml как есть (без слияния с DEFAULTS). Теперь частичный yaml корректно дополняется дефолтами. Это **может** изменить поведение для пользователей с частичным config.yaml — но это исправление бага, не регрессия.
+**Критические отличия от v3.0:**
+- `copy.deepcopy(base)` вместо `base.copy()` — мутация результата **не затрагивает** DEFAULTS
+- `copy.deepcopy(DEFAULTS)` в `load_config` — каждый вызов получает свежую копию
+- Частичный yaml корректно дополняется дефолтами
 
 ---
 
-## Задача 8: Pydantic-модель конфига
+## Задача 8: Pydantic-модель конфига — conditional import
 
 **Файл**: `retouch/config.py`
 
-Заменить ручную `validate_config()` на Pydantic:
+Pydantic — optional зависимость. Без неё `validate_config` работает через dict-проверки:
 
 ```python
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
 
-class MachineConfig(BaseModel):
-    glow_size_min: int = Field(40, ge=5, le=100)
-    glow_size_max: int = Field(80, ge=5, le=100)
-    glow_opacity_min: int = Field(30, ge=10, le=100)
-    glow_opacity_max: int = Field(40, ge=10, le=100)
-    brightness: float = Field(1.18, ge=0.5, le=1.5)
-    face_brightness_target: list[int] = Field([230, 245])
-    face_region_top: float = Field(0.45, ge=0.2, le=0.8)
-    highlight_start: int = Field(200, ge=100, le=250)
 
-class ProcessingConfig(BaseModel):
-    blue_threshold: int = Field(30, ge=10, le=80)
-    min_blue_ratio: float = Field(0.15, ge=0.0, le=1.0)
-    fringe_radius: int = Field(3, ge=0, le=10)
-    laser: MachineConfig = Field(default_factory=lambda: MachineConfig(glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40, brightness=1.18, face_brightness_target=[230, 245]))
-    impact: MachineConfig = Field(default_factory=lambda: MachineConfig(glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80, brightness=1.00, face_brightness_target=[185, 210]))
+if HAS_PYDANTIC:
+    class MachineConfig(BaseModel):
+        glow_size_min: int = Field(40, ge=5, le=100)
+        glow_size_max: int = Field(80, ge=5, le=100)
+        glow_opacity_min: int = Field(30, ge=10, le=100)
+        glow_opacity_max: int = Field(40, ge=10, le=100)
+        brightness: float = Field(1.18, ge=0.5, le=1.5)
+        face_brightness_target: list[int] = Field([230, 245])
+        face_region_top: float = Field(0.45, ge=0.2, le=0.8)
+        highlight_start: int = Field(200, ge=100, le=250)
 
-class VignetteConfig(BaseModel):
-    vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
-    vertical_diameter: float = Field(0.50, ge=0.2, le=0.8)
-    blur_radius: int = Field(60, ge=10, le=120)
-    headroom: float = Field(0.6, ge=0.2, le=1.0)
-    horizontal_oversize: float = Field(0.2, ge=0.0, le=0.5)
+    class ProcessingConfig(BaseModel):
+        blue_threshold: int = Field(30, ge=10, le=80)
+        min_blue_ratio: float = Field(0.15, ge=0.0, le=1.0)
+        fringe_radius: int = Field(3, ge=0, le=10)
+        laser: MachineConfig = Field(default_factory=lambda: MachineConfig(
+            glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
+            brightness=1.18, face_brightness_target=[230, 245]))
+        impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
+            glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
+            brightness=1.00, face_brightness_target=[185, 210]))
 
-class RetouchConfig(BaseModel):
-    processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
-    vignette: VignetteConfig = Field(default_factory=VignetteConfig)
+    class VignetteConfig(BaseModel):
+        vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
+        vertical_diameter: float = Field(0.50, ge=0.2, le=0.8)
+        blur_radius: int = Field(60, ge=10, le=120)
+        headroom: float = Field(0.6, ge=0.2, le=1.0)
+        horizontal_oversize: float = Field(0.2, ge=0.0, le=0.5)
 
-    model_config = {"extra": "allow"}
+    class RetouchConfig(BaseModel):
+        processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
+        vignette: VignetteConfig = Field(default_factory=VignetteConfig)
+        model_config = {"extra": "allow"}
 
 
 def validate_config(config: dict) -> list[str]:
-    """Валидация конфига через Pydantic. Возвращает список предупреждений."""
+    """Валидация конфига. Возвращает список предупреждений.
+    Использует Pydantic если доступен, иначе — dict-проверки."""
     warnings = []
-    try:
-        RetouchConfig(**config)
-    except Exception as e:
-        warnings.append(f"Config validation: {e}")
+
+    if HAS_PYDANTIC:
+        try:
+            RetouchConfig(**config)
+        except Exception as e:
+            warnings.append(f"Config validation: {e}")
 
     # Кросс-валидация (Pydantic не проверяет отношения полей)
     for machine in ("laser", "impact"):
@@ -426,27 +516,31 @@ def validate_config(config: dict) -> list[str]:
     return warnings
 ```
 
-**Зачем Pydantic**: Один источник истины для типов, диапазонов и дефолтов. Было: DEFAULTS dict + config.yaml + validate_config() if/elif + docs. Стало: Pydantic модель = всё в одном месте. FastAPI уже зависит от Pydantic — новая зависимость не нужна.
+**`pyproject.toml`** — Pydantic как optional dependency:
+```toml
+[project.optional-dependencies]
+webui = ["pydantic>=2.0", "fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "python-multipart>=0.0.9"]
+```
 
 ---
 
-## Задача 9: face_region_top и highlight_start
+## Задача 9: check_face_brightness() — новый возврат + face_region_top
 
 **Файл**: `retouch/processing/levels.py`
 
-### face_region_top
-
-Проблема: `check_face_brightness()` замеряет яркость по всей маске субъекта, включая воротник. Воротник светлее лица → среднее завышено → коррекция недокручивает, лицо тёмное. ИЛИ наоборот — коррекция крутит сильнее, и воротник пересвечен (BUG-001).
-
-Решение: Ограничить зону замера верхней частью маски (Вариант A из BACKLOG-002).
+### Breaking Change: возвращаемое значение
 
 ```python
-def check_face_brightness(img, face_target, subject_mask, glow_size=10,
+def check_face_brightness(img, face_target, subject_mask, glow_size=0,
                           face_region_top=0.45):
     """Проверить и скорректировать яркость лица.
 
-    face_region_top: доля высоты изображения, в которой замеряется яркость.
-    0.45 = верхние 45% картинки (голова без плеч).
+    Breaking Change: теперь возвращает кортеж (img, before, after, factor).
+    Ранее возвращала только img.
+
+    Args:
+        face_region_top: доля высоты изображения, в которой замеряется яркость.
+            0.45 = верхние 45% картинки (голова без плеч).
     """
     # ... существующий код shrink маски ...
 
@@ -461,7 +555,31 @@ def check_face_brightness(img, face_target, subject_mask, glow_size=10,
         # fallback на полную маску
         inner_mask = subject_mask_arr > 128
 
-    # ... остальной код замера и коррекции ...
+    # Замер яркости
+    arr = np.array(img)
+    face_before = float(arr[inner_mask].mean())
+
+    # Коррекция (если нужна)
+    # ... существующая логика расчёта correction ...
+
+    face_after = float(arr_corrected[inner_mask].mean())
+
+    logger.info("Face brightness: %.1f → %.1f (factor: %.3f)", face_before, face_after, correction)
+
+    # ВАЖНО: возврат кортежа вместо одного Image
+    return img_corrected, face_before, face_after, correction
+```
+
+### Обновление test_levels.py
+
+Все вызовы `check_face_brightness` нужно обновить:
+
+```python
+# Было:
+result = check_face_brightness(img, target, mask)
+
+# Стало:
+result, before, after, factor = check_face_brightness(img, target, mask)
 ```
 
 ### highlight_start
@@ -510,11 +628,11 @@ import tempfile
 from pathlib import Path
 from PIL import Image
 
+
 def test_cli_process_creates_output():
     """retouch process создаёт TIFF + PNG файлы."""
     # Создаём синтетическое изображение с хромакеем
     img = Image.new("RGBA", (512, 512), (0, 0, 255, 255))  # синий фон
-    # Белый субъект в центре
     for x in range(200, 312):
         for y in range(200, 312):
             img.putpixel((x, y), (255, 255, 255, 255))
@@ -536,38 +654,66 @@ def test_cli_process_creates_output():
         assert png_path.exists(), "PNG not created"
 ```
 
-Этот тест — страховка: если рефакторинг ломает CLI, мы узнаем до коммита.
+---
+
+## Задача 12: Обновление test_levels.py и test_pipeline.py
+
+**Файл**: `tests/test_levels.py`
+
+Все вызовы `check_face_brightness` обновить под новый возврат:
+
+```python
+# Было:
+result_img = check_face_brightness(img, target, mask, glow_size=10)
+
+# Стало:
+result_img, before, after, factor = check_face_brightness(img, target, mask, glow_size=10)
+```
+
+**Файл**: `tests/test_pipeline.py`
+
+Добавить тесты для нового API (process_steps, process_preview, process_export) — см. Фазу 4.
 
 ---
 
 ## Порядок выполнения
 
 1. PipelineResult dataclass (задача 1)
-2. process_steps() (задача 2) — скопировать логику из process(), убрать I/O
-3. process_preview() (задача 3)
-4. process_export() (задача 4)
-5. process() → обёртка (задача 5)
-6. Замена print() на logging (задача 6)
-7. deep_merge + load_config() (задача 7)
-8. Pydantic-модель конфига (задача 8)
-9. face_region_top + highlight_start (задача 9)
-10. Публичные экспорты (задача 10)
-11. Интеграционный CLI-тест (задача 11)
-12. `pytest tests/ -v` — все тесты проходят
+2. check_face_brightness() — новый возврат + face_region_top (задача 9)
+3. Обновление test_levels.py (задача 12)
+4. process_steps() (задача 2) — скопировать логику из process(), убрать I/O
+5. process_preview() с ресайзом (задача 3)
+6. process_export() (задача 4)
+7. process() → обёртка (задача 5)
+8. Замена print() на logging + basicConfig (задача 6)
+9. deep_merge + load_config() с deepcopy (задача 7)
+10. Pydantic-модель с conditional import (задача 8)
+11. Публичные экспорты (задача 10)
+12. Интеграционный CLI-тест (задача 11)
+13. `pytest tests/ -v` — все тесты проходят
+14. `git tag phase0-done`
 
 ---
 
 ## Чеклист приёмки
 
 - [ ] `process_steps()` возвращает `PipelineResult` без сохранения файлов
+- [ ] `process_preview()` **реально уменьшает** изображение до max_size
 - [ ] `process_preview()` фиксирует glow на середине диапазона
 - [ ] `process_export()` сохраняет TIFF + PNG и освобождает промежуточные
 - [ ] `process()` — тонкая обёртка, CLI не сломан
 - [ ] Нет ни одного `print()` в pipeline.py и levels.py
+- [ ] `logging.basicConfig()` вызывается в CLI — логгер не молчит
+- [ ] `deep_merge` использует `copy.deepcopy` — DEFAULTS не мутируется
 - [ ] `load_config()` выполняет deep_merge — частичный yaml дополняется DEFAULTS
-- [ ] `validate_config()` использует Pydantic
+- [ ] `validate_config()` использует Pydantic (если доступен), fallback на dict-проверки
+- [ ] `check_face_brightness()` возвращает кортеж (img, before, after, factor)
 - [ ] `face_region_top` ограничивает зону замера яркости
 - [ ] `highlight_start` вынесен из хардкода
+- [ ] `apply_inner_glow` вызывается с правильными именами параметров
+- [ ] `validate_result_black_ratio` вызывается на `img_final`, не на `Image.new`
+- [ ] test_levels.py обновлён под новую сигнатуру
 - [ ] Интеграционный CLI-тест проходит
 - [ ] `pytest tests/ -v` — все тесты проходят
 - [ ] RAM: PipelineResult с intermediates при 2048×2048 < 400 МБ
+- [ ] Git-тег `phase0-done` создан

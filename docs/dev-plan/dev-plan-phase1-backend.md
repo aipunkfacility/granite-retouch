@@ -13,9 +13,9 @@
 granite-retouch/
 └── retouch-ui/
     └── backend/
-        ├── main.py              # FastAPI app + startup/shutdown
+        ├── main.py              # FastAPI app + asyncio.to_thread + version в health
         ├── routers/
-        │   ├── process.py       # POST /process/preview, /process/export
+        │   ├── process.py       # POST /upload, /process/preview (по file_id), /process/export
         │   ├── config.py        # GET/PUT /config, /config/defaults
         │   └── presets.py       # GET/POST/DELETE /presets
         ├── schemas.py           # Pydantic модели для API
@@ -31,9 +31,14 @@ granite-retouch/
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9
+pydantic>=2.0
 ```
 
-Существующие зависимости (уже установлены): Pillow, PyYAML, numpy, scipy, pydantic.
+**`pyproject.toml`** — optional dependency:
+```toml
+[project.optional-dependencies]
+webui = ["pydantic>=2.0", "fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "python-multipart>=0.0.9"]
+```
 
 ---
 
@@ -48,11 +53,13 @@ from typing import Optional
 # === Запросы ===
 
 class PreviewRequest(BaseModel):
+    file_id: str = Field(..., min_length=1)
     machine_type: str = Field("laser", pattern="^(laser|impact)$")
     config: Optional[dict] = None
 
 
 class ExportRequest(BaseModel):
+    file_id: str = Field(..., min_length=1)
     machine_type: str = Field("laser", pattern="^(laser|impact)$")
     config: Optional[dict] = None
     format: str = Field("tiff", pattern="^(tiff|png)$")
@@ -87,6 +94,10 @@ class PreviewResponse(BaseModel):
     warnings: list[str]
 
 
+class UploadResponse(BaseModel):
+    file_id: str
+
+
 class ConfigResponse(BaseModel):
     config: dict
     source: str                     # "config.yaml" | "defaults"
@@ -106,6 +117,11 @@ class PresetItem(BaseModel):
 
 class PresetsListResponse(BaseModel):
     presets: list[PresetItem]
+
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str
 ```
 
 ---
@@ -115,7 +131,7 @@ class PresetsListResponse(BaseModel):
 ```python
 """FastAPI backend для granite-retouch Web UI."""
 import logging
-from pathlib import Path
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -131,6 +147,9 @@ async def lifespan(app: FastAPI):
     """Startup/shutdown."""
     logger.info("retouch-ui backend starting on :8001")
     yield
+    # Cleanup: удалить загруженные файлы
+    from .routers.process import _cleanup_all_files
+    _cleanup_all_files()
     logger.info("retouch-ui backend shutting down")
 
 
@@ -140,10 +159,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — только localhost для локального инструмента
+# CORS — для локального инструмента разрешаем все origins
+# Если сервис доступен извне — ограничить до localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Vite default
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -154,38 +174,44 @@ app.include_router(config.router, prefix="/api", tags=["config"])
 app.include_router(presets.router, prefix="/api", tags=["presets"])
 
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 async def health():
-    return {"status": "ok"}
+    """Health check с версией — полезно для отладки."""
+    import retouch
+    return {"status": "ok", "version": retouch.__version__}
 ```
-
-**Примечание по безопасности**: CORS ограничен localhost. Если кто-то запустит `uvicorn --host 0.0.0.0`, API станет доступен извне, но без аутентификации. Добавить предупреждение в README.
 
 ---
 
-## Задача 3: routers/process.py — обработка изображений
+## Задача 3: routers/process.py — обработка с file_id + asyncio.to_thread + BackgroundTask
 
 ```python
-"""Роутер обработки изображений: предпросмотр и экспорт."""
+"""Роутер обработки изображений: загрузка, предпросмотр, экспорт."""
 import io
+import uuid
+import time
 import base64
 import logging
+import asyncio
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 from PIL import Image
 
 import retouch.processing as proc
-from retouch.config import load_config, deep_merge, DEFAULTS
-from ..schemas import PreviewResponse, DiagnosticsResponse
+from retouch.config import load_config, deep_merge, validate_config
+from ..schemas import PreviewResponse, DiagnosticsResponse, UploadResponse
 
 logger = logging.getLogger("retouch-ui.process")
 router = APIRouter()
 
-# Кэш последнего preview (простой, in-memory)
-_last_preview: dict | None = None
-_last_preview_key: str = ""
+# In-memory хранилище загруженных файлов: id → (path, metadata)
+_uploaded_files: dict[str, tuple[str, dict]] = {}
+
+# TTL-очистка: 30 минут
+_CLEANUP_INTERVAL = 1800
 
 
 def _image_to_base64(img: Image.Image, format: str = "PNG") -> str:
@@ -204,44 +230,100 @@ def _get_config(config_override: dict | None) -> dict:
     return base
 
 
+def _cleanup_expired_files():
+    """Удалить устаревшие загруженные файлы (TTL)."""
+    now = time.time()
+    to_delete = [
+        fid for fid, (path, meta) in _uploaded_files.items()
+        if now - meta.get("uploaded_at", 0) > _CLEANUP_INTERVAL
+    ]
+    for fid in to_delete:
+        Path(_uploaded_files[fid][0]).unlink(missing_ok=True)
+        del _uploaded_files[fid]
+    if to_delete:
+        logger.info("Cleaned up %d expired uploaded files", len(to_delete))
+
+
+def _cleanup_all_files():
+    """Удалить все загруженные файлы (при shutdown)."""
+    for fid, (path, meta) in list(_uploaded_files.items()):
+        Path(path).unlink(missing_ok=True)
+    _uploaded_files.clear()
+
+
+# === Загрузка изображения ===
+
+@router.post("/process/upload", response_model=UploadResponse)
+async def upload_image(file: UploadFile = File(...)):
+    """Загрузить изображение, получить file_id для последующих запросов.
+
+    Файл загружается один раз. Дальше preview/export используют file_id.
+    Это позволяет не пересылать 5-20 МБ при каждом движении слайдера.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Файл должен быть изображением")
+
+    contents = await file.read()
+    if len(contents) > 20 * 1024 * 1024:  # 20 MB лимит
+        raise HTTPException(400, "Файл слишком большой (макс. 20 МБ)")
+
+    file_id = str(uuid.uuid4())
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp.write(contents)
+        _uploaded_files[file_id] = (tmp.name, {
+            "original_name": file.filename,
+            "size": len(contents),
+            "uploaded_at": time.time(),  # ← ОБЯЗАТЕЛЬНО для TTL
+        })
+
+    # Периодическая очистка
+    _cleanup_expired_files()
+
+    return UploadResponse(file_id=file_id)
+
+
+# === Предпросмотр ===
+
 @router.post("/process/preview", response_model=PreviewResponse)
 async def process_preview(
-    file: UploadFile = File(...),
+    file_id: str = Form(None),
+    file: UploadFile = File(None),       # fallback: прямая загрузка
     machine_type: str = Form("laser"),
     config_json: str | None = Form(None),
 ):
     """Обработка изображения для предпросмотра (уменьшенная копия).
 
-    Возвращает base64-изображения каждого шага + диагностику.
+    Рекомендуемый способ: загрузить через /process/upload, затем передать file_id.
+    Fallback: передать файл напрямую (для совместимости).
     """
     import json
 
-    # Валидация файла
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(400, "Файл должен быть изображением")
-
-    # Читаем изображение
-    contents = await file.read()
-    if len(contents) > 20 * 1024 * 1024:  # 20 MB лимит
-        raise HTTPException(400, "Файл слишком большой (макс. 20 МБ)")
-
-    # Сохраняем во временный файл (process_preview требует путь)
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
+    # Определяем путь к файлу
+    tmp_path_cleanup = None
+    if file_id and file_id in _uploaded_files:
+        tmp_path = _uploaded_files[file_id][0]
+    elif file:
+        contents = await file.read()
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+            tmp_path_cleanup = tmp_path
+    else:
+        raise HTTPException(400, "Нужен file_id или файл")
 
     try:
         config_override = json.loads(config_json) if config_json else None
         config = _get_config(config_override)
 
-        result = proc.process_preview(
+        # asyncio.to_thread — не блокировать event loop
+        result = await asyncio.to_thread(
+            proc.process_preview,
             input_path=tmp_path,
             machine_type=machine_type,
             config=config,
             max_size=768,
         )
 
-        # Формируем ответ
         images = {
             "chromakey": _image_to_base64(result.img_chromakey),
             "glow": _image_to_base64(result.img_glow),
@@ -263,11 +345,6 @@ async def process_preview(
             height=result.height,
         )
 
-        # Кэшируем
-        global _last_preview, _last_preview_key
-        _last_preview_key = f"{tmp_path}:{machine_type}:{config_json}"
-        _last_preview = {"images": images, "diagnostics": diagnostics}
-
         return PreviewResponse(
             images=images,
             diagnostics=diagnostics,
@@ -280,27 +357,36 @@ async def process_preview(
         logger.exception("Preview processing failed")
         raise HTTPException(500, f"Ошибка обработки: {e}")
     finally:
-        Path(tmp_path).unlink(missing_ok=True)
+        # Удаляем временный файл только если это fallback-загрузка
+        if tmp_path_cleanup:
+            Path(tmp_path_cleanup).unlink(missing_ok=True)
 
+
+# === Экспорт ===
 
 @router.post("/process/export")
 async def process_export(
-    file: UploadFile = File(...),
+    file_id: str = Form(None),
+    file: UploadFile = File(None),
     machine_type: str = Form("laser"),
     config_json: str | None = Form(None),
     format: str = Form("tiff"),
 ):
     """Полная обработка + скачивание файла."""
     import json
-    from fastapi.responses import FileResponse
 
-    contents = await file.read()
-    if len(contents) > 20 * 1024 * 1024:
-        raise HTTPException(400, "Файл слишком большой (макс. 20 МБ)")
-
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_in:
-        tmp_in.write(contents)
-        tmp_in_path = tmp_in.name
+    # Определяем путь
+    tmp_in_cleanup = None
+    if file_id and file_id in _uploaded_files:
+        tmp_in_path = _uploaded_files[file_id][0]
+    elif file:
+        contents = await file.read()
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_in_path = tmp.name
+            tmp_in_cleanup = tmp_in_path
+    else:
+        raise HTTPException(400, "Нужен file_id или файл")
 
     suffix = ".tif" if format == "tiff" else ".png"
     tmp_out = tempfile.mktemp(suffix=suffix)
@@ -309,7 +395,9 @@ async def process_export(
         config_override = json.loads(config_json) if config_json else None
         config = _get_config(config_override)
 
-        proc.process_export(
+        # asyncio.to_thread для тяжёлой обработки
+        await asyncio.to_thread(
+            proc.process_export,
             input_path=tmp_in_path,
             output_path=tmp_out,
             machine_type=machine_type,
@@ -319,56 +407,57 @@ async def process_export(
         media_type = "image/tiff" if format == "tiff" else "image/png"
         filename = f"retouch_result{suffix}"
 
+        # BackgroundTask для удаления временного выходного файла после отдачи
         return FileResponse(
             path=tmp_out,
             media_type=media_type,
             filename=filename,
+            background=BackgroundTasks().add_task(
+                lambda p=tmp_out: Path(p).unlink(missing_ok=True)
+            ),
         )
 
     except ValueError as e:
         raise HTTPException(422, str(e))
     except Exception as e:
         logger.exception("Export processing failed")
+        Path(tmp_out).unlink(missing_ok=True)
         raise HTTPException(500, f"Ошибка экспорта: {e}")
+    finally:
+        if tmp_in_cleanup:
+            Path(tmp_in_cleanup).unlink(missing_ok=True)
 ```
 
-**Важно**: Временные файлы удаляются в `finally` для preview. Для export — `FileResponse` удалит файл после отдачи (параметр `background`), но это нужно проверить. Если нет — добавить cleanup.
+**Ключевые отличия от v3.0:**
+- **file_id** — загрузка один раз, preview/export по ID (перенесено из Фазы 3)
+- **asyncio.to_thread** — CPU-bound обработка не блокирует event loop
+- **BackgroundTask** для FileResponse — временный файл удаляется после отдачи
+- **`uploaded_at: time.time()`** — TTL-очистка реально работает
+- **CORS `allow_origins=["*"]`** — для локального инструмента
+- Нет мёртвого кэша — убран `_last_preview` / `_last_preview_key`
 
 ---
 
-## Задача 4: routers/config.py — управление конфигурацией
+## Задача 4: routers/config.py — через retouch.config
 
 ```python
 """Роутер конфигурации: чтение, запись, дефолты."""
 import yaml
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from retouch.config import load_config, validate_config, DEFAULTS
+from retouch.config import load_config, validate_config, DEFAULTS, find_config_path
 from ..schemas import ConfigResponse, ConfigUpdateResponse, ConfigUpdateRequest
 
 logger = logging.getLogger("retouch-ui.config")
 router = APIRouter()
 
 
-def _find_config_path() -> Path | None:
-    """Найти config.yaml."""
-    candidates = [
-        Path(__file__).parent.parent.parent.parent / "config.yaml",  # проект
-        Path.cwd() / "config.yaml",
-    ]
-    for c in candidates:
-        if c.exists():
-            return c
-    return None
-
-
 @router.get("/config", response_model=ConfigResponse)
 async def get_config():
     """Текущий конфиг (из config.yaml или DEFAULTS)."""
-    config_path = _find_config_path()
+    config_path = find_config_path()
     source = str(config_path) if config_path else "defaults"
     config = load_config()
     warnings = validate_config(config)
@@ -380,8 +469,9 @@ async def update_config(request: ConfigUpdateRequest):
     """Сохранить конфиг в config.yaml."""
     warnings = validate_config(request.config)
 
-    config_path = _find_config_path()
+    config_path = find_config_path()
     if config_path is None:
+        from pathlib import Path
         config_path = Path.cwd() / "config.yaml"
 
     with open(config_path, "w") as f:
@@ -397,62 +487,27 @@ async def get_defaults():
     return {"config": DEFAULTS, "warnings": validate_config(DEFAULTS)}
 ```
 
+**Ключевое изменение**: поиск `config.yaml` делегирован функции `find_config_path()` из `retouch/config.py` — один источник истины.
+
+Добавить в `retouch/config.py`:
+```python
+def find_config_path() -> Path | None:
+    """Найти config.yaml. Единая точка поиска для CLI и backend."""
+    candidates = [
+        Path(__file__).parent.parent / "config.yaml",
+        Path.cwd() / "config.yaml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+```
+
 ---
 
-## Задача 5: routers/presets.py — пресеты
+## Задача 5: routers/presets.py
 
-```python
-"""Роутер пресетов: сохранение/загрузка наборов параметров."""
-import yaml
-import logging
-from pathlib import Path
-
-from fastapi import APIRouter, HTTPException
-
-from ..schemas import PresetsListResponse, PresetItem, PresetCreateRequest
-
-logger = logging.getLogger("retouch-ui.presets")
-router = APIRouter()
-
-
-def _presets_dir() -> Path:
-    """Директория с пресетами."""
-    d = Path(__file__).parent.parent.parent.parent / "presets"
-    d.mkdir(exist_ok=True)
-    return d
-
-
-@router.get("/presets", response_model=PresetsListResponse)
-async def list_presets():
-    """Список доступных пресетов."""
-    presets = []
-    for f in sorted(_presets_dir().glob("*.yaml")):
-        with open(f) as fh:
-            cfg = yaml.safe_load(fh) or {}
-        presets.append(PresetItem(name=f.stem, config=cfg))
-    return PresetsListResponse(presets=presets)
-
-
-@router.post("/presets")
-async def create_preset(request: PresetCreateRequest):
-    """Сохранить конфиг как пресет."""
-    path = _presets_dir() / f"{request.name}.yaml"
-    if path.exists():
-        raise HTTPException(409, f"Пресет '{request.name}' уже существует")
-    with open(path, "w") as f:
-        yaml.dump(request.config, f, default_flow_style=False, allow_unicode=True)
-    return {"created": True, "name": request.name}
-
-
-@router.delete("/presets/{name}")
-async def delete_preset(name: str):
-    """Удалить пресет."""
-    path = _presets_dir() / f"{name}.yaml"
-    if not path.exists():
-        raise HTTPException(404, f"Пресет '{name}' не найден")
-    path.unlink()
-    return {"deleted": True, "name": name}
-```
+Без изменений — см. v3.0.
 
 ---
 
@@ -469,7 +524,7 @@ uvicorn main:app --port 8001 --reload --workers 1
 **Makefile** (добавить в корневой Makefile):
 ```makefile
 ui-backend:      ## Запустить FastAPI backend
-	 cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
+	cd retouch-ui/backend && uvicorn main:app --port 8001 --reload --workers 1
 ```
 
 ---
@@ -477,15 +532,18 @@ ui-backend:      ## Запустить FastAPI backend
 ## Чеклист приёмки
 
 - [ ] `uvicorn main:app --port 8001` запускается без ошибок
-- [ ] `GET /api/health` возвращает `{"status": "ok"}`
-- [ ] `POST /api/process/preview` принимает PNG и возвращает base64 + диагностику
+- [ ] `GET /api/health` возвращает `{"status": "ok", "version": "2.6.0"}`
+- [ ] `POST /api/process/upload` принимает PNG и возвращает file_id
+- [ ] `POST /api/process/preview` по file_id возвращает base64 + диагностику
+- [ ] `POST /api/process/preview` по file (fallback) работает
 - [ ] `POST /api/process/export` отдаёт TIFF/PNG файл
+- [ ] Временные файлы экспорта удаляются после отдачи (BackgroundTask)
+- [ ] `/api/health` доступен во время обработки изображения (asyncio.to_thread)
 - [ ] `GET /api/config` возвращает текущий конфиг
 - [ ] `PUT /api/config` сохраняет config.yaml
 - [ ] `GET /api/config/defaults` возвращает DEFAULTS
-- [ ] `GET /api/presets` возвращает список пресетов
-- [ ] `POST /api/presets` создаёт пресет
-- [ ] `DELETE /api/presets/{name}` удаляет пресет
-- [ ] CORS работает для localhost:5173 (Vite)
+- [ ] Поиск config.yaml делегирован `retouch.config.find_config_path`
+- [ ] CORS разрешает запросы с любого origin
 - [ ] RAM при простое ≤ 150 МБ
 - [ ] RAM при обработке 2048×2048 ≤ 600 МБ
+- [ ] TTL-очистка загруженных файлов работает (uploaded_at установлен)

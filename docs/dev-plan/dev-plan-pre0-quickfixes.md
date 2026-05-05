@@ -46,7 +46,7 @@ __version__ = "2.3.1"
 __version__ = "2.6.0"
 ```
 
-**Дополнительно**: Обновить `uv.lock` командой `uv lock` из корня проекта.
+**Обязательно**: После исправления запустить `uv lock` из корня проекта для обновления lock-файла.
 
 ---
 
@@ -72,7 +72,7 @@ __version__ = "2.6.0"
 
 ### 4. Убрать shadow_noise из конфига
 
-**Файлы**: `retouch/config.py`, `config.yaml`, `docs/guides/style-guide-impact.md`, `docs/reference/config.md`
+**Файлы**: `retouch/config.py`, `config.yaml`, `docs/guides/style-guide-impact.md`, `docs/reference/config.md`, `tests/test_config.py`
 **Проблема**: `impact.shadow_noise: true` существует в конфиге и документации, но не реализован в коде. Дезинформация пользователя.
 
 **Решение**: Убрать параметр из DEFAULTS и config.yaml. В документации заменить на заметку: «shadow_noise: планируемая функция (BACKLOG-006)». Если параметр будет реализован позже — он вернётся в конфиг с рабочим кодом в тот же коммит.
@@ -91,12 +91,23 @@ __version__ = "2.6.0"
 shadow_noise: true
 ```
 
+`tests/test_config.py` — обновить тест, который проверяет наличие `shadow_noise`:
+```python
+# Было:
+assert "shadow_noise" in impact
+
+# Стало: удалить этот assert или заменить на проверку, что shadow_noise НЕ в DEFAULTS
+assert "shadow_noise" not in impact  # BACKLOG-006: не реализован
+```
+
 ---
 
 ### 5. Удалить GIMP-пайплайн из основной ветки
 
-**Файлы**: `retouch/gimp/`, `retouch_process.scm`
+**Файлы**: `retouch/gimp/`, `retouch_process.scm`, `retouch/cli.py`, `Makefile`
 **Проблема**: Мёртвый код, не синхронизированный с Python-пайплайном. Занимает ментальную полосу при ревью.
+
+**⚠ Внимание: это переопределяет решение BACKLOG-005**. BACKLOG-005 решил «оставить с пометкой experimental». Данное решение: удалить из main в отдельную ветку. Обоснование: пометка experimental не решает проблему мёртвого кода, а только создаёт иллюзию поддержки.
 
 **Решение**:
 1. Создать ветку `experimental/gimp` и закоммитить туда текущее состояние
@@ -107,23 +118,52 @@ shadow_noise: true
 
 ---
 
+### 6. Запустить `uv lock`
+
+**Проблема**: `uv.lock` содержит версию 2.3.1 (устарел). После синхронизации `__init__.py` (задача 2) нужно обновить lock-файл.
+
+```bash
+cd /path/to/granite-retouch
+uv lock
+```
+
+---
+
+## Порядок выполнения
+
+1. Задача 1 (fringe-тест)
+2. Задача 2 (версия __init__.py)
+3. Задача 3 (DEFAULTS ← config.yaml)
+4. Задача 4 (shadow_noise + обновление test_config.py)
+5. Задача 5 (GIMP → experimental/gimp)
+6. Задача 6 (uv lock)
+7. `pytest tests/ -v` — все тесты проходят
+8. `git tag pre0-done`
+
+---
+
 ## Чеклист приёмки
 
-- [ ] `pytest tests/` — все тесты проходят
+- [ ] `pytest tests/ -v` — все тесты проходят
 - [ ] `pytest tests/test_chromakey.py::test_fringe_reduces_blue_artifacts -v` — тест реально проверяет fringe removal
 - [ ] `retouch.__version__` == версия в `pyproject.toml`
 - [ ] `uv.lock` обновлён
 - [ ] DEFAULTS["processing"]["laser"]["brightness"] == config.yaml laser.brightness
 - [ ] `shadow_noise` нет в DEFAULTS и config.yaml
+- [ ] Тест `test_config.py` обновлён — не проверяет `shadow_noise`
 - [ ] `retouch/gimp/` не существует в main
 - [ ] `retouch_process.scm` не существует в main
 - [ ] `retouch gimp` команда убрана из CLI
+- [ ] Ветка `experimental/gimp` содержит удалённые файлы
 - [ ] Документация обновлена
+- [ ] Git-тег `pre0-done` создан
 
 ---
 
 ## Примечания для агента
 
 - Все изменения — в существующих файлах, новых файлов нет
+- Задача 4 **обязательно** включает обновление `test_config.py` — без этого тесты упадут
+- Задача 5 переопределяет BACKLOG-005 — это осознанное решение, а не ошибка
 - После выполнения — запустить `pytest tests/ -v` для подтверждения
-- Ветка `experimental/gimp` создаётся до удаления файлов из main
+- Ветка `experimental/gimp` создаётся **до** удаления файлов из main
