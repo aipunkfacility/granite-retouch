@@ -215,3 +215,76 @@ class TestCheckFaceBrightness:
         )
         # before должен быть ближе к 80 (верхняя часть), а не к 160 (среднее всего)
         assert before < 120, f"before должен отражать верхнюю часть: {before}"
+
+    def test_correction_only_within_mask(self):
+        """Коррекция применяется только внутри маски субъекта."""
+        # Левая половина — субъект (маска=255), правая — фон (маска=0)
+        arr = np.full((200, 200), 80, dtype=np.uint8)
+        gray = Image.fromarray(arr, "L")
+        mask_arr = np.zeros((200, 200), dtype=np.uint8)
+        mask_arr[:, :100] = 255  # левая половина — субъект
+        mask = Image.fromarray(mask_arr, "L")
+        target = [180, 200]
+
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0
+        )
+        result_arr = np.array(result)
+
+        # Правая половина (вне маски) не должна измениться
+        right_half = result_arr[:, 100:]
+        assert np.all(right_half == 80), \
+            f"Фон вне маски не должен корректироваться, got max={right_half.max()}"
+
+        # Левая половина (внутри маски) должна стать ярче
+        left_half = result_arr[:, :100]
+        assert left_half.mean() > 80, \
+            f"Субъект внутри маски должен стать ярче, got {left_half.mean():.0f}"
+
+    def test_bright_skin_not_overexposed(self):
+        """Уже яркие пиксели кожи не засвечиваются дальше (target_ceiling)."""
+        # Изображение: среднее по лицу = 100 (тёмное), но некоторые пиксели уже 230+
+        arr = np.full((200, 200), 100, dtype=np.uint8)
+        arr[10:30, 10:30] = 230  # уже яркие пиксели кожи
+        gray = Image.fromarray(arr, "L")
+        mask = Image.new("L", (200, 200), 255)
+        target = [200, 220]
+
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0
+        )
+        result_arr = np.array(result)
+
+        # Пиксели уже выше target_max (220) НЕ должны стать ещё ярче
+        bright_region = result_arr[10:30, 10:30]
+        assert bright_region.mean() <= 232, \
+            f"Уже яркие пиксели ({230}) не должны засвечиваться: got {bright_region.mean():.0f}"
+
+    def test_no_double_brightening_beyond_target(self):
+        """После apply_levels + check_face_brightness пиксели не улетают за target_max."""
+        from retouch.processing.levels import apply_levels
+
+        # Симулируем пайплайн: apply_levels(1.18) → check_face_brightness
+        arr = np.full((200, 200), 150, dtype=np.uint8)
+        arr[80:120, 80:120] = 200  # яркая область (кожа)
+        gray = Image.fromarray(arr, "L")
+        mask = Image.new("L", (200, 200), 255)
+        target = [230, 245]
+
+        # Step 1: apply_levels
+        leveled = apply_levels(gray, brightness_factor=1.18)
+
+        # Step 2: check_face_brightness
+        result, before, after, factor = check_face_brightness(
+            leveled, target, mask, glow_size=0
+        )
+        result_arr = np.array(result)
+
+        # Уже яркие пиксели (были 200, после levels ~236) не должны улететь за 255
+        bright_region = result_arr[80:120, 80:120]
+        # С target_ceiling=245, пиксели >=245 не должны стать ярче
+        assert bright_region.max() <= 255
+        # И не должно быть массового клиппинга (все = 255)
+        clipping_ratio = (bright_region == 255).sum() / bright_region.size
+        assert clipping_ratio < 0.5, \
+            f"Слишком много клиппинга ({clipping_ratio:.0%}) — лицо засвечено"
