@@ -2,6 +2,33 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [3.0.0] - 2026-05-05
+
+### 💥 Breaking Changes
+
+- **`check_face_brightness()` return**: функция теперь возвращает кортеж `(avg_brightness, face_region_brightness)` вместо одного значения. Код, ожидавший одно число, нужно обновить.
+- **`load_config()` deep_merge**: конфиг теперь загружается с `deep_merge` — пользовательский конфиг мержится с defaults рекурсивно, а не заменяет целые секции. Если вы полагались на полную замену секции — используйте пустые значения явно.
+- **`process()` wrapper**: функция `process()` теперь обёрнута в `process_steps()` / `process_preview()` / `process_export()`. Старый вызов `process()` с полным набором аргументов может вести себя иначе — используйте новые функции.
+
+### ✨ Новые возможности
+
+- **Web UI**: интерактивный интерфейс для настройки параметров ретуши с живым предпросмотром
+  - FastAPI backend (`retouch_ui/backend/`) с роутерами: upload, process/preview, process/export, config, presets
+  - React + Vite frontend (`retouch_ui/frontend/`) со слайдерами, компаратором до/после, диагностикой
+  - Запуск: `make ui` (dev) или `make ui-prod` (production, один процесс)
+  - Production: FastAPI раздаёт статику через `StaticFiles` — достаточно одного uvicorn
+- **`PipelineResult`**: новый класс результата обработки с промежуточными изображениями, диагностикой и `release_intermediates()`
+- **`process_steps()` / `process_preview()` / `process_export()`**: специализированные функции вместо одной `process()`
+- **Пресеты**: директория `presets/` с YAML-файлами (laser-default, laser-dark-portrait, impact-default, impact-soft)
+- **Pydantic-модели**: валидация запросов/ответов backend через Pydantic (UploadResponse, PreviewRequest, ExportRequest, HealthResponse)
+- **Параметры `face_region_top` и `highlight_start`**: контроль области замера яркости и защита от пересвета
+
+### 🐛 Исправления
+
+- **Fringe test**: исправлен тест fringe removal — корректная проверка синего канала в переходной зоне
+- **File descriptor leak**: временные файлы экспорта удаляются через `BackgroundTask` после отдачи клиенту
+- **Config overwrite**: `load_config()` с `deep_merge` — пользовательский конфиг больше не затирает defaults неявно
+
 ## [2.6.0] - 2026-05-04
 
 ### 🧪 Тестирование (Фаза 7)

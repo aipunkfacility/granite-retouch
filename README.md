@@ -26,6 +26,22 @@ python -m retouch order list
 
 См. [docs/getting-started.md](docs/getting-started.md) — полный цикл за 5 шагов.
 
+## Web UI
+
+Интерактивная настройка параметров с живым предпросмотром:
+
+```bash
+make ui          # dev-режим: backend + frontend (порты 8001 и 5173)
+make ui-prod     # production: один процесс uvicorn, статику раздаёт FastAPI
+```
+
+Возможности:
+- Загрузка изображения через drag & drop
+- Живой предпросмотр при изменении параметров (слайдеры)
+- Переключение станка laser/impact
+- Пресеты (готовые наборы параметров из `presets/`)
+- Экспорт TIFF/PNG в полном разрешении
+
 ## Документация
 
 Полная документация в `docs/`. См. [docs/index.md](docs/index.md).

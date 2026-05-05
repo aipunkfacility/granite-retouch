@@ -37,6 +37,12 @@ python -m retouch order validate ORD-2026-042
 
 # Тесты (98 автотестов, не требуют GIMP/фото)
 make test
+
+# Web UI — интерактивная настройка с предпросмотром
+make ui              # dev-режим: backend + frontend (два процесса)
+make ui-backend      # только FastAPI backend
+make ui-frontend     # только Vite frontend
+make ui-prod         # production: статики + uvicorn (один процесс)
 ```
 
 ## Соглашения об именовании
@@ -87,4 +93,4 @@ orders/active/ORD-2026-001/
 
 ---
 
-Обновлено: 2026-05-04
+Обновлено: 2026-05-05

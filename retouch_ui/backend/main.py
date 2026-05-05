@@ -8,9 +8,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from retouch import __version__
 
@@ -65,3 +67,15 @@ app.include_router(presets.router)
 async def health():
     """Проверка доступности бэкенда."""
     return HealthResponse(status="ok", version=__version__)
+
+# ВАЖНО: StaticFiles монтируется ПОСЛЕДНИМ — все /api/* роуты имеют приоритет.
+# Новые роуты ДОЛЖНЫ использовать префикс /api, иначе будут перехвачены StaticFiles.
+_dist_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _dist_dir.is_dir():
+    app.mount("/", StaticFiles(directory=str(_dist_dir), html=True), name="static")
+else:
+    logger.warning(
+        "Frontend dist/ не найден (%s). Production-роутинг отключен. "
+        "Запустите `make ui-build` для сборки статики.",
+        _dist_dir,
+    )

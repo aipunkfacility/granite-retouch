@@ -1,0 +1,11 @@
+processing:
+  impact:
+    brightness: 1.05
+    glow_size_min: 15
+    glow_size_max: 30
+    glow_opacity_min: 50
+    glow_opacity_max: 70
+    face_brightness_target: [190, 215]
+vignette:
+  blur_radius: 80
+  headroom: 0.65

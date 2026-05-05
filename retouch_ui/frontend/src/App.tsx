@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ImageUpload } from "./components/image-upload";
 import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
@@ -16,10 +16,33 @@ export default function App() {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [machineType, setMachineType] = useState<"laser" | "impact">("laser");
   const [selectedStep, setSelectedStep] = useState("final");
+  const [backendDown, setBackendDown] = useState(false);
 
   // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
+
+  // Backend health check on mount
+  useEffect(() => {
+    let cancelled = false;
+    const checkHealth = async () => {
+      try {
+        const res = await fetch("/api/health");
+        if (!cancelled) setBackendDown(!res.ok);
+      } catch {
+        if (!cancelled) setBackendDown(true);
+      }
+    };
+    checkHealth();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Cleanup Object URL when originalUrl changes or on unmount
+  useEffect(() => {
+    return () => {
+      if (originalUrl) URL.revokeObjectURL(originalUrl);
+    };
+  }, [originalUrl]);
 
   // Handlers
   const handleImageUploaded = useCallback(
@@ -74,6 +97,14 @@ export default function App() {
   // Layout: sidebar left (params) + main area (image) right
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
+      {/* Backend down banner */}
+      {backendDown && (
+        <div className="bg-yellow-500/90 text-yellow-950 px-6 py-2 text-sm font-medium text-center border-b border-yellow-600">
+          <i className="ri-error-warning-line mr-1" />
+          Backend не запущен. Запустите: <code className="bg-yellow-600/20 px-1 rounded">make ui-backend</code>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
         <h1 className="text-xl font-heading font-semibold tracking-tight">

@@ -1,0 +1,14 @@
+processing:
+  impact:
+    brightness: 1.00
+    glow_size_min: 10
+    glow_size_max: 25
+    glow_opacity_min: 60
+    glow_opacity_max: 80
+    face_brightness_target: [185, 210]
+vignette:
+  vertical_offset: 0.10
+  vertical_diameter: 0.50
+  blur_radius: 60
+  headroom: 0.60
+  horizontal_oversize: 0.20
