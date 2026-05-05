@@ -30,7 +30,20 @@ granite-retouch/
 │   ├── schema.json              # JSON-схема
 │   ├── template/                # Шаблон нового заказа
 │   └── active/                  # Активные заказы
-├── tests/                       # Автотесты (98 тестов)
+├── retouch_ui/                  # Web UI
+│   ├── backend/                 # FastAPI sidecar (localhost:8001)
+│   │   ├── main.py              # App + lifespan + CORS + StaticFiles
+│   │   ├── schemas.py           # Pydantic-модели запросов/ответов
+│   │   ├── routers/
+│   │   │   ├── process.py       # /upload, /process/preview, /process/export
+│   │   │   ├── config.py        # GET/PUT /config, /config/defaults
+│   │   │   └── presets.py       # GET/POST/DELETE /presets
+│   │   └── tests/               # Backend API тесты
+│   └── frontend/                # React + Vite
+│       ├── src/                 # Компоненты, хуки, API-клиент
+│       └── dist/                # Production-сборка (gitignore)
+├── presets/                     # YAML-пресеты (laser-default, impact-soft, ...)
+├── tests/                       # Автотесты (~158 тестов)
 │   ├── conftest.py              # Фикстуры: синтетические PNG с хромакеем
 │   ├── test_chromakey.py        # Удаление синего фона, fringe, одежда
 │   ├── test_glow.py             # Laser/impact glow размеры и opacity
@@ -39,7 +52,8 @@ granite-retouch/
 │   ├── test_validation.py       # Валидация изображения и order.json
 │   ├── test_config.py           # Загрузка конфига, defaults, fallback
 │   ├── test_order_schema.py     # JSON Schema: валидные/невалидные заказы
-│   └── test_pipeline.py         # Интеграция: полный пайплайн
+│   ├── test_pipeline.py         # Интеграция: полный пайплайн
+│   └── test_cli_integration.py  # CLI: интеграционный тест
 ├── docs/                        # Документация
 ├── config.yaml                  # Параметры обработки
 ├── pyproject.toml               # Пакетная конфигурация
@@ -88,24 +102,30 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
 
 ## Тестирование
 
-98 автотестов покрывают все модули обработки. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
+~158 автотестов покрывают все модули обработки и Web UI API. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
 
 ```bash
 # Запуск всех тестов
 make test
 # или
 python -m pytest tests/ -v
+python -m pytest retouch_ui/backend/tests/ -v
 ```
 
 | Модуль | Файл | Тестов | Что проверяет |
 |--------|------|--------|---------------|
 | Chromakey | `test_chromakey.py` | 7 | Удаление синего фона, сохранение субъекта, fringe removal, тёмно-синяя одежда |
 | Inner Glow | `test_glow.py` | 6 | Laser/impact glow размеры, яркость контура, random range, opacity |
-| Levels | `test_levels.py` | 10 | Brightness, unsharp mask, curves, mask shrink, face brightness |
+| Levels | `test_levels.py` | 16 | Brightness, unsharp mask, curves, mask shrink, face brightness |
 | Vignette | `test_vignette.py` | 7 | RGB выход, чёрные углы, headroom, масштабирование, плавная маска |
-| Validation | `test_validation.py` | 16 | Валидация изображения, хромакей, чёрный фон, order.json |
-| Config | `test_config.py` | 10 | DEFAULTS структура, диапазоны glow/brightness, загрузка, fallback |
-| Order Schema | `test_order_schema.py` | 25 | Schema integrity, валидные/невалидные заказы, CRM ID, validate_order() |
-| Pipeline | `test_pipeline.py` | 8 | Интеграция: laser/impact пайплайн, >25% чёрного, нет пересвета |
+| Validation | `test_validation.py` | 20 | Валидация изображения, хромакей, чёрный фон, order.json |
+| Config | `test_config.py` | 30 | DEFAULTS структура, диапазоны glow/brightness, загрузка, fallback, deep_merge |
+| Order Schema | `test_order_schema.py` | 26 | Schema integrity, валидные/невалидные заказы, CRM ID, validate_order() |
+| Pipeline | `test_pipeline.py` | 18 | Интеграция: laser/impact пайплайн, >25% чёрного, нет пересвета, process_steps/preview/export |
+| CLI Integration | `test_cli_integration.py` | 1 | CLI: запуск process через subprocess |
+| Process API | `test_process_api.py` | 13 | Upload, preview, export, параметры, ошибки |
+| Config API | `test_config_api.py` | 5 | GET/PUT /config, /config/defaults |
+| Presets API | `test_presets_api.py` | 7 | CRUD пресетов, загрузка YAML |
+| Health API | `test_health.py` | 2 | /health endpoint |
 
-Dev-зависимости: `pytest>=7.0`, `jsonschema>=4.0`. Установка: `uv pip install -e ".[dev]"`.
+Dev-зависимости: `pytest>=7.0`, `jsonschema>=4.0`, `httpx>=0.28.1`. Установка: `uv pip install -e ".[dev]"`.

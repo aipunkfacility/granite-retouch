@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchConfig, fetchDefaults } from "../lib/api";
-import type { ConfigResult } from "../lib/api";
+import type { ConfigResult, DefaultsResult } from "../lib/api";
 
 interface UseConfigReturn {
   config: Record<string, any>;
@@ -32,9 +32,8 @@ export function useConfig(): UseConfigReturn {
     if (defaults) {
       setConfig(defaults);
     } else {
-      const result = await fetchDefaults();
-      setConfig(result.config);
-      setWarnings(result.warnings);
+      const result: DefaultsResult = await fetchDefaults();
+      setConfig(result.defaults);
     }
   }, []);
 

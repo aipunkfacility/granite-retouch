@@ -216,6 +216,9 @@ def process_preview(
 
     opacity_min = machine_cfg.get("glow_opacity_min", 30)
     opacity_max = machine_cfg.get("glow_opacity_max", 40)
+    # NOTE: opacity_mid — целое число процентов (0–100), apply_inner_glow()
+    # конвертирует в float 0.0–1.0 через glow_opacity_override / 100.
+    # Не меняем на float здесь — ломает CLI-флаг --glow-opacity (целое число %).
     opacity_mid = (opacity_min + opacity_max) // 2
 
     # A5: Открываем изображение ОДИН раз — решаем, нужен ли ресайз,

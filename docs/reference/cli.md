@@ -90,7 +90,7 @@ python -m retouch validate -i photo.jpg
 
 ## retouch gimp
 
-GIMP-обработка через Script-Fu. **Experimental / not recommended** — используйте `retouch process`.
+GIMP-обработка через Script-Fu. **Experimental / не рекомендуется для production** — используйте `retouch process`.
 
 ```bash
 python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser|impact] [options]

@@ -18,8 +18,11 @@ export interface PreviewResult {
 
 export interface ConfigResult {
   config: Record<string, any>;
-  source: string;
   warnings: string[];
+}
+
+export interface DefaultsResult {
+  defaults: Record<string, any>;
 }
 
 export interface PresetItem {
@@ -122,7 +125,7 @@ export async function saveConfig(config: Record<string, any>): Promise<{ saved: 
 }
 
 /** Default config */
-export async function fetchDefaults(): Promise<ConfigResult> {
+export async function fetchDefaults(): Promise<DefaultsResult> {
   const res = await fetch(`${API_BASE}/config/defaults`);
   return res.json();
 }
