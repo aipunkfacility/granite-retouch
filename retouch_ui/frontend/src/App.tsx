@@ -9,6 +9,19 @@ import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
+import type { VignetteParams } from "./lib/vignette-geometry";
+
+/** Extract vignette params from config, with defaults */
+function getVignetteParams(config: Record<string, any>): VignetteParams {
+  const v = config.vignette ?? {};
+  return {
+    vertical_offset: v.vertical_offset ?? 0.1,
+    vertical_diameter: v.vertical_diameter ?? 0.5,
+    blur_radius: v.blur_radius ?? 60,
+    headroom: v.headroom ?? 0.6,
+    horizontal_oversize: v.horizontal_oversize ?? 0.2,
+  };
+}
 
 export default function App() {
   // State
@@ -17,10 +30,18 @@ export default function App() {
   const [machineType, setMachineType] = useState<"laser" | "impact">("laser");
   const [selectedStep, setSelectedStep] = useState("final");
   const [backendDown, setBackendDown] = useState(false);
+  const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
 
   // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
+
+  // Vignette params derived from config
+  const vignetteParams = getVignetteParams(config);
+
+  // Image dimensions from preview diagnostics
+  const imageWidth = previewResult?.diagnostics.width ?? 0;
+  const imageHeight = previewResult?.diagnostics.height ?? 0;
 
   // Backend health check on mount
   useEffect(() => {
@@ -140,6 +161,8 @@ export default function App() {
                 machineType={machineType}
                 config={config}
                 onConfigChange={handleConfigChangeByPath}
+                vignetteOverlayEnabled={vignetteOverlayEnabled}
+                onVignetteOverlayToggle={setVignetteOverlayEnabled}
               />
               <div className="border-t border-border pt-4">
                 <ConfigActions
@@ -183,6 +206,11 @@ export default function App() {
                 images={previewResult.images}
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
+                vignetteOverlayEnabled={vignetteOverlayEnabled}
+                imageWidth={imageWidth}
+                imageHeight={imageHeight}
+                vignetteParams={vignetteParams}
+                onVignetteParamChange={handleConfigChangeByPath}
               />
             </>
           ) : (

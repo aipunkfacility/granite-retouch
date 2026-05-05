@@ -21,6 +21,7 @@ from retouch.processing.pipeline import (
     process_steps,
     PipelineResult,
 )
+from retouch.processing.vignette import generate_arch_mask
 
 from ..schemas import (
     UploadResponse,
@@ -28,6 +29,9 @@ from ..schemas import (
     PreviewResponse,
     PreviewDiagnostics,
     ExportRequest,
+    VignetteMaskRequest,
+    VignetteMaskResponse,
+    VignetteMaskParams,
 )
 
 logger = logging.getLogger("retouch_ui.process")
@@ -166,6 +170,7 @@ async def preview_image(
         "leveled": result.img_leveled,
         "face_corrected": result.img_face_corrected,
         "final": result.img_final,
+        "arch_mask": result.arch_mask,
     }
 
     images: dict[str, str] = {}
@@ -277,4 +282,55 @@ async def export_image(
         media_type=media_type,
         filename=f"result{suffix}",
         background=background_tasks,
+    )
+
+
+@router.post("/vignette/mask", response_model=VignetteMaskResponse)
+async def vignette_mask(request: VignetteMaskRequest):
+    """Сгенерировать маску арховой виньетки по параметрам.
+
+    Не требует загруженного изображения — только параметры виньетки и размеры.
+    Используется для визуального контроля формы виньетки в Web UI (L2 overlay).
+    """
+    vign_cfg = request.vignette
+
+    # Вычисляем параметры эллипса для ответа
+    v_offset = request.height * vign_cfg.get("vertical_offset", 0.10)
+    v_diameter = request.height * vign_cfg.get("vertical_diameter", 0.50)
+    headroom = request.height * vign_cfg.get("headroom", 0.6)
+    h_oversize = request.width * vign_cfg.get("horizontal_oversize", 0.2)
+
+    arch_bottom_y = request.height - v_offset
+    arch_top_y = arch_bottom_y - v_diameter - headroom
+
+    # CPU-bound: генерация маски в отдельном потоке
+    try:
+        arch_mask = await asyncio.wait_for(
+            asyncio.to_thread(
+                generate_arch_mask,
+                request.width,
+                request.height,
+                vign_cfg,
+            ),
+            timeout=5.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(408, "Превышено время генерации маски")
+    except Exception as exc:
+        logger.exception("Ошибка генерации маски виньетки: %s", exc)
+        raise HTTPException(500, f"Ошибка генерации маски: {exc}")
+
+    # Кодируем маску в base64 data URI
+    buf = io.BytesIO()
+    arch_mask.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    mask_data_uri = f"data:image/png;base64,{b64}"
+
+    return VignetteMaskResponse(
+        mask=mask_data_uri,
+        params=VignetteMaskParams(
+            arch_top_y=arch_top_y,
+            arch_bottom_y=arch_bottom_y,
+            h_oversize=h_oversize,
+        ),
     )

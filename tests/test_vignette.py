@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.vignette import apply_vignette
+from retouch.processing.vignette import apply_vignette, generate_arch_mask
 
 
 class TestArchVignette:
@@ -160,3 +160,70 @@ class TestArchVignette:
         unique_values = len(np.unique(mask_arr))
         assert unique_values > 10, \
             f"Маска должна быть плавной, а не бинарной ({unique_values} уникальных значений)"
+
+
+class TestGenerateArchMask:
+    """Тесты generate_arch_mask — генерация маски без композитинга."""
+
+    def test_mask_dimensions(self):
+        """Маска имеет запрошенные размеры."""
+        mask = generate_arch_mask(640, 480, {
+            "vertical_offset": 0.1,
+            "vertical_diameter": 0.5,
+            "blur_radius": 30,
+            "headroom": 0.6,
+            "horizontal_oversize": 0.2,
+        })
+        assert mask.size == (640, 480)
+        assert mask.mode == "L"
+
+    def test_mask_has_ellipse(self):
+        """Центр маски — белый (эллипс), нижние углы — чёрные."""
+        mask = generate_arch_mask(512, 512, {
+            "vertical_offset": 0.1,
+            "vertical_diameter": 0.5,
+            "blur_radius": 10,
+            "headroom": 0.6,
+            "horizontal_oversize": 0.2,
+        })
+        arr = np.array(mask)
+        # Центр эллипса — внутри арки, должен быть ярким
+        assert arr[200, 256] > 200, f"Центр маски должен быть белым: {arr[200, 256]}"
+        # Нижние углы — вне арки (ниже arch_bottom_y), должны быть чёрными
+        assert arr[500, 10] < 10, f"Нижний угол маски должен быть чёрным: {arr[500, 10]}"
+        assert arr[500, 501] < 10, f"Нижний правый угол маски должен быть чёрным: {arr[500, 501]}"
+
+    def test_mask_no_blur_sharp(self):
+        """Без blur (radius=0) — чёткий эллипс с резкими краями."""
+        mask = generate_arch_mask(200, 200, {
+            "vertical_offset": 0.1,
+            "vertical_diameter": 0.5,
+            "blur_radius": 0,
+            "headroom": 0.6,
+            "horizontal_oversize": 0.2,
+        })
+        # Пиксель внутри эллипса — строго 255
+        assert mask.getpixel((100, 80)) == 255
+        # Нижний угол — вне эллипса, строго 0
+        assert mask.getpixel((10, 190)) == 0
+
+    def test_mask_consistent_with_apply_vignette(self):
+        """Маска из generate_arch_mask совпадает с маской из apply_vignette."""
+        vign_cfg = {
+            "vertical_offset": 0.12,
+            "vertical_diameter": 0.45,
+            "blur_radius": 25,
+            "headroom": 0.55,
+            "horizontal_oversize": 0.15,
+        }
+        gray = Image.new("L", (300, 300), 128)
+
+        _, mask_from_apply = apply_vignette(gray, 300, 300, vign_cfg)
+        mask_standalone = generate_arch_mask(300, 300, vign_cfg)
+
+        arr_apply = np.array(mask_from_apply)
+        arr_standalone = np.array(mask_standalone)
+
+        # Маски должны быть идентичны
+        assert np.array_equal(arr_apply, arr_standalone), \
+            "Маска из generate_arch_mask должна совпадать с маской из apply_vignette"

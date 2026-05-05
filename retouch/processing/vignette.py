@@ -3,20 +3,19 @@
 from PIL import Image, ImageDraw, ImageFilter
 
 
-def apply_vignette(img_gray, width, height, vign_cfg):
-    """Наложить арховую виньетку на grayscale-изображение.
+def generate_arch_mask(width: int, height: int, vign_cfg: dict) -> Image.Image:
+    """Сгенерировать маску арховой виньетки (L, 0-255).
 
-    Эллипс вынесен выше изображения — голова всегда видна.
-    Только нижние углы плавно затемняются.
+    Возвращает размытую маску без композитинга - только эллипс + GaussianBlur.
+    Переиспользуемая функция для пайплайна и API-эндпоинта маски.
 
     Args:
-        img_gray: PIL.Image в режиме L
-        width: ширина изображения
-        height: высота изображения
+        width: ширина маски в пикселях
+        height: высота маски в пикселях
         vign_cfg: dict с параметрами виньетки из config.yaml
 
     Returns:
-        PIL.Image: RGB-изображение на чёрном фоне с виньеткой
+        PIL.Image: маска в режиме L (0 = чёрный фон, 255 = видимая область)
     """
     v_offset = height * vign_cfg.get("vertical_offset", 0.10)
     v_diameter = height * vign_cfg.get("vertical_diameter", 0.50)
@@ -34,7 +33,25 @@ def apply_vignette(img_gray, width, height, vign_cfg):
         [-h_oversize, arch_top_y, width + h_oversize, arch_bottom_y],
         fill=255
     )
-    arch_mask = arch.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    return arch.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+
+def apply_vignette(img_gray, width, height, vign_cfg):
+    """Наложить арховую виньетку на grayscale-изображение.
+
+    Эллипс вынесен выше изображения - голова всегда видна.
+    Только нижние углы плавно затемняются.
+
+    Args:
+        img_gray: PIL.Image в режиме L
+        width: ширина изображения
+        height: высота изображения
+        vign_cfg: dict с параметрами виньетки из config.yaml
+
+    Returns:
+        tuple: (PIL.Image RGB-изображение на чёрном фоне, PIL.Image маска виньетки L)
+    """
+    arch_mask = generate_arch_mask(width, height, vign_cfg)
 
     # Composite over black
     background = Image.new('RGB', (width, height), (0, 0, 0))

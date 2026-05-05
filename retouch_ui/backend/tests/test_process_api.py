@@ -190,3 +190,69 @@ def test_export_with_params(client, uploaded_file_id):
         },
     )
     assert res.status_code == 200
+
+
+# ─── Vignette Mask ─────────────────────────────────────────────────────────
+
+
+def test_vignette_mask_endpoint(client):
+    """POST /api/vignette/mask returns base64 PNG mask + params."""
+    res = client.post(
+        "/api/vignette/mask",
+        json={
+            "width": 512,
+            "height": 512,
+            "vignette": {
+                "vertical_offset": 0.1,
+                "vertical_diameter": 0.5,
+                "blur_radius": 60,
+                "headroom": 0.6,
+                "horizontal_oversize": 0.2,
+            },
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "mask" in data
+    assert data["mask"].startswith("data:image/png;base64,")
+    assert "params" in data
+    assert "arch_top_y" in data["params"]
+    assert "arch_bottom_y" in data["params"]
+    assert "h_oversize" in data["params"]
+    # Проверяем вычисленные параметры
+    assert data["params"]["arch_bottom_y"] == pytest.approx(512 - 512 * 0.1, abs=1)
+    assert data["params"]["h_oversize"] == pytest.approx(512 * 0.2, abs=1)
+
+
+def test_vignette_mask_invalid_params(client):
+    """POST /api/vignette/mask with invalid width returns 422."""
+    res = client.post(
+        "/api/vignette/mask",
+        json={
+            "width": 10,  # < 64
+            "height": 512,
+            "vignette": {},
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_vignette_mask_different_sizes(client):
+    """POST /api/vignette/mask works for various image sizes."""
+    for w, h in [(256, 256), (512, 768), (1024, 768)]:
+        res = client.post(
+            "/api/vignette/mask",
+            json={
+                "width": w,
+                "height": h,
+                "vignette": {
+                    "vertical_offset": 0.1,
+                    "vertical_diameter": 0.5,
+                    "blur_radius": 30,
+                    "headroom": 0.6,
+                    "horizontal_oversize": 0.2,
+                },
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["mask"].startswith("data:image/png;base64,")

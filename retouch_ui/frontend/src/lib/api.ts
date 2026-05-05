@@ -25,6 +25,15 @@ export interface DefaultsResult {
   defaults: Record<string, any>;
 }
 
+export interface VignetteMaskResult {
+  mask: string;
+  params: {
+    arch_top_y: number;
+    arch_bottom_y: number;
+    h_oversize: number;
+  };
+}
+
 export interface PresetItem {
   name: string;
   config: Record<string, any>;
@@ -149,5 +158,25 @@ export async function createPreset(name: string, config: Record<string, any>) {
 /** Delete preset */
 export async function deletePreset(name: string) {
   const res = await fetch(`${API_BASE}/presets/${name}`, { method: "DELETE" });
+  return res.json();
+}
+
+/** Vignette mask — generates arch mask by params (no image needed) */
+export async function fetchVignetteMask(
+  width: number,
+  height: number,
+  vignetteParams: Record<string, number>,
+  signal?: AbortSignal,
+): Promise<VignetteMaskResult> {
+  const res = await fetch(`${API_BASE}/vignette/mask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ width, height, vignette: vignetteParams }),
+    signal,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Vignette mask failed: ${err}`);
+  }
   return res.json();
 }

@@ -46,6 +46,13 @@ class PresetDeleteRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=64)
 
 
+class VignetteMaskRequest(BaseModel):
+    """Запрос POST /api/vignette/mask."""
+    width: int = Field(..., ge=64, le=4096, description="Ширина маски (пиксели)")
+    height: int = Field(..., ge=64, le=4096, description="Высота маски (пиксели)")
+    vignette: dict = Field(..., description="Параметры виньетки из config.yaml")
+
+
 # ─── Ответы ───────────────────────────────────────────────────────────
 
 class PreviewDiagnostics(BaseModel):
@@ -120,3 +127,16 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     """Общий формат ошибки."""
     detail: str
+
+
+class VignetteMaskParams(BaseModel):
+    """Вычисленные параметры эллипса виньетки."""
+    arch_top_y: float = Field(..., description="Верх арки (пиксели)")
+    arch_bottom_y: float = Field(..., description="Низ арки (пиксели)")
+    h_oversize: float = Field(..., description="Горизонтальный оверсайз (пиксели)")
+
+
+class VignetteMaskResponse(BaseModel):
+    """Ответ POST /api/vignette/mask."""
+    mask: str = Field(..., description="data:image/png;base64,... арховая маска")
+    params: VignetteMaskParams = Field(..., description="Вычисленные параметры эллипса")

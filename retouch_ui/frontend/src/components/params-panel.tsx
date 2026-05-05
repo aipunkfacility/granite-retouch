@@ -6,9 +6,17 @@ interface Props {
   machineType: "laser" | "impact";
   config: Record<string, any>;
   onConfigChange: (path: string[], value: number) => void;
+  vignetteOverlayEnabled: boolean;
+  onVignetteOverlayToggle: (enabled: boolean) => void;
 }
 
-export function ParamsPanel({ machineType, config, onConfigChange }: Props) {
+export function ParamsPanel({
+  machineType,
+  config,
+  onConfigChange,
+  vignetteOverlayEnabled,
+  onVignetteOverlayToggle,
+}: Props) {
   const [activeTab, setActiveTab] = useState<string>("common");
 
   const renderSlider = (path: string[], param: ParamRange, value: number) => (
@@ -81,6 +89,21 @@ export function ParamsPanel({ machineType, config, onConfigChange }: Props) {
           </button>
         ))}
       </div>
+
+      {/* Vignette overlay toggle — shown only on vignette tab */}
+      {effectiveTab === "vignette" && (
+        <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={vignetteOverlayEnabled}
+            onChange={(e) => onVignetteOverlayToggle(e.target.checked)}
+            className="accent-accent-blue"
+          />
+          <i className="ri-shape-line text-base" />
+          Показать оверлей виньетки
+          <span className="text-text-muted text-xs ml-1">(Shift+drag: диаметр)</span>
+        </label>
+      )}
 
       {/* Sliders */}
       <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
