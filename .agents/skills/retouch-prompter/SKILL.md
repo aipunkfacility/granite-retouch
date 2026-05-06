@@ -11,7 +11,7 @@ description: Собирает финальный промпт для генер�
 
 1. Читает `order.json` (ID заказа, тип станка, данные анализа).
 2. Определяет набор блоков для сборки:
-   - **Основа**: `prompt_blocks/base.md` (Role, Guidelines 0, 1, 4).
+   - **Основа**: `prompt_blocks/base.md` (Role, Guidelines 1, 1.5, 2, 3, 4).
    - **Одежда**: 
      - Если в `analyzer_output` или запросе не указана ЗАМЕНА (military/civilian) -> `prompt_blocks/clothing/preserve.md`.
      - Иначе -> соответствующий блок `civilian.md` или `military.md`.
@@ -19,13 +19,15 @@ description: Собирает финальный промпт для генер�
      - Если нужно оставить как есть -> `prompt_blocks/headgear/preserve.md`.
      - Если нужно убрать -> `headgear/none.md`.
      - Если нужно добавить кепку -> `headgear/cap.md`.
-   - **Станок**: `prompt_blocks/machine/[machine_type].md` (Технические Guideline 2, 3 и Goal).
+   - **Станок**: `prompt_blocks/laser.md` или `prompt_blocks/impact.md` (кожа, волосы, контраст, Goal).
+   - **Запреты**: `prompt_blocks/constraints.md` (универсальные негативные ограничения, всегда включается).
 3. Собирает промпт в следующем порядке:
-   - Блок `base.md` (начало: Role/Context и Guidelines 0, 1).
+   - Блок `base.md` (начало: Role/Context, Guidelines 1, 1.5).
    - Блок одежды.
    - Блок головного убора.
-   - Блок станка (техническая часть Guidelines 2, 3).
-   - Блок `base.md` (завершение: Guideline 4 и технические хвосты).
+   - Блок станка (техническая часть: кожа, волосы, контраст).
+   - Блок `base.md` (продолжение: Guideline 4 Anti-Doll, Guideline 2 Lighting + Brightness Ceiling, Guideline 3 Background).
+   - Блок `constraints.md` (универсальные запреты).
    - Блок станка (Goal).
 4. Сохраняет финальный результат в `prompt.md` и обновляет `order.json`.
 
