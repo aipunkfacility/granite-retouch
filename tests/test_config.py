@@ -308,3 +308,37 @@ class TestPydanticModel:
                 if key in pydantic_defaults["processing"][machine]:
                     assert DEFAULTS["processing"][machine][key] == pydantic_defaults["processing"][machine][key], \
                         f"DEFAULTS mismatch for processing.{machine}.{key}"
+
+
+class TestConfigMachineTypes:
+    """P4: config поддерживает 3 machine_type (этап 8)."""
+
+    def test_laser_80w_config_exists(self):
+        """Секция laser_80w присутствует в DEFAULTS."""
+        assert "laser_80w" in DEFAULTS["processing"]
+
+    def test_laser_80w_face_target(self):
+        """Laser 80W target = 210-230."""
+        cfg = DEFAULTS["processing"]["laser_80w"]
+        assert cfg["face_brightness_target_min"] == 210
+        assert cfg["face_brightness_target_max"] == 230
+
+    def test_impact_face_target_raised(self):
+        """Impact target поднят до 200-225 (BUG-C)."""
+        cfg = DEFAULTS["processing"]["impact"]
+        assert cfg["face_brightness_target_min"] == 200
+        assert cfg["face_brightness_target_max"] == 225
+
+    def test_laser_standard_renamed(self):
+        """Старый ключ 'laser' заменён на 'laser_standard'."""
+        assert "laser" not in DEFAULTS["processing"]
+        assert "laser_standard" in DEFAULTS["processing"]
+
+    def test_all_machine_types_have_glow_ranges(self):
+        """Все machine_type имеют корректные glow-диапазоны."""
+        for mtype in MACHINE_TYPES:
+            mc = DEFAULTS["processing"][mtype]
+            assert mc["glow_size_min"] < mc["glow_size_max"], \
+                f"{mtype}: glow_size_min ({mc['glow_size_min']}) >= glow_size_max ({mc['glow_size_max']})"
+            assert mc["glow_opacity_min"] < mc["glow_opacity_max"], \
+                f"{mtype}: glow_opacity_min ({mc['glow_opacity_min']}) >= glow_opacity_max ({mc['glow_opacity_max']})"

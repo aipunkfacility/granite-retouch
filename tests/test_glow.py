@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.glow import apply_inner_glow
+from retouch.processing.glow import apply_inner_glow, _calculate_glow_params
 
 
 class TestInnerGlow:
@@ -132,3 +132,32 @@ class TestInnerGlow:
             gray, mask, laser_cfg, glow_size_override=50, glow_opacity_override=35
         )
         assert result.mode == "L", f"Результат должен быть L, а не {result.mode}"
+
+
+class TestAdaptiveGlow:
+    """P3: адаптивные параметры glow на основе аналитики."""
+
+    def test_laser_80w_fixed_params(self):
+        """Laser 80W: фиксированные параметры (20, 15)."""
+        analytics = {'subject_separation': 150, 'tonal_range': 100}
+        size, opacity = _calculate_glow_params(analytics, 'laser_80w')
+        assert size == 20
+        assert opacity == 15
+
+    def test_impact_low_separation_stronger_glow(self):
+        """Impact: низкая сепарация → больший glow для разделения."""
+        analytics_low = {'subject_separation': 20, 'tonal_range': 100}
+        analytics_high = {'subject_separation': 120, 'tonal_range': 100}
+        size_low, opacity_low = _calculate_glow_params(analytics_low, 'impact')
+        size_high, opacity_high = _calculate_glow_params(analytics_high, 'impact')
+        # Низкая сепарация → нужен больший glow для разделения
+        assert size_low >= size_high
+        assert opacity_low >= opacity_high
+
+    def test_laser_standard_wide_tonal_range_smaller_glow(self):
+        """Laser Standard: широкий тональный диапазон → меньший glow."""
+        analytics_wide = {'tonal_range': 150, 'subject_separation': 100}
+        analytics_narrow = {'tonal_range': 50, 'subject_separation': 100}
+        size_wide, _ = _calculate_glow_params(analytics_wide, 'laser_standard')
+        size_narrow, _ = _calculate_glow_params(analytics_narrow, 'laser_standard')
+        assert size_wide <= size_narrow

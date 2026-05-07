@@ -288,3 +288,152 @@ class TestCheckFaceBrightness:
         clipping_ratio = (bright_region == 255).sum() / bright_region.size
         assert clipping_ratio < 0.5, \
             f"Слишком много клиппинга ({clipping_ratio:.0%}) — лицо засвечено"
+
+
+class TestMaskProtection:
+    """P6: масочная защита — фон не меняется при коррекции."""
+
+    def test_levels_preserves_background_with_mask(self):
+        """Levels с mask не меняет фоновые пиксели."""
+        arr = np.full((100, 100), 128, dtype=np.uint8)
+        mask_arr = np.zeros((100, 100), dtype=np.uint8)
+        arr[30:70, 30:70] = 180
+        mask_arr[30:70, 30:70] = 255
+        img = Image.fromarray(arr, "L")
+        mask = Image.fromarray(mask_arr, "L")
+        result = apply_levels(img, brightness_factor=1.3, subject_mask=mask)
+        result_arr = np.array(result)
+        # Фон не изменился (был 128)
+        assert result_arr[10, 10] == 128, f"Фон изменился: {result_arr[10, 10]}"
+        # Субъект изменился (180 * 1.3 = 234)
+        assert result_arr[50, 50] > 180, f"Субъект не осветлился: {result_arr[50, 50]}"
+
+    def test_levels_without_mask_backward_compat(self):
+        """Levels без mask работает как раньше (глобальный enhance)."""
+        img = Image.new("L", (100, 100), 128)
+        result = apply_levels(img, brightness_factor=1.18)
+        arr = np.array(result)
+        # Все пиксели умножены
+        assert arr[50, 50] > 128
+
+    def test_unsharp_preserves_background_with_mask(self):
+        """Unsharp с mask не создаёт halo на границе субъект/фон."""
+        arr = np.zeros((100, 100), dtype=np.uint8)
+        mask_arr = np.zeros((100, 100), dtype=np.uint8)
+        # Резкий переход: субъект=200, фон=0
+        arr[30:70, 30:70] = 200
+        mask_arr[30:70, 30:70] = 255
+        img = Image.fromarray(arr, "L")
+        mask = Image.fromarray(mask_arr, "L")
+        result = apply_unsharp_mask(img, subject_mask=mask)
+        result_arr = np.array(result)
+        # Фон остался чёрным (0 или очень близко)
+        assert result_arr[10, 10] <= 2, f"Фон загрязнился: {result_arr[10, 10]}"
+
+    def test_face_brightness_pillow_with_mask(self):
+        """Face Brightness с mask не ломает фон (P6.4)."""
+        arr = np.zeros((100, 100), dtype=np.uint8)
+        mask_arr = np.zeros((100, 100), dtype=np.uint8)
+        arr[20:80, 20:80] = 150
+        mask_arr[20:80, 20:80] = 255
+        img = Image.fromarray(arr, "L")
+        mask = Image.fromarray(mask_arr, "L")
+        result, *_ = check_face_brightness(
+            img, [230, 245], mask, glow_size=20, face_region_top=0.45,
+            highlight_start=200,
+        )
+        result_arr = np.array(result)
+        # Фон остался 0
+        assert result_arr[5, 5] <= 2, f"Фон изменился: {result_arr[5, 5]}"
+
+
+class TestAdaptiveLevels:
+    """P2: адаптивный Levels вместо слепого множителя."""
+
+    def test_bright_input_no_clipping(self):
+        """Яркий вход (median=211) — фактор ≈ 1.0, без клиппинга."""
+        analytics = {
+            'median_brightness': 211.0,
+            'p90_brightness': 240.0,
+        }
+        img = Image.new("L", (100, 100), 211)
+        result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
+        result_arr = np.array(result)
+        assert result_arr.max() < 255, "Клиппинг при ярком входе"
+        # Фактор ≈ 210/211 ≈ 0.995 — почти без изменений
+        assert abs(result_arr.mean() - 211) < 5, "Слишком большое изменение для яркого входа"
+
+    def test_dark_input_gets_brightened(self):
+        """Тёмный вход (median=80) — фактор > 1.0."""
+        analytics = {
+            'median_brightness': 80.0,
+            'p90_brightness': 150.0,
+        }
+        img = Image.new("L", (100, 100), 80)
+        result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
+        assert np.array(result).mean() > 80
+
+    def test_overbright_input_gets_darkened(self):
+        """Сверхъяркий вход (median=240) — фактор < 1.0."""
+        analytics = {
+            'median_brightness': 240.0,
+            'p90_brightness': 252.0,
+        }
+        img = Image.new("L", (100, 100), 240)
+        result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
+        assert np.array(result).mean() < 240
+
+    def test_clipping_protection(self):
+        """p90*factor > 250 → фактор снижается для защиты от клиппинга."""
+        analytics = {
+            'median_brightness': 180.0,
+            'p90_brightness': 252.0,
+        }
+        img = Image.new("L", (100, 100), 252)
+        result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
+        # Без защиты: 252 * 1.17 = 295 → клиппинг
+        # С защитой: safe_factor = 248/252 ≈ 0.984 → 252 * 0.984 ≈ 248
+        result_arr = np.array(result)
+        assert result_arr.mean() < 252, "Яркие пиксели не были защищены от клиппинга"
+
+    def test_laser_80w_lower_target(self):
+        """Laser 80W: target_pre_fb=190, меньше чем laser_standard=210."""
+        analytics = {
+            'median_brightness': 180.0,
+            'p90_brightness': 220.0,
+        }
+        result_laser = apply_levels(
+            Image.new("L", (100, 100), 180),
+            analytics=analytics, machine_type='laser_standard',
+        )
+        result_80w = apply_levels(
+            Image.new("L", (100, 100), 180),
+            analytics=analytics, machine_type='laser_80w',
+        )
+        # laser_80w с более низким target даёт менее яркий результат
+        assert np.array(result_80w).mean() <= np.array(result_laser).mean()
+
+
+class TestAdaptiveUnsharp:
+    """P5: адаптивный Unsharp percent."""
+
+    def test_overbright_reduced_sharpening(self):
+        """Overbright → сниженный percent (80)."""
+        from retouch.processing.levels import _adaptive_unsharp_percent
+        analytics = {'tonal_range': 80, 'input_class': 'overbright'}
+        percent = _adaptive_unsharp_percent(analytics, 120)
+        assert percent == 80
+
+    def test_low_tonal_range_increased_sharpening(self):
+        """Низкий tonal_range (<40) → усиленный percent (150)."""
+        from retouch.processing.levels import _adaptive_unsharp_percent
+        analytics = {'tonal_range': 30, 'input_class': 'bright'}
+        percent = _adaptive_unsharp_percent(analytics, 120)
+        assert percent == 150
+
+    def test_normal_tonal_range_default_sharpening(self):
+        """Нормальный tonal_range (>80) → стандартный percent (120)."""
+        from retouch.processing.levels import _adaptive_unsharp_percent
+        analytics = {'tonal_range': 100, 'input_class': 'bright'}
+        percent = _adaptive_unsharp_percent(analytics, 120)
+        assert percent == 120

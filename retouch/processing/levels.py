@@ -265,16 +265,16 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     else:
         inner_mask_img = subject_mask
 
+    # Создаём маску субъекта (нужна в обеих ветках для P6.4)
+    subject_mask_arr = np.array(subject_mask)
+    full_subject_mask = subject_mask_arr > 128
+
     if HAS_NUMPY:
         arr = np.array(img_gray, dtype=np.float32)
 
         # A4: Правильная последовательность — сначала np.array от маски,
         # потом обрезка верхней части для зоны лица
-        subject_mask_arr = np.array(subject_mask)
         inner_mask_arr = np.array(inner_mask_img)
-
-        # Полная маска субъекта (для ограничения коррекции)
-        full_subject_mask = subject_mask_arr > 128
 
         # Ограничиваем зону замера верхней частью (лицо без плеч)
         # Используем сжатую маску (inner_mask_arr), чтобы исключить glow-пиксели
@@ -304,7 +304,6 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         from PIL import ImageStat
         stat = ImageStat.Stat(img_gray, mask=inner_mask_img)
         avg_brightness = stat.mean[0]
-        full_subject_mask = None  # Без numpy маска недоступна
 
     target_min, target_max = face_target
     target_mid = (target_min + target_max) / 2
@@ -327,9 +326,22 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             )
             result = Image.fromarray(result_arr.astype(np.uint8), "L")
         else:
-            # Pillow fallback — простая линейная коррекция (хуже, но работает)
+            # Pillow fallback — простая линейная коррекция
             enhancer = ImageEnhance.Brightness(img_gray)
             result = enhancer.enhance(correction)
+            # P6.4: ограничить коррекцию внутри маски субъекта.
+            # Pillow не умеет mask-aware enhance, поэтому применяем
+            # маску постфактум через numpy: вне маски — оригинал.
+            if HAS_NUMPY:
+                orig_arr = np.array(img_gray, dtype=np.float32)
+                result_arr = np.array(result, dtype=np.float32)
+                result_arr = np.where(full_subject_mask, result_arr, orig_arr)
+                result = Image.fromarray(result_arr.astype(np.uint8), "L")
+            else:
+                logger.warning(
+                    "Pillow-fallback: subject_mask передана, но numpy недоступен — "
+                    "фон может загрязниться. Установите numpy: pip install numpy"
+                )
 
         # Проверяем результат на маске лица
         if HAS_NUMPY:

@@ -2,6 +2,33 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [4.0.0] - 2026-05-07
+
+### 💥 Breaking Changes
+
+- **`machine_type` расширение**: значение `"laser"` заменено на `"laser_standard"`. Старое значение `"laser"` вызывает ошибку валидации в schema.json. Если в order.json указан `"machine_type": "laser"` — замените на `"laser_standard"`.
+- **`config.yaml` ключи**: секция `processing.laser:` переименована в `processing.laser_standard:`. Добавлена секция `processing.laser_80w:`.
+
+### ✨ Новые возможности
+
+- **Пресет laser-80w.md**: новый стиль для мощных лазеров (60-80W+) — medium-key, тёмные волосы, сохранённые морщины, потолок яркости 235
+- **26 промпт-правок** (B1–B16, C-L0/L2/L3, C-I1/I2/I3): уточнение Goal, clothing blowout, серебряный тон, скульптурный объём волос, «лучше темнее»
+- **Модуль преданализа** (`retouch/processing/analysis.py`): 13 метрик входного изображения для адаптивных доработок пайплайна
+- **Адаптивный Levels** (P2): фактор яркости вычисляется из analytics вместо фиксированного 1.18, защита от клиппинга
+- **Адаптивный Glow** (P3): параметры glow рассчитываются из analytics (subject_separation, tonal_range)
+- **Адаптивный Unsharp** (P5): percent вычисляется из analytics (input_class, tonal_range)
+- **Целевые значения по пресету** (P4): config.yaml содержит 3 секции — laser_standard, laser_80w, impact
+- **Масочная защита** (P6): `apply_levels()` и `apply_unsharp_mask()` принимают `subject_mask`, коррекция только внутри маски
+- **P6.4 Pillow-fallback mask**: `check_face_brightness()` Pillow-ветка теперь ограничивает коррекцию внутри маски субъекта через numpy пост-обработку
+- **PipelineResult.analytics**: dict с метриками преданализа доступен после обработки
+- **34 новых TDD-теста** для этапов 5–11 дев-плана
+
+### 🐛 Исправления
+
+- **BUG-C**: impact face_brightness_target поднят с [185, 210] до [200, 225] — устраняет плоские лица на impact-гравировке
+- **CLI docstring**: обновлён с `-m laser_standard` вместо устаревшего `-m laser`
+- **Промпты**: убрано дублирование фраз про «flat hair» в laser.md §2 и impact.md §2
+
 ## [3.0.0] - 2026-05-05
 
 ### 💥 Breaking Changes

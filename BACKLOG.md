@@ -1,6 +1,6 @@
 # granite-retouch — Product Backlog
 
-Версия: 3.0.0 | Обновлено: 2026-05-05
+Версия: 4.0.0 | Обновлено: 2026-05-07
 
 ---
 
@@ -249,6 +249,27 @@ GIMP-пайплайн не удаляется, но помечен как экс
 
 ## P3 — Низкие
 
+### BACKLOG-011: TDD-тесты для pipeline v2
+
+**Статус**: ✅ Done
+**Создано**: 2026-05-07
+
+**Проблема**:
+Дев-план требует TDD-тесты для этапов 5–11 (routing, mask protection, analysis, config, adaptive Levels/Glow/Unsharp). Тесты не были написаны при реализации.
+
+**Реализовано**:
+- `tests/test_skill_routing.py` (5 тестов) — routing machine_type → промпт-файл, legacy-значения, конфиг-секции
+- `tests/test_analysis.py` (9 тестов) — преданализ: классификация, метрики, масштабная инвариантность
+- `TestMaskProtection` в `test_levels.py` (4 теста) — масочная защита Levels/Unsharp/Face Brightness
+- `TestConfigMachineTypes` в `test_config.py` (5 тестов) — 3 machine_type в DEFAULTS, BUG-C
+- `TestAdaptiveLevels` в `test_levels.py` (5 тестов) — адаптивный factor, clipping protection, пресеты
+- `TestAdaptiveGlow` в `test_glow.py` (3 теста) — адаптивные параметры glow
+- `TestAdaptiveUnsharp` в `test_levels.py` (3 теста) — адаптивный unsharp percent
+
+**Итого: 34 новых теста, все проходят.**
+
+---
+
 ### BACKLOG-009: Рефакторинг _shrink_mask — убрать scipy-зависимость
 
 **Статус**: Open
@@ -302,7 +323,7 @@ CLI обрабатывает один файл. Для серии портрет
 | BUG-001 | Пересвет воротника: коррекция яркости применяется ко всему изображению | ✅ Done | BACKLOG-002 |
 | BUG-002 | Белый фон «обрезан» (видимо после виньетки) | Open | Нужна диагностика |
 | BUG-003 | GIMP-пайплайн даёт неприемлемые результаты | Open | BACKLOG-005 |
-| BUG-004 | face_brightness_target по умолчанию слишком высокий (230-245 для laser) | ✅ Done | BACKLOG-004 |
+| BUG-C | Impact face_brightness_target слишком низкий (185-210) → плоские лица | ✅ Done | P4 (этап 8) |
 | BUG-005 | shadow_noise не реализован в Pillow-пайплайне | Open | BACKLOG-006 |
 | BUG-006 | Отладочный print() в production-коде | ✅ Done | BACKLOG-003 |
 | BUG-007 | DEFAULTS в config.py рассинхронизированы с config.yaml | ✅ Done | BACKLOG-004 |

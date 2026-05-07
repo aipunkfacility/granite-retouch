@@ -2,7 +2,7 @@
 """granite-retouch — единая точка входа CLI.
 
 Команды:
-  python -m retouch process -i ... -o ... -m laser   # Pillow-обработка
+  python -m retouch process -i ... -o ... -m laser_standard   # Pillow-обработка
   python -m retouch validate -i ai.png                # Валидация изображения
   python -m retouch gimp -i ... -o ... -m impact      # GIMP-обработка (experimental)
   python -m retouch order list                         # Список заказов
