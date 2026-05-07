@@ -38,7 +38,7 @@ export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) 
   const handleReset = useCallback(async () => {
     try {
       const result = await fetchDefaults();
-      onConfigReset(result.config);
+      onConfigReset(result.defaults);
     } catch {
       // Ignore if backend is down
     }

@@ -41,22 +41,35 @@ export interface PresetItem {
   config: Record<string, any>;
 }
 
-/** Upload image — returns file_id */
+/** Upload image — returns file_id. 30s timeout. */
 export async function uploadImage(file: File): Promise<{ file_id: string }> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE}/upload`, {
-    method: "POST",
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Upload failed: ${err}`);
+  try {
+    const res = await fetch(`${API_BASE}/upload`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Upload failed: ${err}`);
+    }
+
+    return res.json();
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error("Загрузка превышена (30 сек). Проверьте подключение к backend.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return res.json();
 }
 
 /** Preview processing — by file_id */
@@ -93,7 +106,7 @@ export async function fetchPreview(
 export async function fetchExport(
   fileId: string,
   machineType: MachineType,
-  format: "tiff" | "png",
+  format: "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff",
   configOverride?: Record<string, any>,
 ): Promise<Blob> {
   const body: Record<string, any> = {
