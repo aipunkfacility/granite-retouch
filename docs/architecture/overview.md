@@ -32,7 +32,7 @@ granite-retouch/
 │   ├── template/                # Шаблон нового заказа
 │   └── active/                  # Активные заказы
 ├── retouch_ui/                  # Web UI
-│   ├── backend/                 # FastAPI sidecar (localhost:8001)
+│   ├── backend/                 # FastAPI sidecar (localhost:8000)
 │   │   ├── main.py              # App + lifespan + CORS + StaticFiles
 │   │   ├── schemas.py           # Pydantic-модели запросов/ответов
 │   │   ├── routers/
@@ -80,7 +80,7 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
                                           ↓
                               [Glow ← analytics] → [Levels ← analytics + mask] → [Unsharp ← analytics + mask] → ...
                                                ↓
-                                 final.tiff + final.png (чёрный фон)
+                                 final.bmp + final.png (чёрный фон)
 ```
 
 ## Модули обработки

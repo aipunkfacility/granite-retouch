@@ -13,7 +13,7 @@ python -m retouch <command> [options]
 Pillow-обработка портрета — основной путь для всех типов станков.
 
 ```bash
-python -m retouch process -i <input.png> -o <output.tiff> [-m laser_standard|laser_80w|impact] [options]
+python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|laser_80w|impact] [options]
 ```
 
 ### Аргументы
@@ -21,8 +21,9 @@ python -m retouch process -i <input.png> -o <output.tiff> [-m laser_standard|las
 | Параметр | Сокращение | Обязательный | Описание |
 |----------|-----------|-------------|----------|
 | `--input` | `-i` | Да | Путь к входному PNG (с синим хромакеем) |
-| `--output` | `-o` | Да | Путь к выходному TIFF |
+| `--output` | `-o` | Да | Путь к выходному файлу (BMP по умолчанию) |
 | `--machine` | `-m` | Нет | Тип станка: `laser_standard` (default), `laser_80w` или `impact` |
+| `--format` | `-f` | Нет | Формат экспорта: `bmp` (default), `bmp_1bit`, `bmp_8bit`, `png`, `tiff` |
 | `--glow-size` | — | Нет | Переопределить размер Inner Glow (px) |
 | `--glow-opacity` | — | Нет | Переопределить opacity Inner Glow (%) |
 | `--config` | `-c` | Нет | Путь к config.yaml (default: автопоиск) |
@@ -31,30 +32,48 @@ python -m retouch process -i <input.png> -o <output.tiff> [-m laser_standard|las
 ### Примеры
 
 ```bash
-# Стандартная обработка — лазерный станок 20-40W
-python -m retouch process -i ai.png -o final.tiff -m laser_standard
+# Стандартная обработка — лазерный станок 20-40W (BMP 8-bit grayscale)
+python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
-# Мощный лазер 60-80W+ — medium-key стиль
-python -m retouch process -i ai.png -o final.tiff -m laser_80w
+# Мощный лазер 60-80W+ — BMP 1-bit с Floyd-Steinberg дизерингом
+python -m retouch process -i ai.png -o final.bmp -m laser_80w
 
-# Ударный станок
-python -m retouch process -i ai.png -o final.tiff -m impact
+# Ударный станок — BMP 8-bit grayscale
+python -m retouch process -i ai.png -o final.bmp -m impact
+
+# Явно указать 1-bit BMP для laser_80w
+python -m retouch process -i ai.png -o final.bmp -m laser_80w --format bmp_1bit
+
+# Экспорт в PNG (для предпросмотра / совместимости)
+python -m retouch process -i ai.png -o final.png -m laser_standard --format png
+
+# Экспорт в TIFF (legacy / совместимость)
+python -m retouch process -i ai.png -o final.tiff -m laser_standard --format tiff
 
 # Переопределить Inner Glow
-python -m retouch process -i ai.png -o final.tiff -m laser_standard --glow-size 50 --glow-opacity 35
+python -m retouch process -i ai.png -o final.bmp -m laser_standard --glow-size 50 --glow-opacity 35
 
 # Свой config.yaml
-python -m retouch process -i ai.png -o final.tiff -c /path/to/config.yaml
+python -m retouch process -i ai.png -o final.bmp -c /path/to/config.yaml
 
 # Пропустить валидацию (для нестандартных изображений)
-python -m retouch process -i ai.png -o final.tiff --no-validate
+python -m retouch process -i ai.png -o final.bmp --no-validate
 ```
 
 ### Результат
 
-Создаёт два файла:
-- `{output}.tiff` — производственный файл для станка
+По умолчанию (формат `bmp`) создаёт два файла:
+- `{output}.bmp` — производственный файл для станка
+  - **laser_standard / impact**: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
+  - **laser_80w**: 1-bit монохромный BMP с Floyd-Steinberg дизерингом
 - `{output}.png` — превью для визуальной проверки
+
+Формат `--format` позволяет явно выбрать:
+- `bmp` — автоматически: 8-bit для laser_standard/impact, 1-bit для laser_80w
+- `bmp_8bit` — принудительно 8-bit grayscale BMP
+- `bmp_1bit` — принудительно 1-bit BMP с Floyd-Steinberg дизерингом
+- `png` — PNG (RGB)
+- `tiff` — TIFF с LZW-сжатием (legacy)
 
 ---
 
@@ -96,7 +115,7 @@ python -m retouch validate -i photo.jpg
 GIMP-обработка через Script-Fu. **Experimental / не рекомендуется для production** — используйте `retouch process`.
 
 ```bash
-python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser_standard|laser_80w|impact] [options]
+python -m retouch gimp -i <input.png> -o <output.bmp> [-m laser_standard|laser_80w|impact] [options]
 ```
 
 При запуске выводит предупреждение: «Experimental: results may be incorrect. Use `retouch process` for production.»
@@ -106,7 +125,7 @@ python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser_standard|laser_
 | Параметр | Сокращение | Обязательный | Описание |
 |----------|-----------|-------------|----------|
 | `--input` | `-i` | Да | Путь к входному PNG |
-| `--output` | `-o` | Да | Путь к выходному TIFF |
+| `--output` | `-o` | Да | Путь к выходному файлу |
 | `--machine` | `-m` | Нет | `laser_standard` (default), `laser_80w` или `impact` |
 | `--config` | `-c` | Нет | Путь к config.yaml |
 

@@ -60,14 +60,14 @@ orders/active/ORD-2026-042/generated/ai.png
 
 ```bash
 python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
-    -o orders/active/ORD-2026-042/generated/final.tiff -m laser_standard
+    -o orders/active/ORD-2026-042/generated/final.bmp -m laser_standard
 
 # Для мощного лазера 60-80W+
 python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
-    -o orders/active/ORD-2026-042/generated/final.tiff -m laser_80w
+    -o orders/active/ORD-2026-042/generated/final.bmp -m laser_80w
 ```
 
-Результат: два файла — `final.tiff` (для станка) и `final.png` (превью).
+Результат: `final.bmp` (8-bit grayscale для станка) + `final.png` (превью). Для laser_80w: `final.bmp` (1-bit монохром с дизерингом Floyd-Steinberg).
 
 ### 5c. Проверка результата
 
@@ -94,14 +94,14 @@ python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
 make ui
 ```
 
-Это запустит FastAPI backend (порт 8001) и Vite frontend (порт 5173). Откройте http://localhost:5173 в браузере.
+Это запустит FastAPI backend (порт 8000) и Vite frontend (порт 5173). Откройте http://localhost:5173 в браузере.
 
 Возможности Web UI:
 - Загрузка изображения через drag & drop
 - Живой предпросмотр при изменении параметров (слайдеры)
 - Переключение станка laser_standard / laser_80w / impact
 - Пресеты (готовые наборы параметров)
-- Экспорт TIFF/PNG в полном разрешении
+- Экспорт BMP/PNG/TIFF в полном разрешении
 
 Для production-режима (один процесс):
 

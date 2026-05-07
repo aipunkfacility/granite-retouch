@@ -2,6 +2,35 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [3.1.0] - 2026-05-08
+
+### 💥 Breaking Changes
+
+- **Формат экспорта по умолчанию**: TIFF → BMP. CLI теперь сохраняет BMP вместо TIFF. Для совместимости доступен `--format tiff`.
+- **Схема face_brightness_target**: формат списка `[min, max]` заменён на отдельные ключи `face_brightness_target_min` / `face_brightness_target_max`. Старый формат автоматически мигрируется при загрузке.
+- **Порт Web UI**: 8001 → 8000. Vite proxy и Makefile обновлены. Если запускаете uvicorn вручную — используйте `--port 8000`.
+
+### ✨ Новые возможности
+
+- **BMP экспорт** (`retouch/processing/export.py`): 8-bit grayscale BMP для laser_standard/impact, 1-bit BMP с Floyd-Steinberg дизерингом для laser_80w
+- **CLI `--format`**: новый аргумент — `bmp` (default), `bmp_1bit`, `bmp_8bit`, `png`, `tiff`
+- **White ceiling**: параметр `white_ceiling` ограничивает максимальную яркость пикселей (кроме зрачков). laser_standard: 250, laser_80w: 235, impact: 240
+- **Shadow noise**: `add_shadow_noise()` для impact — шум в глубоких тенях даёт игле «зацепку» (параметры `shadow_noise_min`/`shadow_noise_max`)
+- **Pillow-fallback warning**: если numpy недоступен, `check_face_brightness()` логирует предупреждение о том, что масочная защита отключена
+
+### 🐛 Исправления
+
+- **Double brightening**: исправлен баг двойного усиления яркости (Levels ×1.35 + Face Correction ×1.20) — теперь адаптивный фактор + face correction работают корректно
+- **Laser 80W face targets**: восстановлены экспертные значения 190–210 (commit b183522 ошибочно снизил до 150–170)
+- **Web UI port mismatch**: Vite proxy указывал на 8001, uvicorn слушал 8000 → таймаут загрузки 30 сек
+
+### 📚 Документация
+
+- Обновлены все ссылки TIFF → BMP в: README, getting-started, cli.md, config.md, pipeline.md, overview.md, vignette.md
+- Добавлены новые параметры: white_ceiling, shadow_noise_min/max, face_brightness_target_min/max
+- webui-setup.md: порт 8000, troubleshooting «Загрузка превышена»
+- BACKLOG-006: shadow_noise отмечен как реализованный
+
 ## [4.0.0] - 2026-05-07
 
 ### 💥 Breaking Changes

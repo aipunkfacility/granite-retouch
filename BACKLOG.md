@@ -1,6 +1,6 @@
 # granite-retouch — Product Backlog
 
-Версия: 4.0.0 | Обновлено: 2026-05-07
+Версия: 3.1.0 | Обновлено: 2026-05-08
 
 ---
 
@@ -185,7 +185,7 @@ GIMP-пайплайн не удаляется, но помечен как экс
 
 ### BACKLOG-006: Shadow noise для impact — реализация в Pillow
 
-**Статус**: Partial — shadow_noise убран из конфига (Pre-0, задача 4), реализация — будущая задача (см. комментарий в docs/reference/config.md)
+**Статус**: ✅ Done — shadow_noise реализован в Pillow-пайплайне (v3.1.0, commit b56ba97): `add_shadow_noise()` в `levels.py`, параметры `shadow_noise_min`/`shadow_noise_max` в конфиге impact
 **Создано**: 2026-05-04
 
 **Проблема**:
@@ -197,9 +197,9 @@ GIMP-пайплайн не удаляется, но помечен как экс
 3. Вызывать в pipeline.py при `machine_type == "impact"` и `shadow_noise == True`
 
 **Критерии приёмки**:
-- [ ] Параметр `shadow_noise` обрабатывается в Pillow-пайплайне
-- [ ] Глубокие тени (< 30) получают шум ±5 единиц
-- [ ] Результат визуально не отличается от оригинала (шум незаметен)
+- [x] Параметр `shadow_noise` обрабатывается в Pillow-пайплайне
+- [x] Глубокие тени (< 30) получают шум в диапазоне shadow_noise_min–shadow_noise_max (default: 5–15)
+- [x] Результат визуально не отличается от оригинала (шум незаметен)
 
 ---
 
@@ -315,6 +315,7 @@ CLI обрабатывает один файл. Для серии портрет
 | 5 | Реструктуризация в retouch/ пакет + GIMP | ✅ Done (с багами) |
 | 6 | granite-crm интеграция | ✅ Done |
 | 7 | Тесты (98 тестов → 132+ с v4.0.0) | ✅ Done |
+| spec | Pipeline spec compliance (BMP, dithering, white_ceiling, shadow_noise) | ✅ Done (v3.1.0) |
 
 ---
 
@@ -326,6 +327,6 @@ CLI обрабатывает один файл. Для серии портрет
 | BUG-002 | Белый фон «обрезан» (видимо после виньетки) | Open | Нужна диагностика |
 | BUG-003 | GIMP-пайплайн даёт неприемлемые результаты | Open | BACKLOG-005 |
 | BUG-C | Impact face_brightness_target слишком низкий (185–210) → плоские лица, поднят до 200–225 | ✅ Done | P4 (этап 8) |
-| BUG-005 | shadow_noise не реализован в Pillow-пайплайне | Open | BACKLOG-006 |
+| BUG-005 | shadow_noise не реализован в Pillow-пайплайне | ✅ Done | BACKLOG-006 |
 | BUG-006 | Отладочный print() в production-коде | ✅ Done | BACKLOG-003 |
 | BUG-007 | DEFAULTS в config.py рассинхронизированы с config.yaml | ✅ Done | BACKLOG-004 |

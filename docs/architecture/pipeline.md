@@ -1,8 +1,8 @@
 # Пайплайн обработки
 
-Полный конвейер обработки портрета: от PNG с синим хромакеем до TIFF с чёрным фоном.
+Полный конвейер обработки портрета: от PNG с синим хромакеем до BMP с чёрным фоном.
 
-Запуск: `python -m retouch process -i ai.png -o final.tiff -m laser_standard`
+Запуск: `python -m retouch process -i ai.png -o final.bmp -m laser_standard`
 
 ---
 
@@ -113,9 +113,15 @@ img_gray = img.convert("L")
   - Это поднимает лицо (тёмное) без пересвета воротника (светлого)
 - Масочная защита: коррекция применяется только внутри `subject_mask`
 - Целевые диапазоны по типу станка:
-  - **Laser Standard:** 230–245
-  - **Laser 80W:** 210–230
-  - **Impact:** 200–225
+  - **Laser Standard:** 230–245, white_ceiling: 250
+  - **Laser 80W:** 190–210, white_ceiling: 235
+  - **Impact:** 200–225, white_ceiling: 240
+
+### 8a. Shadow noise (impact)
+
+**Модуль:** `retouch/processing/levels.py` → `add_shadow_noise()`
+
+Для `machine_type == "impact"`: к пикселям с яркостью < 30 внутри маски субъекта добавляется случайный шум в диапазоне `shadow_noise_min`–`shadow_noise_max` (default: 5–15). Это даёт игле impact-станка «зацепку» в полностью чёрных областях — без шума игла не бьёт в пиксели со значением 0 (нечего выбить на камне).
 
 ### 9. Арховая виньетка
 
@@ -137,8 +143,13 @@ img_gray = img.convert("L")
 
 ### 11. Сохранение
 
-- TIFF: без сжатия (для станка)
-- PNG: автоматически (для превью)
+- **BMP** — основной формат для ЧПУ станков:
+  - laser_standard / impact: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
+  - laser_80w: 1-bit монохромный BMP с Floyd-Steinberg дизерингом
+- **PNG** — автоматически для визуальной проверки (превью)
+- TIFF доступен через `--format tiff` (legacy)
+
+См. [reference/config.md](../reference/config.md) — секция export.
 
 ---
 

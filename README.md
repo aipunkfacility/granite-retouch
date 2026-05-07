@@ -18,10 +18,10 @@ make test                     # 132+ тестов
 python -m retouch order create ORD-2026-042 -m impact
 
 # Обработка портрета (стандартный лазер)
-python -m retouch process -i ai.png -o final.tiff -m laser_standard
+python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
 # Мощный лазер 60-80W+
-python -m retouch process -i ai.png -o final.tiff -m laser_80w
+python -m retouch process -i ai.png -o final.bmp -m laser_80w
 
 # Список заказов
 python -m retouch order list
@@ -34,7 +34,7 @@ python -m retouch order list
 Интерактивная настройка параметров с живым предпросмотром:
 
 ```bash
-make ui          # dev-режим: backend + frontend (порты 8001 и 5173)
+make ui          # dev-режим: backend + frontend (порты 8000 и 5173)
 make ui-prod     # production: один процесс uvicorn, статику раздаёт FastAPI
 ```
 
@@ -43,7 +43,7 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - Живой предпросмотр при изменении параметров (слайдеры)
 - Переключение станка laser_standard / laser_80w / impact
 - Пресеты (готовые наборы параметров из `presets/`)
-- Экспорт TIFF/PNG в полном разрешении
+- Экспорт BMP/PNG/TIFF в полном разрешении
 
 ## Документация
 
