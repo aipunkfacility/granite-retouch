@@ -28,12 +28,12 @@ granite-retouch — система автоматизации подготовк
 
 ```bash
 # Обработка портрета
-python -m retouch process -i ai.png -o final.tiff -m laser_standard
+uv run python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
 # Управление заказами
-python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
-python -m retouch order list
-python -m retouch order validate ORD-2026-042
+uv run python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
+uv run python -m retouch order list
+uv run python -m retouch order validate ORD-2026-042
 
 # Тесты (132+ автотестов, не требуют GIMP/фото)
 make test

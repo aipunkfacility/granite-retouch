@@ -8,7 +8,7 @@
 
 - **Формат экспорта по умолчанию**: TIFF → BMP. CLI теперь сохраняет BMP вместо TIFF. Для совместимости доступен `--format tiff`.
 - **Схема face_brightness_target**: формат списка `[min, max]` заменён на отдельные ключи `face_brightness_target_min` / `face_brightness_target_max`. Старый формат автоматически мигрируется при загрузке.
-- **Порт Web UI**: 8001 → 8000. Vite proxy и Makefile обновлены. Если запускаете uvicorn вручную — используйте `--port 8000`.
+- **Порт Web UI**: 8001 → 8000. Vite proxy и Makefile обновлены. Если запускаете uvicorn вручную — используйте `uv run uvicorn ... --port 8000`.
 
 ### ✨ Новые возможности
 

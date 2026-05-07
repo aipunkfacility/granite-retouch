@@ -1,8 +1,8 @@
 # granite-retouch Makefile
 # Удобные шорткаты для повседневных операций
 
-PYTHON ?= python
-RETOUCH := $(PYTHON) -m retouch
+PYTHON ?= uv run python
+RETOUCH := uv run python -m retouch
 
 .PHONY: install install-dev process validate gimp test lint clean \
         ui-backend ui-frontend ui ui-install ui-force-install ui-build ui-prod
@@ -41,14 +41,14 @@ clean:
 # --- Web UI ===
 
 ui-backend:      ## Запустить FastAPI backend
-        uvicorn retouch_ui.backend.main:app --port 8000 --reload --workers 1
+        uv run uvicorn retouch_ui.backend.main:app --host 127.0.0.1 --port 8000 --reload --workers 1
 
 ui-frontend:     ## Запустить Vite frontend
         cd retouch_ui/frontend && npm run dev
 
 ui: ui-install   ## Запустить backend + frontend (авто-установка зависимостей)
         cd retouch_ui/frontend && npx concurrently -n backend,frontend -c blue,green \
-                "uvicorn retouch_ui.backend.main:app --port 8000 --workers 1" \
+                "uv run uvicorn retouch_ui.backend.main:app --host 127.0.0.1 --port 8000 --workers 1" \
                 "npm run dev"
         # ⚠ concurrently — devDependency (-D). При NODE_ENV=production npm может не установить devDependencies.
         # ui-install проверяет наличие node_modules — это защищает от проблемы.
@@ -69,7 +69,7 @@ ui-build: ui-install  ## Сборка frontend для продакшена
         cd retouch_ui/frontend && npm run build
 
 ui-prod: ui-build     ## Production: собрать статику + запустить uvicorn (один процесс)
-        uvicorn retouch_ui.backend.main:app --port 8000 --workers 1
+        uv run uvicorn retouch_ui.backend.main:app --host 127.0.0.1 --port 8000 --workers 1
 
 # --- Справка ---
 

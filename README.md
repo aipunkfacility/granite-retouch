@@ -15,16 +15,16 @@ make test                     # 132+ тестов
 
 ```bash
 # Создать заказ
-python -m retouch order create ORD-2026-042 -m impact
+uv run python -m retouch order create ORD-2026-042 -m impact
 
 # Обработка портрета (стандартный лазер)
-python -m retouch process -i ai.png -o final.bmp -m laser_standard
+uv run python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
 # Мощный лазер 60-80W+
-python -m retouch process -i ai.png -o final.bmp -m laser_80w
+uv run python -m retouch process -i ai.png -o final.bmp -m laser_80w
 
 # Список заказов
-python -m retouch order list
+uv run python -m retouch order list
 ```
 
 См. [docs/getting-started.md](docs/getting-started.md) — полный цикл за 5 шагов.
