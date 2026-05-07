@@ -18,14 +18,14 @@ class UploadResponse(BaseModel):
 class PreviewRequest(BaseModel):
     """Запрос POST /api/process/preview."""
     file_id: str = Field(..., description="UUID загруженного файла")
-    machine: str = Field("laser", pattern="^(laser|impact)$", description="Тип станка")
+    machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$", description="Тип станка")
     params: Optional[dict] = Field(None, description="Параметры обработки (override config.yaml)")
 
 
 class ExportRequest(BaseModel):
     """Запрос POST /api/process/export."""
     file_id: str = Field(..., description="UUID загруженного файла")
-    machine: str = Field("laser", pattern="^(laser|impact)$")
+    machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$")
     params: Optional[dict] = Field(None, description="Параметры обработки (override config.yaml)")
     format: str = Field("tiff", pattern="^(tiff|png)$", description="Формат экспорта")
 

@@ -7,7 +7,7 @@ export interface ParamRange {
   unit?: string;
 }
 
-/** Machine parameters (laser / impact) */
+/** Machine parameters (laser_standard / laser_80w / impact) */
 export interface MachineParams {
   glow_size_min: ParamRange;
   glow_size_max: ParamRange;
@@ -39,7 +39,8 @@ export interface VignetteParams {
 /** Full config schema */
 export interface ConfigSchema {
   processing: ProcessingParams & {
-    laser: MachineParams;
+    laser_standard: MachineParams;
+    laser_80w: MachineParams;
     impact: MachineParams;
   };
   vignette: VignetteParams;
@@ -51,7 +52,18 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     blue_threshold: { min: 10, max: 80, step: 1, label: "Порог синего", unit: "" },
     min_blue_ratio: { min: 0, max: 1, step: 0.01, label: "Мин. доля синего", unit: "" },
     fringe_radius: { min: 0, max: 10, step: 1, label: "Радиус fringe-удаления", unit: "px" },
-    laser: {
+    laser_standard: {
+      glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
+      glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
+      glow_opacity_min: { min: 10, max: 100, step: 1, label: "Glow: мин. непрозрачность", unit: "%" },
+      glow_opacity_max: { min: 10, max: 100, step: 1, label: "Glow: макс. непрозрачность", unit: "%" },
+      brightness: { min: 0.5, max: 1.5, step: 0.01, label: "Яркость", unit: "x" },
+      face_brightness_target_min: { min: 100, max: 255, step: 1, label: "Цель яркости лица: мин", unit: "" },
+      face_brightness_target_max: { min: 100, max: 255, step: 1, label: "Цель яркости лица: макс", unit: "" },
+      face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
+      highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
+    },
+    laser_80w: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
       glow_opacity_min: { min: 10, max: 100, step: 1, label: "Glow: мин. непрозрачность", unit: "%" },
@@ -86,7 +98,8 @@ export const CONFIG_SCHEMA: ConfigSchema = {
 /** Parameter groups for params-panel tabs */
 export const PARAM_GROUPS = [
   { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius"] },
-  { key: "laser", label: "Laser", params: Object.keys(CONFIG_SCHEMA.processing.laser) },
+  { key: "laser_standard", label: "Laser 20-40W", params: Object.keys(CONFIG_SCHEMA.processing.laser_standard) },
+  { key: "laser_80w", label: "Laser 80W+", params: Object.keys(CONFIG_SCHEMA.processing.laser_80w) },
   { key: "impact", label: "Impact", params: Object.keys(CONFIG_SCHEMA.processing.impact) },
   { key: "vignette", label: "Виньетка", params: Object.keys(CONFIG_SCHEMA.vignette) },
 ] as const;

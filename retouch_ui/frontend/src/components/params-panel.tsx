@@ -1,9 +1,10 @@
 import { CONFIG_SCHEMA, PARAM_GROUPS } from "../lib/config-schema";
 import type { ParamRange, MachineParams } from "../lib/config-schema";
+import type { MachineType } from "../lib/types";
 import { useState } from "react";
 
 interface Props {
-  machineType: "laser" | "impact";
+  machineType: MachineType;
   config: Record<string, any>;
   onConfigChange: (path: string[], value: number) => void;
   vignetteOverlayEnabled: boolean;
@@ -47,7 +48,7 @@ export function ParamsPanel({
     if (groupKey === "vignette") {
       return CONFIG_SCHEMA.vignette[paramKey as keyof typeof CONFIG_SCHEMA.vignette] as ParamRange | null;
     }
-    if (groupKey === "laser" || groupKey === "impact") {
+    if (groupKey === "laser_standard" || groupKey === "laser_80w" || groupKey === "impact") {
       const machine = CONFIG_SCHEMA.processing[groupKey] as MachineParams | undefined;
       return machine?.[paramKey as keyof MachineParams] ?? null;
     }

@@ -1,3 +1,5 @@
+import type { MachineType } from "./types";
+
 const API_BASE = "/api";
 
 export interface PreviewResult {
@@ -60,7 +62,7 @@ export async function uploadImage(file: File): Promise<{ file_id: string }> {
 /** Preview processing — by file_id */
 export async function fetchPreview(
   fileId: string,
-  machineType: "laser" | "impact",
+  machineType: MachineType,
   configOverride?: Record<string, any>,
   signal?: AbortSignal,
 ): Promise<PreviewResult> {
@@ -90,7 +92,7 @@ export async function fetchPreview(
 /** Export result — by file_id */
 export async function fetchExport(
   fileId: string,
-  machineType: "laser" | "impact",
+  machineType: MachineType,
   format: "tiff" | "png",
   configOverride?: Record<string, any>,
 ): Promise<Blob> {

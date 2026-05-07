@@ -4,6 +4,7 @@ import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
 import { ParamsPanel } from "./components/params-panel";
 import { MachineSwitch } from "./components/machine-switch";
+import type { MachineType } from "./lib/types";
 import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
@@ -27,7 +28,7 @@ export default function App() {
   // State
   const [fileId, setFileId] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-  const [machineType, setMachineType] = useState<"laser" | "impact">("laser");
+  const [machineType, setMachineType] = useState<MachineType>("laser_standard");
   const [selectedStep, setSelectedStep] = useState("final");
   const [backendDown, setBackendDown] = useState(false);
   const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
@@ -77,7 +78,7 @@ export default function App() {
   );
 
   const handleMachineChange = useCallback(
-    (type: "laser" | "impact") => {
+    (type: MachineType) => {
       setMachineType(type);
       if (fileId) requestPreview(fileId, type, config);
     },

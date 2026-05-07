@@ -23,7 +23,9 @@ def test_get_defaults(client):
     data = res.json()
     assert "defaults" in data
     assert "processing" in data["defaults"]
-    assert "laser" in data["defaults"]["processing"]
+    assert "laser_standard" in data["defaults"]["processing"]
+    assert "laser_80w" in data["defaults"]["processing"]
+    assert "impact" in data["defaults"]["processing"]
     assert "vignette" in data["defaults"]
 
 
@@ -68,7 +70,7 @@ def test_put_config_deep_merge(tmp_path, monkeypatch):
     client = TestClient(app)
 
     # Send partial config (only brightness override)
-    partial = {"processing": {"laser": {"brightness": 1.30}}}
+    partial = {"processing": {"laser_standard": {"brightness": 1.30}}}
     res = client.put(
         "/api/config",
         json={"config": partial},
@@ -78,8 +80,8 @@ def test_put_config_deep_merge(tmp_path, monkeypatch):
     # Verify saved config has ALL keys (deep_merge with DEFAULTS)
     import yaml
     saved = yaml.safe_load(tmp_config.read_text())
-    assert saved["processing"]["laser"]["brightness"] == 1.30
-    assert "glow_size_min" in saved["processing"]["laser"]  # from DEFAULTS
+    assert saved["processing"]["laser_standard"]["brightness"] == 1.30
+    assert "glow_size_min" in saved["processing"]["laser_standard"]  # from DEFAULTS
     assert "vignette" in saved  # from DEFAULTS
 
 
@@ -97,7 +99,7 @@ def test_put_config_returns_warnings(tmp_path, monkeypatch):
     client = TestClient(app)
 
     # Send inverted range config
-    bad = {"processing": {"laser": {"glow_size_min": 100, "glow_size_max": 10}}}
+    bad = {"processing": {"laser_standard": {"glow_size_min": 100, "glow_size_max": 10}}}
     res = client.put(
         "/api/config",
         json={"config": bad},

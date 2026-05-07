@@ -5,7 +5,8 @@ processing:
     glow_size_max: 30
     glow_opacity_min: 50
     glow_opacity_max: 70
-    face_brightness_target: [190, 215]
+    face_brightness_target_min: 190
+    face_brightness_target_max: 215
 vignette:
   blur_radius: 80
   headroom: 0.65

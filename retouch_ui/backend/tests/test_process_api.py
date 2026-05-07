@@ -89,7 +89,7 @@ def test_preview_by_file_id(client, uploaded_file_id):
     """POST /api/process/preview returns JSON with images + diagnostics."""
     res = client.post(
         "/api/process/preview",
-        json={"file_id": uploaded_file_id, "machine": "laser"},
+        json={"file_id": uploaded_file_id, "machine": "laser_standard"},
     )
     assert res.status_code == 200
     data = res.json()
@@ -113,17 +113,17 @@ def test_preview_with_custom_params(client, uploaded_file_id):
         "/api/process/preview",
         json={
             "file_id": uploaded_file_id,
-            "machine": "laser",
-            "params": {"processing": {"laser": {"brightness": 1.40}}},
+            "machine": "laser_standard",
+            "params": {"processing": {"laser_standard": {"brightness": 1.40}}},
         },
     )
     assert res.status_code == 200
 
 
-def test_preview_laser_vs_impact(client, uploaded_file_id):
-    """Laser and impact give different glow_size."""
+def test_preview_laser_standard_vs_impact(client, uploaded_file_id):
+    """Laser standard and impact give different glow_size."""
     results = {}
-    for machine in ("laser", "impact"):
+    for machine in ("laser_standard", "impact"):
         res = client.post(
             "/api/process/preview",
             json={"file_id": uploaded_file_id, "machine": machine},
@@ -132,14 +132,26 @@ def test_preview_laser_vs_impact(client, uploaded_file_id):
         data = res.json()
         results[machine] = data["diagnostics"]["glow_size"]
 
-    assert results["laser"] != results["impact"]
+    assert results["laser_standard"] != results["impact"]
+
+
+def test_preview_laser_80w(client, uploaded_file_id):
+    """POST /api/process/preview with laser_80w returns valid result."""
+    res = client.post(
+        "/api/process/preview",
+        json={"file_id": uploaded_file_id, "machine": "laser_80w"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "final" in data["images"]
+    assert data["images"]["final"].startswith("data:image/png;base64,")
 
 
 def test_preview_invalid_file_id(client):
     """Nonexistent file_id returns 404."""
     res = client.post(
         "/api/process/preview",
-        json={"file_id": "nonexistent-id-12345", "machine": "laser"},
+        json={"file_id": "nonexistent-id-12345", "machine": "laser_standard"},
     )
     assert res.status_code == 404
 
@@ -151,7 +163,7 @@ def test_export_returns_png(client, uploaded_file_id):
     """POST /api/process/export with format=png returns PNG."""
     res = client.post(
         "/api/process/export",
-        json={"file_id": uploaded_file_id, "machine": "laser", "format": "png"},
+        json={"file_id": uploaded_file_id, "machine": "laser_standard", "format": "png"},
     )
     assert res.status_code == 200
     assert res.headers["content-type"] == "image/png"
@@ -162,7 +174,7 @@ def test_export_returns_tiff(client, uploaded_file_id):
     """POST /api/process/export with format=tiff returns TIFF."""
     res = client.post(
         "/api/process/export",
-        json={"file_id": uploaded_file_id, "machine": "laser", "format": "tiff"},
+        json={"file_id": uploaded_file_id, "machine": "laser_standard", "format": "tiff"},
     )
     assert res.status_code == 200
     assert res.headers["content-type"] == "image/tiff"
@@ -173,7 +185,7 @@ def test_export_invalid_file_id(client):
     """Nonexistent file_id returns 404."""
     res = client.post(
         "/api/process/export",
-        json={"file_id": "nonexistent-id-12345", "machine": "laser"},
+        json={"file_id": "nonexistent-id-12345", "machine": "laser_standard"},
     )
     assert res.status_code == 404
 
@@ -184,9 +196,9 @@ def test_export_with_params(client, uploaded_file_id):
         "/api/process/export",
         json={
             "file_id": uploaded_file_id,
-            "machine": "laser",
+            "machine": "laser_standard",
             "format": "png",
-            "params": {"processing": {"laser": {"brightness": 1.30}}},
+            "params": {"processing": {"laser_standard": {"brightness": 1.30}}},
         },
     )
     assert res.status_code == 200

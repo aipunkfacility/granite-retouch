@@ -1,11 +1,12 @@
 processing:
-  laser:
+  laser_standard:
     brightness: 1.30
     glow_size_min: 50
     glow_size_max: 90
     glow_opacity_min: 25
     glow_opacity_max: 35
-    face_brightness_target: [235, 250]
+    face_brightness_target_min: 235
+    face_brightness_target_max: 250
 vignette:
   headroom: 0.55
   horizontal_oversize: 0.25

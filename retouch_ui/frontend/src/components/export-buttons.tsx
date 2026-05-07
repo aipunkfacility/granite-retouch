@@ -1,10 +1,11 @@
 /** TIFF/PNG export by fileId */
 import { useState } from "react";
 import { fetchExport } from "../lib/api";
+import type { MachineType } from "../lib/types";
 
 interface Props {
   fileId: string | null;
-  machineType: "laser" | "impact";
+  machineType: MachineType;
   config: Record<string, any>;
 }
 

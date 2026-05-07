@@ -33,7 +33,7 @@ def test_create_and_delete_preset(client, tmp_path, monkeypatch):
         "/api/presets",
         json={
             "name": "test-isolated",
-            "config": {"processing": {"laser": {"brightness": 1.20}}},
+            "config": {"processing": {"laser_standard": {"brightness": 1.20}}},
         },
     )
     assert res.status_code == 200
@@ -97,7 +97,7 @@ def test_preset_roundtrip(client, tmp_path, monkeypatch):
     from retouch_ui.backend.routers import presets as presets_module
     monkeypatch.setattr(presets_module, "_presets_dir", lambda: tmp_path)
 
-    config_data = {"processing": {"laser": {"brightness": 1.25}}}
+    config_data = {"processing": {"laser_standard": {"brightness": 1.25}}}
     res = client.post(
         "/api/presets",
         json={"name": "roundtrip", "config": config_data},
@@ -109,7 +109,7 @@ def test_preset_roundtrip(client, tmp_path, monkeypatch):
     presets = res.json()["presets"]
     found = [p for p in presets if p["name"] == "roundtrip"]
     assert len(found) == 1
-    assert found[0]["config"]["processing"]["laser"]["brightness"] == 1.25
+    assert found[0]["config"]["processing"]["laser_standard"]["brightness"] == 1.25
 
     # Cleanup
     client.delete("/api/presets/roundtrip")

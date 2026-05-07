@@ -5,7 +5,8 @@ processing:
     glow_size_max: 25
     glow_opacity_min: 60
     glow_opacity_max: 80
-    face_brightness_target: [185, 210]
+    face_brightness_target_min: 200
+    face_brightness_target_max: 225
 vignette:
   vertical_offset: 0.10
   vertical_diameter: 0.50

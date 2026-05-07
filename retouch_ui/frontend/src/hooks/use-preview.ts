@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchPreview } from "../lib/api";
 import type { PreviewResult } from "../lib/api";
+import type { MachineType } from "../lib/types";
 
 interface UsePreviewReturn {
   result: PreviewResult | null;
   loading: boolean;
   error: string | null;
-  requestPreview: (fileId: string, machineType: "laser" | "impact", config?: Record<string, any>) => void;
+  requestPreview: (fileId: string, machineType: MachineType, config?: Record<string, any>) => void;
 }
 
 export function usePreview(debounceMs = 300): UsePreviewReturn {
@@ -17,7 +18,7 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
   const abortRef = useRef<AbortController | null>(null);
 
   const requestPreview = useCallback(
-    (fileId: string, machineType: "laser" | "impact", config?: Record<string, any>) => {
+    (fileId: string, machineType: MachineType, config?: Record<string, any>) => {
       // Cancel previous request
       if (abortRef.current) {
         abortRef.current.abort();
