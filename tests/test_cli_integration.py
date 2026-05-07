@@ -22,7 +22,7 @@ def test_cli_process_creates_output():
 
         result = subprocess.run(
             ["python", "-m", "retouch", "process",
-             "-i", str(input_path), "-o", str(output_path), "-m", "laser"],
+             "-i", str(input_path), "-o", str(output_path), "-m", "laser_standard"],
             capture_output=True, text=True, timeout=30,
         )
 

@@ -5,7 +5,7 @@
     "name": "Имя Клиента",
     "contact": ""
   },
-  "machine_type": "laser",
+  "machine_type": "laser_standard",
   "machine_model": "",
   "source_photo": "source.jpg",
   "status": "new",

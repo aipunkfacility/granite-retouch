@@ -16,6 +16,9 @@ except ImportError:
     HAS_PYDANTIC = False
 
 
+# Все допустимые значения machine_type
+MACHINE_TYPES = ("laser_standard", "laser_80w", "impact")
+
 DEFAULTS = {
     "processing": {
         "blue_threshold": 30,
@@ -23,7 +26,7 @@ DEFAULTS = {
         "min_resolution": 512,
         "result_min_black_ratio": 0.25,
         "fringe_radius": 3,
-        "laser": {
+        "laser_standard": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "brightness": 1.18,
@@ -32,12 +35,21 @@ DEFAULTS = {
             "face_region_top": 0.45,
             "highlight_start": 200,
         },
+        "laser_80w": {
+            "glow_size_min": 15, "glow_size_max": 25,
+            "glow_opacity_min": 10, "glow_opacity_max": 20,
+            "brightness": 1.05,
+            "face_brightness_target_min": 210,
+            "face_brightness_target_max": 230,
+            "face_region_top": 0.45,
+            "highlight_start": 200,
+        },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "brightness": 1.00,
-            "face_brightness_target_min": 185,
-            "face_brightness_target_max": 210,
+            "face_brightness_target_min": 200,
+            "face_brightness_target_max": 225,
             "face_region_top": 0.45,
             "highlight_start": 200,
         },
@@ -72,12 +84,15 @@ if HAS_PYDANTIC:
         blue_threshold: int = Field(30, ge=10, le=80)
         min_blue_ratio: float = Field(0.15, ge=0.0, le=1.0)
         fringe_radius: int = Field(3, ge=0, le=10)
-        laser: MachineConfig = Field(default_factory=lambda: MachineConfig(
+        laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
             brightness=1.18, face_brightness_target_min=230, face_brightness_target_max=245))
+        laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
+            glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
+            brightness=1.05, face_brightness_target_min=210, face_brightness_target_max=230))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            brightness=1.00, face_brightness_target_min=185, face_brightness_target_max=210))
+            brightness=1.00, face_brightness_target_min=200, face_brightness_target_max=225))
 
     class VignetteConfig(BaseModel):
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
@@ -121,14 +136,22 @@ def _migrate_face_target(config: dict) -> dict:
 
     Старый формат (список) использовался до v3.1. Новый формат — два отдельных
     ключа для совместимости с UI-слайдерами. Вызывается автоматически в load_config().
+    Также мигрирует старый ключ 'laser' → 'laser_standard'.
     """
-    for machine in ("laser", "impact"):
-        mc = config.get("processing", {}).get(machine, {})
+    proc = config.get("processing", {})
+
+    # Миграция: laser → laser_standard
+    if "laser" in proc and "laser_standard" not in proc:
+        proc["laser_standard"] = proc.pop("laser")
+
+    for machine in MACHINE_TYPES:
+        mc = proc.get(machine, {})
         if "face_brightness_target" in mc and isinstance(mc["face_brightness_target"], list):
             target = mc.pop("face_brightness_target")
             if len(target) >= 2:
                 mc["face_brightness_target_min"] = target[0]
                 mc["face_brightness_target_max"] = target[1]
+
     return config
 
 
@@ -169,7 +192,7 @@ def validate_config(config: dict) -> list[str]:
             warnings.append(f"Config validation: {e}")
 
     # Кросс-валидация (Pydantic не проверяет отношения полей)
-    for machine in ("laser", "impact"):
+    for machine in MACHINE_TYPES:
         mc = config.get("processing", {}).get(machine, {})
         if mc.get("glow_size_min", 0) > mc.get("glow_size_max", 0):
             warnings.append(f"processing.{machine}: glow_size_min > glow_size_max")

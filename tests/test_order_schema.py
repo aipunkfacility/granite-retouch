@@ -52,7 +52,7 @@ def _valid_order(**overrides):
     """Минимальный валидный order.json."""
     order = {
         "order_id": "ORD-2026-001",
-        "machine_type": "laser",
+        "machine_type": "laser_standard",
         "source_photo": "source.jpg",
         "status": "new",
     }
@@ -112,10 +112,10 @@ class TestSchemaIntegrity:
         assert "CMP-" in crm_props["pattern"]
 
     def test_schema_machine_enum(self):
-        """machine_type ограничен laser/impact."""
+        """machine_type ограничен laser_standard/laser_80w/impact."""
         schema = _load_schema()
         enum = schema["properties"]["machine_type"]["enum"]
-        assert set(enum) == {"laser", "impact"}
+        assert set(enum) == {"laser_standard", "laser_80w", "impact"}
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +216,11 @@ class TestInvalidOrders:
         errors = _validate(_valid_order(machine_type="plasma"))
         assert any("machine_type" in e for e in errors)
 
+    def test_old_laser_machine_type_is_invalid(self):
+        """Старое значение 'laser' больше не допустимо."""
+        errors = _validate(_valid_order(machine_type="laser"))
+        assert any("machine_type" in e for e in errors)
+
     def test_invalid_crm_id_format(self):
         """Неправильный формат crm_company_id — ошибка."""
         for bad_id in ["CMP-12", "CMP-12345", "cmp-1234", "ABC-1234", "CMP-ABCD"]:
@@ -257,7 +262,7 @@ class TestProjectOrderFiles:
         # строгий паттерн-чек (crm_company_id: ""), но обязательные поля на месте
         assert "order_id" in order
         assert "machine_type" in order
-        assert order["machine_type"] in ("laser", "impact")
+        assert order["machine_type"] in ("laser_standard", "laser_80w", "impact")
         assert "source_photo" in order
         assert "status" in order
 
@@ -305,7 +310,7 @@ class TestValidateOrderFunction:
         """Невалидный заказ — OrderValidationError."""
         from retouch.validation.order import validate_order, OrderValidationError
 
-        order = {"machine_type": "laser"}  # нет обязательных полей
+        order = {"machine_type": "laser_standard"}  # нет обязательных полей
         path = _write_order(order, tmp_path / "BAD-001")
         with pytest.raises(OrderValidationError, match="не соответствует схеме"):
             validate_order(path, schema_path=SCHEMA_PATH)

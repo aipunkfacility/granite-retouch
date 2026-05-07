@@ -15,6 +15,7 @@ from retouch.validation.image import (
     validate_result_black_ratio,
 )
 from retouch.processing.chromakey import remove_blue_background
+from retouch.processing.analysis import analyze_input
 from retouch.processing.glow import apply_inner_glow
 from retouch.processing.levels import apply_levels, apply_unsharp_mask, check_face_brightness
 from retouch.processing.vignette import apply_vignette
@@ -52,6 +53,7 @@ class PipelineResult:
     blue_ratio: float
     width: int
     height: int
+    analytics: dict = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def release_intermediates(self):
@@ -72,7 +74,7 @@ class PipelineResult:
 
 def process_steps(
     input_path: str,
-    machine_type: str = "laser",
+    machine_type: str = "laser_standard",
     config: dict | None = None,
     glow_size_override: int | None = None,
     glow_opacity_override: float | None = None,
@@ -121,6 +123,9 @@ def process_steps(
     # 2. Grayscale
     img_gray = img_chromakey.convert("L")
 
+    # 2a. Преданализ входного grayscale-изображения
+    analytics = analyze_input(img_gray, np.array(subject_mask))
+
     # 3. Inner Glow
     # ВАЖНО: имена параметров — glow_size_override / glow_opacity_override
     # (соответствуют текущей сигнатуре apply_inner_glow в glow.py)
@@ -129,12 +134,13 @@ def process_steps(
         img_gray, subject_mask, machine_cfg,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
+        analytics=analytics,
+        machine_type=machine_type,
     )
 
     # 4. Levels + Unsharp
-    brightness_factor = machine_cfg.get("brightness", 1.0)
-    img_leveled = apply_levels(img_glow, brightness_factor=brightness_factor)
-    img_leveled = apply_unsharp_mask(img_leveled)
+    img_leveled = apply_levels(img_glow, analytics=analytics, machine_type=machine_type, subject_mask=subject_mask)
+    img_leveled = apply_unsharp_mask(img_leveled, subject_mask=subject_mask, analytics=analytics)
 
     # 5. Face brightness correction
     # Support both old list format [min, max] and new separate keys
@@ -183,6 +189,7 @@ def process_steps(
         face_brightness_before=face_before,
         face_brightness_after=face_after,
         face_correction_factor=correction_factor,
+        analytics=analytics,
         black_ratio=black_ratio,
         blue_ratio=blue_ratio,
         width=width,
@@ -193,7 +200,7 @@ def process_steps(
 
 def process_preview(
     input_path: str,
-    machine_type: str = "laser",
+    machine_type: str = "laser_standard",
     config: dict | None = None,
     max_size: int = 768,
     **kwargs,
@@ -263,7 +270,7 @@ def process_preview(
 def process_export(
     input_path: str,
     output_path: str,
-    machine_type: str = "laser",
+    machine_type: str = "laser_standard",
     config: dict | None = None,
     **kwargs,
 ) -> PipelineResult:
@@ -292,7 +299,7 @@ def process_export(
     return result
 
 
-def process(input_path, output_path, machine_type="laser",
+def process(input_path, output_path, machine_type="laser_standard",
             glow_size_override=None, glow_opacity_override=None,
             config=None):
     """Обратная совместимая обёртка. CLI не ломается."""

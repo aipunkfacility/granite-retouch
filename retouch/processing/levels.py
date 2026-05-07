@@ -13,21 +13,86 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def apply_levels(img_gray, brightness_factor):
+def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None, subject_mask=None):
     """Применить Levels (brightness adjustment).
+
+    Поддерживает два режима:
+    - Legacy: positional brightness_factor, analytics=None → простой brightness enhance.
+    - Adaptive: analytics provided → фактор вычисляется из метрик и machine_type.
 
     Args:
         img_gray: PIL.Image в режиме L
-        brightness_factor: множитель яркости (1.0 = нейтрально)
+        brightness_factor: множитель яркости (1.0 = нейтрально).
+            Используется в legacy-режиме (когда analytics is None).
+        analytics: dict от analyze_input() — если передан, включается
+            адаптивный расчёт фактора (P2).
+        machine_type: str — тип станка ('laser_standard', 'laser_80w', 'impact').
+            Используется только вместе с analytics.
+        subject_mask: PIL.Image в режиме L — маска субъекта.
+            Когда передана, коррекция применяется только внутри маски (P6).
 
     Returns:
         PIL.Image: скорректированное изображение
     """
-    enhancer = ImageEnhance.Brightness(img_gray)
-    return enhancer.enhance(brightness_factor)
+    # Определяем фактор яркости
+    if analytics is not None:
+        # P2: Адаптивный расчёт фактора
+        factor = _adaptive_levels_factor(analytics, machine_type)
+    elif brightness_factor is not None:
+        # Legacy: явный фактор
+        factor = brightness_factor
+    else:
+        # Default: нейтральный
+        factor = 1.0
+
+    # Применяем коррекцию
+    if subject_mask is not None and HAS_NUMPY:
+        # P6: Mask protection — коррекция только внутри маски
+        mask_bool = np.array(subject_mask) > 128
+        arr = np.array(img_gray, dtype=np.float32)
+        corrected = arr * factor
+        corrected = np.clip(corrected, 0, 255)
+        result_arr = np.where(mask_bool, corrected, arr)
+        return Image.fromarray(result_arr.astype(np.uint8), "L")
+    else:
+        # Без маски — глобальная коррекция (старое поведение)
+        enhancer = ImageEnhance.Brightness(img_gray)
+        return enhancer.enhance(factor)
 
 
-def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0):
+def _adaptive_levels_factor(analytics: dict, machine_type: str | None) -> float:
+    """P2: Рассчитать адаптивный фактор яркости на основе аналитики.
+
+    Args:
+        analytics: dict с метриками от analyze_input()
+        machine_type: тип станка
+
+    Returns:
+        float: множитель яркости
+    """
+    target_pre_fb = {
+        'laser_standard': 210,
+        'laser_80w': 190,
+        'impact': 190,
+    }.get(machine_type, 200)
+
+    median = analytics['median_brightness']
+    factor = target_pre_fb / max(median, 1)
+    factor = max(0.70, min(1.35, factor))
+
+    # Защита от клиппинга
+    if analytics['p90_brightness'] * factor > 250:
+        safe_factor = 248 / max(analytics['p90_brightness'], 1)
+        factor = min(factor, safe_factor)
+
+    logger.info(
+        "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",
+        machine_type, median, target_pre_fb, factor,
+    )
+    return factor
+
+
+def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=None, analytics=None):
     """Применить Unsharp Mask.
 
     Args:
@@ -35,11 +100,59 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0):
         radius: радиус размытия
         percent: сила эффекта
         threshold: порог
+        subject_mask: PIL.Image в режиме L — маска субъекта.
+            Когда передана, резкость применяется только внутри маски (P6).
+        analytics: dict от analyze_input() — если передан, включается
+            адаптивный расчёт percent (P5).
 
     Returns:
         PIL.Image: обработанное изображение
     """
-    return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=threshold))
+    # P5: Адаптивный percent
+    if analytics is not None:
+        percent = _adaptive_unsharp_percent(analytics, percent)
+
+    # Применяем Unsharp Mask
+    sharpened = img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=threshold))
+
+    # P6: Mask protection — резкость только внутри маски
+    if subject_mask is not None and HAS_NUMPY:
+        mask_bool = np.array(subject_mask) > 128
+        orig_arr = np.array(img, dtype=np.float32)
+        sharp_arr = np.array(sharpened, dtype=np.float32)
+        result_arr = np.where(mask_bool, sharp_arr, orig_arr)
+        return Image.fromarray(result_arr.astype(np.uint8), "L")
+
+    return sharpened
+
+
+def _adaptive_unsharp_percent(analytics: dict, default_percent: int) -> int:
+    """P5: Рассчитать адаптивный percent для Unsharp Mask.
+
+    Args:
+        analytics: dict с метриками от analyze_input()
+        default_percent: значение по умолчанию (используется как fallback)
+
+    Returns:
+        int: адаптированный percent
+    """
+    tonal_range = analytics.get('tonal_range', 80)
+    input_class = analytics.get('input_class', 'bright')
+
+    if input_class == 'overbright':
+        percent = 80
+    elif tonal_range < 40:
+        percent = 150
+    elif tonal_range > 80:
+        percent = 120
+    else:
+        percent = 130
+
+    logger.info(
+        "Adaptive unsharp: class=%s, tonal_range=%.1f, percent=%d",
+        input_class, tonal_range, percent,
+    )
+    return percent
 
 
 def _shrink_mask(subject_mask, shrink_px):

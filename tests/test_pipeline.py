@@ -41,7 +41,7 @@ class TestPipelineIntegration:
         output_tiff = str(tmp_path / "output.tiff")
         output_png = str(tmp_path / "output.png")
 
-        process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
 
         assert os.path.isfile(output_tiff), "TIFF не создан"
         assert os.path.isfile(output_png), "PNG не создан"
@@ -66,7 +66,7 @@ class TestPipelineIntegration:
         input_path = self._save_chromakey_png(tmp_path)
         output_tiff = str(tmp_path / "output.tiff")
 
-        process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
 
         result = Image.open(output_tiff)
         arr = np.array(result)
@@ -79,7 +79,7 @@ class TestPipelineIntegration:
         input_path = self._save_chromakey_png(tmp_path)
         output_tiff = str(tmp_path / "output.tiff")
 
-        process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
 
         result = Image.open(output_tiff)
         arr = np.array(result)
@@ -95,7 +95,7 @@ class TestPipelineIntegration:
         input_path = self._save_chromakey_png(tmp_path)
         output_tiff = str(tmp_path / "output.tiff")
 
-        process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
 
         result = Image.open(output_tiff)
         arr = np.array(result)
@@ -113,7 +113,7 @@ class TestPipelineIntegration:
         output_tiff = str(tmp_path / "output.tiff")
 
         process(
-            input_path, output_tiff, machine_type="laser",
+            input_path, output_tiff, machine_type="laser_standard",
             glow_size_override=50, glow_opacity_override=35,
             config=DEFAULTS,
         )
@@ -127,7 +127,7 @@ class TestPipelineIntegration:
         input_path = self._save_chromakey_png(tmp_path)
         output_tiff = str(tmp_path / "output.tiff")
 
-        process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
 
         result = Image.open(output_tiff)
         assert result.mode == "RGB", f"Результат должен быть RGB, а не {result.mode}"
@@ -152,13 +152,13 @@ class TestPipelineIntegration:
                 "blue_threshold": 30,
                 "fringe_radius": 0,
                 "result_min_black_ratio": 0.0,
-                "laser": DEFAULTS["processing"]["laser"],
+                "laser_standard": DEFAULTS["processing"]["laser_standard"],
             },
             "vignette": DEFAULTS["vignette"],
         }
 
         # Не должно упасть — валидация отключена
-        process(input_path, output_tiff, machine_type="laser", config=config)
+        process(input_path, output_tiff, machine_type="laser_standard", config=config)
         assert os.path.isfile(output_tiff)
 
 
@@ -191,7 +191,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_steps, PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
-        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         assert isinstance(result, PipelineResult)
         assert result.img_final is not None
@@ -206,7 +206,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_preview, PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path, width=2048, height=2048)
-        result = process_preview(input_path, machine_type="laser",
+        result = process_preview(input_path, machine_type="laser_standard",
                                   config=DEFAULTS, max_size=768)
 
         assert isinstance(result, PipelineResult)
@@ -221,7 +221,7 @@ class TestPipelineStepsAPI:
         output_tiff = str(tmp_path / "output.tiff")
 
         result = process_export(input_path, output_tiff,
-                                 machine_type="laser", config=DEFAULTS)
+                                 machine_type="laser_standard", config=DEFAULTS)
 
         assert isinstance(result, PipelineResult)
         assert os.path.isfile(output_tiff), "TIFF не создан"
@@ -233,7 +233,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_steps, PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
-        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         # До release — все промежуточные доступны
         assert result.img_chromakey is not None
@@ -256,7 +256,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_preview, PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
-        result = process_preview(input_path, machine_type="laser", config=DEFAULTS)
+        result = process_preview(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         # Glow at midpoint: (40 + 80) // 2 = 60
         assert result.glow_size == 60
@@ -270,7 +270,7 @@ class TestPipelineStepsAPI:
         output_png = str(tmp_path / "output.png")
 
         result = process_export(input_path, output_tiff,
-                                 machine_type="laser", config=DEFAULTS)
+                                 machine_type="laser_standard", config=DEFAULTS)
 
         assert os.path.isfile(output_tiff), "TIFF not created"
         assert os.path.isfile(output_png), "PNG not created"
@@ -287,7 +287,7 @@ class TestPipelineStepsAPI:
         input_path = self._save_chromakey_png(tmp_path)
         output_tiff = str(tmp_path / "output.tiff")
 
-        result = process(input_path, output_tiff, machine_type="laser", config=DEFAULTS)
+        result = process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
         assert os.path.isfile(output_tiff)
         assert result.img_final is not None
 
@@ -296,7 +296,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_steps
 
         input_path = self._save_chromakey_png(tmp_path)
-        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         assert result.glow_size > 0
         assert 0.0 <= result.glow_opacity <= 1.0
@@ -312,7 +312,7 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process_steps
 
         input_path = self._save_chromakey_png(tmp_path)
-        result = process_steps(input_path, machine_type="laser", config=DEFAULTS)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         assert result.img_final is not None
         assert result.img_final.mode == "RGB"

@@ -19,7 +19,10 @@ description: Собирает финальный промпт для генер�
      - Если нужно оставить как есть -> `prompt_blocks/headgear/preserve.md`.
      - Если нужно убрать -> `headgear/none.md`.
      - Если нужно добавить кепку -> `headgear/cap.md`.
-   - **Станок**: `prompt_blocks/laser.md` или `prompt_blocks/impact.md` (кожа, волосы, контраст, Goal).
+   - **Станок**: прямое сопоставление по `machine_type`:
+     - "laser_standard" → `prompt_blocks/laser.md`
+     - "laser_80w" → `prompt_blocks/laser-80w.md`
+     - "impact" → `prompt_blocks/impact.md`
    - **Запреты**: `prompt_blocks/constraints.md` (универсальные негативные ограничения, всегда включается).
 3. Собирает промпт в следующем порядке:
    - Блок `base.md` (начало: Role/Context, Guidelines 1, 1.5).

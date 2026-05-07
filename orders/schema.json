@@ -16,7 +16,7 @@
         "contact": { "type": "string" }
       }
     },
-    "machine_type": { "type": "string", "enum": ["laser", "impact"] },
+    "machine_type": { "type": "string", "enum": ["laser_standard", "laser_80w", "impact"], "description": "Тип станка. laser_standard — маломощный лазер (20-40W), laser_80w — мощный лазер (60-80W+), impact — ударно-точечный" },
     "machine_model": { "type": "string" },
     "source_photo": { "type": "string" },
     "status": {

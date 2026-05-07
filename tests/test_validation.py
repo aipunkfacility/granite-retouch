@@ -125,7 +125,7 @@ class TestValidateOrder:
         """Валидный order.json проходит проверку."""
         order = validate_order(valid_order_json, schema_path=str(schema_path))
         assert order["order_id"] == "ORD-2026-042"
-        assert order["machine_type"] == "laser"
+        assert order["machine_type"] == "laser_standard"
 
     def test_order_with_crm(self, order_with_crm, schema_path):
         """Заказ с crm_company_id проходит валидацию."""
@@ -147,7 +147,7 @@ class TestValidateOrder:
         order = {
             "order_id": "ORD-2026-042",
             "crm_company_id": "INVALID",
-            "machine_type": "laser",
+            "machine_type": "laser_standard",
             "source_photo": "source.jpg",
             "status": "new",
         }
@@ -177,7 +177,7 @@ class TestValidateOrder:
         """Неверный формат order_id → OrderValidationError."""
         order = {
             "order_id": "BAD-ID",
-            "machine_type": "laser",
+            "machine_type": "laser_standard",
             "source_photo": "source.jpg",
             "status": "new",
         }
@@ -194,7 +194,7 @@ class TestValidateOrder:
         for oid in valid_ids:
             order = {
                 "order_id": oid,
-                "machine_type": "laser",
+                "machine_type": "laser_standard",
                 "source_photo": "source.jpg",
                 "status": "new",
             }

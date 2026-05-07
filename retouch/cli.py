@@ -243,7 +243,7 @@ def main():
     p_process = subparsers.add_parser("process", help="Pillow-обработка портрета")
     p_process.add_argument("--input", "-i", required=True, help="Входной PNG (с хромакеем)")
     p_process.add_argument("--output", "-o", required=True, help="Выходной TIFF")
-    p_process.add_argument("--machine", "-m", choices=["laser", "impact"], default="laser")
+    p_process.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
     p_process.add_argument("--glow-size", type=int, help="Переопределить размер Inner Glow (px)")
     p_process.add_argument("--glow-opacity", type=int, help="Переопределить opacity Inner Glow (%%)")
     p_process.add_argument("--config", "-c", help="Путь к config.yaml")
@@ -263,7 +263,7 @@ def main():
     )
     p_gimp.add_argument("--input", "-i", required=True, help="Входной PNG")
     p_gimp.add_argument("--output", "-o", required=True, help="Выходной TIFF")
-    p_gimp.add_argument("--machine", "-m", choices=["laser", "impact"], default="laser")
+    p_gimp.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
     p_gimp.add_argument("--config", "-c", help="Путь к config.yaml")
     p_gimp.set_defaults(func=cmd_gimp)
 
@@ -284,7 +284,7 @@ def main():
     p_ocreate = order_sub.add_parser("create", help="Создать заказ из шаблона")
     p_ocreate.add_argument("order_id", help="ID заказа (напр. ORD-2026-042)")
     p_ocreate.add_argument("--crm", help="ID компании в CRM (напр. CMP-0042)")
-    p_ocreate.add_argument("--machine", "-m", choices=["laser", "impact"], default="laser")
+    p_ocreate.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
     p_ocreate.set_defaults(func=cmd_order_create)
 
     args = parser.parse_args()

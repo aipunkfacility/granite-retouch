@@ -170,7 +170,7 @@ def default_config():
 
 @pytest.fixture
 def laser_config(default_config):
-    """Конфигурация с laser-параметрами."""
+    """Конфигурация с laser_standard-параметрами."""
     return default_config
 
 
@@ -191,7 +191,7 @@ def valid_order_json(tmp_path, schema_path):
     """Создать валидный order.json и вернуть путь."""
     order = {
         "order_id": "ORD-2026-042",
-        "machine_type": "laser",
+        "machine_type": "laser_standard",
         "source_photo": "source.jpg",
         "status": "new",
     }
