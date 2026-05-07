@@ -215,21 +215,23 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
     # Применяем delta с weight — тени полностью, света минимально
     result = arr + delta * weight
 
-    # Защита: при осветлении плавно гасим коррекцию для пикселей,
-    # приближающихся к target_ceiling. Пиксели уже выше потолка — не трогаем,
-    # пиксели чуть ниже — корректируем минимально, тёмные — полностью.
+    # Защита: при осветлении НЕ превышаем target_ceiling.
+    # Пиксели уже у потолка — не осветляем, пиксели ниже — получают
+    # ровно столько коррекции, чтобы не вылететь за потолок.
+    # Это исправляет баг: пиксель 156 при factor=1.20 давал 187.2,
+    # хотя target_ceiling=170. Теперь delta масштабируется так,
+    # чтобы result = arr + delta * weight * ceiling_scale <= target_ceiling.
     if target_ceiling is not None and correction > 1.0:
-        # Полная коррекция ниже highlight_start, линейное затухание
-        # от highlight_start до target_ceiling. Пиксели ниже highlight_start
-        # получают 100% коррекции — они далеки от потолка и нуждаются в
-        # осветлении. Пиксели у потолка — минимальную коррекцию.
-        ceiling_weight = np.where(
-            arr <= highlight_start,
+        proposed_delta = delta * weight  # delta после curves-взвешивания
+        max_allowed = np.maximum(target_ceiling - arr, 0)  # запас до потолка
+        # Для положительных delta (осветление): масштабируем, чтобы не вылететь
+        # Для отрицательных delta (затемнение): потолок не ограничивает
+        ceiling_scale = np.where(
+            proposed_delta > 0,
+            np.minimum(max_allowed / np.maximum(proposed_delta, 0.001), 1.0),
             1.0,
-            np.clip((target_ceiling - arr) / max(target_ceiling - highlight_start, 1), 0, 1)
         )
-        delta_ceiling = delta * weight * ceiling_weight
-        result = arr + delta_ceiling
+        result = arr + proposed_delta * ceiling_scale
 
     # Ограничение коррекции только внутри маски
     if mask is not None:
@@ -247,6 +249,12 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     - Светлые области (воротник) почти не трогаются
     - Коррекция применяется ТОЛЬКО внутри маски субъекта
     - Пиксели уже выше target_max не осветляются дальше (защита от засвета)
+
+    Важное: перед осветлением проверяется РАСПРЕДЕЛЕНИЕ яркости лица.
+    Если p75 уже >= target_max — осветление НЕ применяется, даже если
+    медиана ниже target_min. Низкая медиана в таком случае означает,
+    что в зоне лица много тёмных пикселей (волосы, тени), но кожа
+    уже достаточно светлая и дополнительное осветление приведёт к засвету.
 
     Breaking Change: теперь возвращает кортеж (img, before, after, factor).
     Ранее возвращала только img.
@@ -274,6 +282,10 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     # Создаём маску субъекта (нужна в обеих ветках для P6.4)
     subject_mask_arr = np.array(subject_mask)
     full_subject_mask = subject_mask_arr > 128
+
+    # Перцентили лица (p75, p90) — для защиты от засвета
+    face_p75 = 0.0
+    face_p90 = 0.0
 
     if HAS_NUMPY:
         arr = np.array(img_gray, dtype=np.float32)
@@ -306,6 +318,12 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         # (волосы, тени на фоне зоны лица занижают среднее,
         #  но не влияют на медиану — она отражает реальную яркость кожи).
         avg_brightness = float(np.median(inner_pixels))
+
+        # Перцентили для защиты от засвета: если яркие пиксели кожи
+        # уже достигли целевого диапазона — осветлять нельзя, даже если
+        # медиана низкая (она занижена волосами/тенями).
+        face_p75 = float(np.percentile(inner_pixels, 75))
+        face_p90 = float(np.percentile(inner_pixels, 90))
     else:
         from PIL import ImageStat
         stat = ImageStat.Stat(img_gray, mask=inner_mask_img)
@@ -314,11 +332,45 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     target_min, target_max = face_target
     target_mid = (target_min + target_max) / 2
 
-    logger.info("Face brightness: %.1f (median) → target %d-%d", avg_brightness, target_min, target_max)
+    logger.info(
+        "Face brightness: %.1f (median), p75=%.1f, p90=%.1f → target %d-%d",
+        avg_brightness, face_p75, face_p90, target_min, target_max,
+    )
 
     if avg_brightness < target_min or avg_brightness > target_max:
-        correction = target_mid / max(avg_brightness, 1)
-        correction = max(0.70, min(1.20, correction))
+        # ЗАЩИТА ОТ ЗАСВЕТА: если яркие пиксели кожи уже на месте,
+        # низкая медиана — норма (волосы, тени), а не недодержка.
+        if avg_brightness < target_min and HAS_NUMPY:
+            if face_p75 >= target_max:
+                # 75% перцентиль уже у потолка — кожа светлая, осветлять нельзя
+                logger.info(
+                    "Face brightening SKIPPED: median=%.1f < target_min=%d, "
+                    "but p75=%.1f >= target_max=%d (skin already bright, "
+                    "low median is from hair/shadows)",
+                    avg_brightness, target_min, face_p75, target_max,
+                )
+                return img_gray, float(avg_brightness), float(avg_brightness), 1.0
+
+            if face_p90 >= target_max - 15:
+                # p90 приближается к потолку — ограничиваем коррекцию
+                # чтобы не вытолкнуть яркие пиксели кожи в клиппинг
+                gentle_cap = 1.08
+                logger.info(
+                    "Face brightening CAPPED at %.2f: p90=%.1f near target_max=%d",
+                    gentle_cap, face_p90, target_max,
+                )
+                correction = target_mid / max(avg_brightness, 1)
+                correction = max(0.70, min(gentle_cap, correction))
+            else:
+                correction = target_mid / max(avg_brightness, 1)
+                correction = max(0.70, min(1.20, correction))
+        else:
+            correction = target_mid / max(avg_brightness, 1)
+            correction = max(0.70, min(1.20, correction))
+
+        if correction == 1.0:
+            logger.info("Face brightness: correction resolved to 1.0, no change needed")
+            return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
         if HAS_NUMPY:
             # Нелинейная коррекция: тени поднимаются, света нет.
@@ -349,10 +401,10 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                     "фон может загрязниться. Установите numpy: pip install numpy"
                 )
 
-        # Проверяем результат на маске лица
+        # Проверяем результат на маске лица (МЕДИАНА, не среднее!)
         if HAS_NUMPY:
             result_arr_check = np.array(result, dtype=np.float32)
-            new_avg = float(result_arr_check[face_mask].mean())
+            new_avg = float(np.median(result_arr_check[face_mask]))
             logger.info("Curves correction: factor=%.3f, %.1f → %.1f", correction, avg_brightness, new_avg)
         else:
             new_avg = target_mid

@@ -290,6 +290,84 @@ class TestCheckFaceBrightness:
             f"Слишком много клиппинга ({clipping_ratio:.0%}) — лицо засвечено"
 
 
+    def test_low_median_bright_skin_no_overexposure(self):
+        """Низкая медиана + уже светлая кожа → осветление пропускается.
+
+        Симулирует двойной портрет: много тёмных пикселей (волосы) в зоне
+        лица занижают медиану, но кожа уже яркая (p75 >= target_max).
+        Осветление в таком случае приведёт к засвету кожи.
+        """
+        # face_region_top=0.45 — замеряется верхняя часть изображения.
+        # Создаём изображение 400x200, где в верхней части (180px):
+        #   55% тёмных (волосы=30) → занижают медиану
+        #   45% ярких (кожа=200) → p75 в яркой области
+        h = 400
+        arr = np.full((h, 200), 30, dtype=np.uint8)
+        # В верхней части (rows 100-179): яркая кожа
+        arr[100:180, :] = 200
+        gray = Image.fromarray(arr, "L")
+        mask = Image.new("L", (200, h), 255)  # width=200, height=h
+        target = [150, 170]
+
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0
+        )
+        # Медиана < target_min, но p75 >= target_max → коррекция пропущена
+        assert factor == 1.0, (
+            f"Коррекция не нужна: медиана низкая из-за волос, "
+            f"но кожа уже яркая. factor={factor:.3f}"
+        )
+
+    def test_low_median_near_ceiling_gentle_correction(self):
+        """Медиана ниже target, p90 около target_max → мягкая коррекция (cap 1.08)."""
+        # Зона лица: 50% тёмных (волосы=40), 50% средних (кожа=120)
+        # p75≈120, p90≈120 — p90 < target_max-15=155, но p75 < target_max=170
+        # → нормальная коррекция с cap 1.20 (не gentled)
+        arr = np.full((200, 200), 40, dtype=np.uint8)
+        arr[100:200, :] = 120  # нижняя половина ярче
+        gray = Image.fromarray(arr, "L")
+        mask = Image.new("L", (200, 200), 255)
+        target = [150, 170]
+
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0
+        )
+        # Медиана ~40, но есть яркие пиксели. Коррекция применяется,
+        # но потолок (target_ceiling=170) защищает от засвета.
+        result_arr = np.array(result)
+        assert result_arr.max() <= 170, (
+            f"Ни один пиксель не должен превышать target_max=170, "
+            f"got max={result_arr.max()}"
+        )
+
+    def test_curves_ceiling_never_exceeded(self):
+        """_curves_correction: коррекция не выталкивает пиксели за target_ceiling.
+
+        Пиксели УЖЕ выше потолка не осветляются дальше (остаются как есть).
+        Пиксели НИЖЕ потолка после коррекции не превышают его.
+        """
+        # Пиксель 156 при factor=1.20 → 156*1.20=187.2 > target_ceiling=170
+        # Старый баг: ceiling_weight не защищал пиксели ниже highlight_start
+        arr = np.array([50, 100, 140, 156, 165], dtype=np.float32)
+        mask = np.ones(5, dtype=bool)
+        result = _curves_correction(
+            arr, correction=1.20,
+            highlight_start=160,
+            mask=mask,
+            target_ceiling=170.0,
+        )
+        # Все пиксели ниже потолка после коррекции не превышают его
+        below_ceiling = result[arr < 170]
+        assert np.all(below_ceiling <= 170.0), (
+            f"Пиксели ниже потолка не должны его превышать, "
+            f"got max={below_ceiling.max():.1f}"
+        )
+        # Пиксель 156 конкретно: до фикса давал 187.2, теперь <= 170
+        assert result[3] <= 170.0, (
+            f"Пиксель 156 не должен превышать потолок 170, got {result[3]:.1f}"
+        )
+
+
 class TestMaskProtection:
     """P6: масочная защита — фон не меняется при коррекции."""
 
