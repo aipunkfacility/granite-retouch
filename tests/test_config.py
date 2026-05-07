@@ -318,16 +318,16 @@ class TestConfigMachineTypes:
         assert "laser_80w" in DEFAULTS["processing"]
 
     def test_laser_80w_face_target(self):
-        """Laser 80W target = 210-230."""
+        """Laser 80W target = 135-160."""
         cfg = DEFAULTS["processing"]["laser_80w"]
-        assert cfg["face_brightness_target_min"] == 210
-        assert cfg["face_brightness_target_max"] == 230
+        assert cfg["face_brightness_target_min"] == 135
+        assert cfg["face_brightness_target_max"] == 160
 
-    def test_impact_face_target_raised(self):
-        """Impact target поднят до 200-225 (BUG-C)."""
+    def test_impact_face_target(self):
+        """Impact target = 120-145."""
         cfg = DEFAULTS["processing"]["impact"]
-        assert cfg["face_brightness_target_min"] == 200
-        assert cfg["face_brightness_target_max"] == 225
+        assert cfg["face_brightness_target_min"] == 120
+        assert cfg["face_brightness_target_max"] == 145
 
     def test_laser_standard_renamed(self):
         """Старый ключ 'laser' заменён на 'laser_standard'."""

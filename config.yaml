@@ -3,34 +3,34 @@ processing:
   fringe_radius: 3
   impact:
     brightness: 1.0
-    face_brightness_target_min: 200
-    face_brightness_target_max: 225
+    face_brightness_target_min: 120
+    face_brightness_target_max: 145
     face_region_top: 0.45
     glow_opacity_max: 80
     glow_opacity_min: 60
     glow_size_max: 25
     glow_size_min: 10
-    highlight_start: 200
+    highlight_start: 160
   laser_80w:
     brightness: 1.05
-    face_brightness_target_min: 210
-    face_brightness_target_max: 230
+    face_brightness_target_min: 135
+    face_brightness_target_max: 160
     face_region_top: 0.45
     glow_opacity_max: 20
     glow_opacity_min: 10
     glow_size_max: 25
     glow_size_min: 15
-    highlight_start: 200
+    highlight_start: 160
   laser_standard:
     brightness: 1.18
-    face_brightness_target_min: 230
-    face_brightness_target_max: 245
+    face_brightness_target_min: 150
+    face_brightness_target_max: 170
     face_region_top: 0.45
     glow_opacity_max: 40
     glow_opacity_min: 30
     glow_size_max: 80
     glow_size_min: 40
-    highlight_start: 200
+    highlight_start: 160
   min_blue_ratio: 0.15
   min_resolution: 512
   result_min_black_ratio: 0.25

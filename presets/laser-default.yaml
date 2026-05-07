@@ -5,8 +5,9 @@ processing:
     glow_size_max: 80
     glow_opacity_min: 30
     glow_opacity_max: 40
-    face_brightness_target_min: 230
-    face_brightness_target_max: 245
+    face_brightness_target_min: 150
+    face_brightness_target_max: 170
+    highlight_start: 160
 vignette:
   vertical_offset: 0.10
   vertical_diameter: 0.50

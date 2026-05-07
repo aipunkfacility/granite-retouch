@@ -71,10 +71,10 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None) -> float:
         float: множитель яркости
     """
     target_pre_fb = {
-        'laser_standard': 210,
-        'laser_80w': 190,
-        'impact': 190,
-    }.get(machine_type, 200)
+        'laser_standard': 165,
+        'laser_80w': 150,
+        'impact': 135,
+    }.get(machine_type, 155)
 
     median = analytics['median_brightness']
     factor = target_pre_fb / max(median, 1)
@@ -219,9 +219,15 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
     # приближающихся к target_ceiling. Пиксели уже выше потолка — не трогаем,
     # пиксели чуть ниже — корректируем минимально, тёмные — полностью.
     if target_ceiling is not None and correction > 1.0:
-        ceiling_weight = np.clip((target_ceiling - arr) / max(target_ceiling, 1), 0, 1)
-        # Переумножаем: weight *= ceiling_weight → тёмные пиксели (далеко от
-        # потолка) получают полную коррекцию, пиксели у потолка — почти нулевую.
+        # Полная коррекция ниже highlight_start, линейное затухание
+        # от highlight_start до target_ceiling. Пиксели ниже highlight_start
+        # получают 100% коррекции — они далеки от потолка и нуждаются в
+        # осветлении. Пиксели у потолка — минимальную коррекцию.
+        ceiling_weight = np.where(
+            arr <= highlight_start,
+            1.0,
+            np.clip((target_ceiling - arr) / max(target_ceiling - highlight_start, 1), 0, 1)
+        )
         delta_ceiling = delta * weight * ceiling_weight
         result = arr + delta_ceiling
 
@@ -233,7 +239,7 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
 
 
 def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
-                          face_region_top=0.45, highlight_start=200):
+                          face_region_top=0.45, highlight_start=160):
     """Проверить и скорректировать яркость лица для ЧПУ.
 
     Использует НЕлинейную (curves) коррекцию:
@@ -312,7 +318,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
 
     if avg_brightness < target_min or avg_brightness > target_max:
         correction = target_mid / max(avg_brightness, 1)
-        correction = max(0.60, min(1.40, correction))
+        correction = max(0.70, min(1.20, correction))
 
         if HAS_NUMPY:
             # Нелинейная коррекция: тени поднимаются, света нет.

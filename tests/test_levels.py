@@ -156,7 +156,7 @@ class TestCheckFaceBrightness:
         """Тёмное лицо (среднее 80) корректируется вверх."""
         gray = Image.new("L", (200, 200), 80)
         mask = Image.new("L", (200, 200), 255)  # всё — субъект
-        target = [180, 200]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
@@ -169,7 +169,7 @@ class TestCheckFaceBrightness:
         """Слишком яркое лицо (среднее 240) корректируется вниз."""
         gray = Image.new("L", (200, 200), 240)
         mask = Image.new("L", (200, 200), 255)
-        target = [180, 200]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
@@ -178,14 +178,14 @@ class TestCheckFaceBrightness:
 
     def test_correct_face_unchanged(self):
         """Лицо в целевом диапазоне не корректируется."""
-        gray = Image.new("L", (200, 200), 190)
+        gray = Image.new("L", (200, 200), 152)
         mask = Image.new("L", (200, 200), 255)
-        target = [180, 200]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
         # Должно быть почти неизменным
-        assert abs(result_arr.mean() - 190) < 3, \
+        assert abs(result_arr.mean() - 152) < 3, \
             f"Лицо в диапазоне не должно корректироваться: {result_arr.mean():.0f}"
         assert factor == 1.0, f"factor должен быть 1.0 без коррекции"
 
@@ -193,7 +193,7 @@ class TestCheckFaceBrightness:
         """Пустая маска — изображение не меняется."""
         gray = Image.new("L", (200, 200), 100)
         mask = Image.new("L", (200, 200), 0)  # пустая
-        target = [180, 200]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         assert np.array(result).mean() == 100, "Пустая маска — без коррекции"
@@ -207,7 +207,7 @@ class TestCheckFaceBrightness:
         arr[:100, :] = 80  # верхняя половина — тёмная
         gray = Image.fromarray(arr, "L")
         mask = Image.new("L", (200, 200), 255)  # всё — субъект
-        target = [180, 200]
+        target = [140, 165]
 
         # С face_region_top=0.5 — замеряем только верхнюю половину (тёмную)
         result, before, after, factor = check_face_brightness(
@@ -224,7 +224,7 @@ class TestCheckFaceBrightness:
         mask_arr = np.zeros((200, 200), dtype=np.uint8)
         mask_arr[:, :100] = 255  # левая половина — субъект
         mask = Image.fromarray(mask_arr, "L")
-        target = [180, 200]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(
             gray, target, mask, glow_size=0
@@ -243,22 +243,22 @@ class TestCheckFaceBrightness:
 
     def test_bright_skin_not_overexposed(self):
         """Уже яркие пиксели кожи не засвечиваются дальше (target_ceiling)."""
-        # Изображение: среднее по лицу = 100 (тёмное), но некоторые пиксели уже 230+
+        # Изображение: среднее по лицу = 100 (тёмное), но некоторые пиксели уже 190+
         arr = np.full((200, 200), 100, dtype=np.uint8)
-        arr[10:30, 10:30] = 230  # уже яркие пиксели кожи
+        arr[10:30, 10:30] = 190  # уже яркие пиксели кожи
         gray = Image.fromarray(arr, "L")
         mask = Image.new("L", (200, 200), 255)
-        target = [200, 220]
+        target = [140, 165]
 
         result, before, after, factor = check_face_brightness(
             gray, target, mask, glow_size=0
         )
         result_arr = np.array(result)
 
-        # Пиксели уже выше target_max (220) НЕ должны стать ещё ярче
+        # Пиксели уже выше target_max (165) НЕ должны стать ещё ярче
         bright_region = result_arr[10:30, 10:30]
-        assert bright_region.mean() <= 232, \
-            f"Уже яркие пиксели ({230}) не должны засвечиваться: got {bright_region.mean():.0f}"
+        assert bright_region.mean() <= 195, \
+            f"Уже яркие пиксели ({190}) не должны засвечиваться: got {bright_region.mean():.0f}"
 
     def test_no_double_brightening_beyond_target(self):
         """После apply_levels + check_face_brightness пиксели не улетают за target_max."""
@@ -269,7 +269,7 @@ class TestCheckFaceBrightness:
         arr[80:120, 80:120] = 200  # яркая область (кожа)
         gray = Image.fromarray(arr, "L")
         mask = Image.new("L", (200, 200), 255)
-        target = [230, 245]
+        target = [150, 170]
 
         # Step 1: apply_levels
         leveled = apply_levels(gray, brightness_factor=1.18)
@@ -282,7 +282,7 @@ class TestCheckFaceBrightness:
 
         # Уже яркие пиксели (были 200, после levels ~236) не должны улететь за 255
         bright_region = result_arr[80:120, 80:120]
-        # С target_ceiling=245, пиксели >=245 не должны стать ярче
+        # С target_ceiling=170, пиксели >=170 не должны стать ярче
         assert bright_region.max() <= 255
         # И не должно быть массового клиппинга (все = 255)
         clipping_ratio = (bright_region == 255).sum() / bright_region.size
@@ -339,8 +339,8 @@ class TestMaskProtection:
         img = Image.fromarray(arr, "L")
         mask = Image.fromarray(mask_arr, "L")
         result, *_ = check_face_brightness(
-            img, [230, 245], mask, glow_size=20, face_region_top=0.45,
-            highlight_start=200,
+            img, [150, 170], mask, glow_size=20, face_region_top=0.45,
+            highlight_start=160,
         )
         result_arr = np.array(result)
         # Фон остался 0
@@ -351,7 +351,7 @@ class TestAdaptiveLevels:
     """P2: адаптивный Levels вместо слепого множителя."""
 
     def test_bright_input_no_clipping(self):
-        """Яркий вход (median=211) — фактор ≈ 1.0, без клиппинга."""
+        """Яркий вход (median=211) — фактор < 1.0, результат ближе к target."""
         analytics = {
             'median_brightness': 211.0,
             'p90_brightness': 240.0,
@@ -360,8 +360,9 @@ class TestAdaptiveLevels:
         result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
         result_arr = np.array(result)
         assert result_arr.max() < 255, "Клиппинг при ярком входе"
-        # Фактор ≈ 210/211 ≈ 0.995 — почти без изменений
-        assert abs(result_arr.mean() - 211) < 5, "Слишком большое изменение для яркого входа"
+        # С target_pre_fb=165: фактор = 165/211 ≈ 0.782 — результат ~165
+        # Это корректное поведение: яркий вход затемняется к целевому
+        assert result_arr.mean() < 211, "Яркий вход должен быть затемнён к target_pre_fb"
 
     def test_dark_input_gets_brightened(self):
         """Тёмный вход (median=80) — фактор > 1.0."""
@@ -397,7 +398,7 @@ class TestAdaptiveLevels:
         assert result_arr.mean() < 252, "Яркие пиксели не были защищены от клиппинга"
 
     def test_laser_80w_lower_target(self):
-        """Laser 80W: target_pre_fb=190, меньше чем laser_standard=210."""
+        """Laser 80W: target_pre_fb=150, меньше чем laser_standard=165."""
         analytics = {
             'median_brightness': 180.0,
             'p90_brightness': 220.0,

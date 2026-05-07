@@ -30,28 +30,28 @@ DEFAULTS = {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "brightness": 1.18,
-            "face_brightness_target_min": 230,
-            "face_brightness_target_max": 245,
+            "face_brightness_target_min": 150,
+            "face_brightness_target_max": 170,
             "face_region_top": 0.45,
-            "highlight_start": 200,
+            "highlight_start": 160,
         },
         "laser_80w": {
             "glow_size_min": 15, "glow_size_max": 25,
             "glow_opacity_min": 10, "glow_opacity_max": 20,
             "brightness": 1.05,
-            "face_brightness_target_min": 210,
-            "face_brightness_target_max": 230,
+            "face_brightness_target_min": 135,
+            "face_brightness_target_max": 160,
             "face_region_top": 0.45,
-            "highlight_start": 200,
+            "highlight_start": 160,
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "brightness": 1.00,
-            "face_brightness_target_min": 200,
-            "face_brightness_target_max": 225,
+            "face_brightness_target_min": 120,
+            "face_brightness_target_max": 145,
             "face_region_top": 0.45,
-            "highlight_start": 200,
+            "highlight_start": 160,
         },
     },
     "vignette": {
@@ -73,10 +73,10 @@ if HAS_PYDANTIC:
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
         brightness: float = Field(1.18, ge=0.5, le=1.5)
-        face_brightness_target_min: int = Field(230, ge=100, le=255)
-        face_brightness_target_max: int = Field(245, ge=100, le=255)
+        face_brightness_target_min: int = Field(150, ge=80, le=255)
+        face_brightness_target_max: int = Field(170, ge=80, le=255)
         face_region_top: float = Field(0.45, ge=0.2, le=0.8)
-        highlight_start: int = Field(200, ge=100, le=250)
+        highlight_start: int = Field(160, ge=80, le=250)
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -86,13 +86,13 @@ if HAS_PYDANTIC:
         fringe_radius: int = Field(3, ge=0, le=10)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            brightness=1.18, face_brightness_target_min=230, face_brightness_target_max=245))
+            brightness=1.18, face_brightness_target_min=150, face_brightness_target_max=170))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            brightness=1.05, face_brightness_target_min=210, face_brightness_target_max=230))
+            brightness=1.05, face_brightness_target_min=135, face_brightness_target_max=160))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            brightness=1.00, face_brightness_target_min=200, face_brightness_target_max=225))
+            brightness=1.00, face_brightness_target_min=120, face_brightness_target_max=145))
 
     class VignetteConfig(BaseModel):
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
