@@ -28,20 +28,23 @@ npm install
 
 Нужны **два терминала** — backend и frontend.
 
-### Терминал 1 — Backend (порт 8001)
+### Терминал 1 — Backend (порт 8000)
 
 Из корня проекта:
 
 ```bash
-uv run uvicorn retouch_ui.backend.main:app --port 8001 --reload
+uv run uvicorn retouch_ui.backend.main:app --port 8000 --reload
 ```
 
 Должен быть вывод:
 
 ```
-INFO: Uvicorn running on http://127.0.0.1:8001
-granite-retouch backend v4.0.0 запущен
+INFO: Uvicorn running on http://127.0.0.1:8000
+granite-retouch backend v3.0.0-dev запущен
 ```
+
+> **Важно:** порт **8000** — по умолчанию. Vite proxy настроен на `localhost:8000`.
+> Если запустите на другом порту — отредактируйте `retouch_ui/frontend/vite.config.ts` → `server.proxy.'/api'.target`.
 
 ### Терминал 2 — Frontend (порт 5173)
 
@@ -61,12 +64,12 @@ VITE v8.x.x  ready in ... ms
 
 **http://localhost:5173**
 
-Vite автоматически проксирует запросы `/api/*` на backend `localhost:8001`.
+Vite автоматически проксирует запросы `/api/*` на backend `localhost:8000`.
 
 ## Проверка
 
-- Backend health: http://localhost:8001/api/health → `{"status":"ok","version":"4.0.0"}`
-- Frontend загружает изображение → preview → экспорт TIFF/PNG
+- Backend health: http://localhost:8000/api/health → `{"status":"ok","version":"3.0.0-dev"}`
+- Frontend загружает изображение → preview → экспорт BMP/PNG/TIFF
 
 ## Production-режим (один процесс)
 
@@ -74,10 +77,11 @@ Vite автоматически проксирует запросы `/api/*` н�
 cd retouch_ui/frontend
 npm run build                    # собирает dist/
 cd ../..
-uv run uvicorn retouch_ui.backend.main:app --port 8001
+uv run uvicorn retouch_ui.backend.main:app --port 8000
 ```
 
 FastAPI сам раздаёт статику из `retouch_ui/frontend/dist/`.
+Открывать: **http://localhost:8000**
 
 ## Типичные проблемы
 
@@ -87,4 +91,6 @@ FastAPI сам раздаёт статику из `retouch_ui/frontend/dist/`.
 | `No module named 'fastapi'` | Не установлена группа webui | `uv sync --extra webui` |
 | `'vite' is not recognized` | Нет node_modules | `cd retouch_ui/frontend && npm install` |
 | `ECONNRESET` на `/api/*` | Backend не запущен | Запусти uvicorn (терминал 1) |
+| «Загрузка превышена (30 сек)» | Vite proxy указывает на неправильный порт | Проверь `vite.config.ts`: target должен быть `http://localhost:8000` |
 | `404 Not Found` на `/api/upload` | Старый URL в api.ts | Обновить код: `git pull` |
+| `Frontend dist/ не найден` | Не собран фронтенд для production | `cd retouch_ui/frontend && npm run build` |
