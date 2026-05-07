@@ -29,7 +29,7 @@ Web-интерфейс для настройки параметров ретуш
 **Функциональные требования**:
 
 1. **Панель параметров** (слайдеры + числовые поля):
-   - По группе `processing.laser` и `processing.impact`:
+   - По группе `processing.laser_standard`, `processing.laser_80w` и `processing.impact`:
      - `brightness` (0.5–1.5, шаг 0.01)
      - `face_brightness_target` (min/max, 50–255)
      - `glow_size_min` / `glow_size_max` (5–100 px)
@@ -43,7 +43,7 @@ Web-интерфейс для настройки параметров ретуш
      - `blur_radius` (10–120)
      - `headroom` (0.2–1.0)
      - `horizontal_oversize` (0.0–0.5)
-   - Переключатель станка: laser / impact
+   - Переключатель станка: laser_standard / laser_80w / impact
 
 2. **Предпросмотр результата**:
    - Загрузка исходного PNG (drag & drop или выбор файла)
@@ -138,7 +138,7 @@ Web-интерфейс для настройки параметров ретуш
 - `laser.brightness`: DEFAULTS = 1.05, config.yaml = 1.18
 - `laser.face_brightness_target`: DEFAULTS = [230, 245], config.yaml = [230, 245]
 - `impact.brightness`: DEFAULTS = 1.00, config.yaml = 1.00
-- `impact.face_brightness_target`: DEFAULTS = [185, 210], config.yaml = [185, 210]
+- `impact.face_brightness_target`: DEFAULTS = [200, 225], config.yaml = [200, 225]
 
 При этом после отладки пользователь менял значения вручную, и реальные рабочие значения неизвестны — нужны для конкретных фото.
 
@@ -224,6 +224,8 @@ GIMP-пайплайн не удаляется, но помечен как экс
 - `tests/test_pipeline.py` (8 тестов) — интеграция: laser/impact, >25% чёрного, нет пересвета
 
 **Итого: 98 тестов, все проходят.** CI-ready (не требует GIMP или реальных фото).
+
+> **Обновлено (v4.0.0):** 34 новых TDD-теста добавлено (BACKLOG-011), итог: 132+ тестов.
 
 ---
 
@@ -312,7 +314,7 @@ CLI обрабатывает один файл. Для серии портрет
 | 4 | CLI + config.yaml + validation | ✅ Done |
 | 5 | Реструктуризация в retouch/ пакет + GIMP | ✅ Done (с багами) |
 | 6 | granite-crm интеграция | ✅ Done |
-| 7 | Тесты (98 тестов) | ✅ Done |
+| 7 | Тесты (98 тестов → 132+ с v4.0.0) | ✅ Done |
 
 ---
 
@@ -323,7 +325,7 @@ CLI обрабатывает один файл. Для серии портрет
 | BUG-001 | Пересвет воротника: коррекция яркости применяется ко всему изображению | ✅ Done | BACKLOG-002 |
 | BUG-002 | Белый фон «обрезан» (видимо после виньетки) | Open | Нужна диагностика |
 | BUG-003 | GIMP-пайплайн даёт неприемлемые результаты | Open | BACKLOG-005 |
-| BUG-C | Impact face_brightness_target слишком низкий (185-210) → плоские лица | ✅ Done | P4 (этап 8) |
+| BUG-C | Impact face_brightness_target слишком низкий (185–210) → плоские лица, поднят до 200–225 | ✅ Done | P4 (этап 8) |
 | BUG-005 | shadow_noise не реализован в Pillow-пайплайне | Open | BACKLOG-006 |
 | BUG-006 | Отладочный print() в production-коде | ✅ Done | BACKLOG-003 |
 | BUG-007 | DEFAULTS в config.py рассинхронизированы с config.yaml | ✅ Done | BACKLOG-004 |

@@ -9,7 +9,7 @@
 | Поле | Тип | Pattern | Описание |
 |------|-----|---------|----------|
 | `order_id` | string | `^ORD-\d{4}-\d{3}$` | Идентификатор заказа (напр. `ORD-2026-042`) |
-| `machine_type` | enum | `laser`, `impact` | Тип гравировального станка |
+| `machine_type` | enum | `laser_standard`, `laser_80w`, `impact` | Тип гравировального станка |
 | `source_photo` | string | — | Имя файла исходного фото (напр. `source.jpg`) |
 | `status` | enum | см. ниже | Текущий статус заказа |
 
@@ -70,7 +70,7 @@ new → analyzing → prompting → generating → postprocessing → done
     "name": "Иванов Иван Иванович",
     "contact": "+7-999-123-45-67"
   },
-  "machine_type": "laser",
+  "machine_type": "laser_standard",
   "machine_model": "Mirtels L60120",
   "source_photo": "source.jpg",
   "status": "done",

@@ -14,7 +14,7 @@ python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 
 Флаги:
 - `--crm CMP-0042` — привязка к компании в granite-crm (опционально)
-- `-m impact` — тип станка: `laser` (по умолчанию) или `impact`
+- `-m impact` — тип станка: `laser_standard` (по умолчанию), `laser_80w` или `impact`
 
 Альтернатива: создать вручную, скопировав `orders/template/order.json`.
 
@@ -60,7 +60,11 @@ orders/active/ORD-2026-042/generated/ai.png
 
 ```bash
 python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
-    -o orders/active/ORD-2026-042/generated/final.tiff -m impact
+    -o orders/active/ORD-2026-042/generated/final.tiff -m laser_standard
+
+# Для мощного лазера 60-80W+
+python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
+    -o orders/active/ORD-2026-042/generated/final.tiff -m laser_80w
 ```
 
 Результат: два файла — `final.tiff` (для станка) и `final.png` (превью).
@@ -95,7 +99,7 @@ make ui
 Возможности Web UI:
 - Загрузка изображения через drag & drop
 - Живой предпросмотр при изменении параметров (слайдеры)
-- Переключение станка laser/impact
+- Переключение станка laser_standard / laser_80w / impact
 - Пресеты (готовые наборы параметров)
 - Экспорт TIFF/PNG в полном разрешении
 
@@ -117,7 +121,7 @@ python -m retouch order list
 python -m retouch order validate ORD-2026-042
 
 # Создать с привязкой к CRM
-python -m retouch order create ORD-2026-043 --crm CMP-0012 -m laser
+python -m retouch order create ORD-2026-043 --crm CMP-0012 -m laser_standard
 ```
 
 См. [reference/cli.md](reference/cli.md).

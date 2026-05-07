@@ -10,10 +10,10 @@ python -m retouch <command> [options]
 
 ## retouch process
 
-Pillow-обработка портрета — основной путь для обоих типов станков.
+Pillow-обработка портрета — основной путь для всех типов станков.
 
 ```bash
-python -m retouch process -i <input.png> -o <output.tiff> [-m laser|impact] [options]
+python -m retouch process -i <input.png> -o <output.tiff> [-m laser_standard|laser_80w|impact] [options]
 ```
 
 ### Аргументы
@@ -22,7 +22,7 @@ python -m retouch process -i <input.png> -o <output.tiff> [-m laser|impact] [opt
 |----------|-----------|-------------|----------|
 | `--input` | `-i` | Да | Путь к входному PNG (с синим хромакеем) |
 | `--output` | `-o` | Да | Путь к выходному TIFF |
-| `--machine` | `-m` | Нет | Тип станка: `laser` (default) или `impact` |
+| `--machine` | `-m` | Нет | Тип станка: `laser_standard` (default), `laser_80w` или `impact` |
 | `--glow-size` | — | Нет | Переопределить размер Inner Glow (px) |
 | `--glow-opacity` | — | Нет | Переопределить opacity Inner Glow (%) |
 | `--config` | `-c` | Нет | Путь к config.yaml (default: автопоиск) |
@@ -31,14 +31,17 @@ python -m retouch process -i <input.png> -o <output.tiff> [-m laser|impact] [opt
 ### Примеры
 
 ```bash
-# Стандартная обработка — лазерный станок
-python -m retouch process -i ai.png -o final.tiff -m laser
+# Стандартная обработка — лазерный станок 20-40W
+python -m retouch process -i ai.png -o final.tiff -m laser_standard
+
+# Мощный лазер 60-80W+ — medium-key стиль
+python -m retouch process -i ai.png -o final.tiff -m laser_80w
 
 # Ударный станок
 python -m retouch process -i ai.png -o final.tiff -m impact
 
 # Переопределить Inner Glow
-python -m retouch process -i ai.png -o final.tiff -m laser --glow-size 50 --glow-opacity 35
+python -m retouch process -i ai.png -o final.tiff -m laser_standard --glow-size 50 --glow-opacity 35
 
 # Свой config.yaml
 python -m retouch process -i ai.png -o final.tiff -c /path/to/config.yaml
@@ -93,7 +96,7 @@ python -m retouch validate -i photo.jpg
 GIMP-обработка через Script-Fu. **Experimental / не рекомендуется для production** — используйте `retouch process`.
 
 ```bash
-python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser|impact] [options]
+python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser_standard|laser_80w|impact] [options]
 ```
 
 При запуске выводит предупреждение: «Experimental: results may be incorrect. Use `retouch process` for production.»
@@ -104,7 +107,7 @@ python -m retouch gimp -i <input.png> -o <output.tiff> [-m laser|impact] [option
 |----------|-----------|-------------|----------|
 | `--input` | `-i` | Да | Путь к входному PNG |
 | `--output` | `-o` | Да | Путь к выходному TIFF |
-| `--machine` | `-m` | Нет | `laser` (default) или `impact` |
+| `--machine` | `-m` | Нет | `laser_standard` (default), `laser_80w` или `impact` |
 | `--config` | `-c` | Нет | Путь к config.yaml |
 
 ### Когда использовать GIMP
@@ -130,7 +133,7 @@ python -m retouch order list
 ```
 Order ID           Machine   Status           CRM          Client
 ---------------------------------------------------------------------------
-ORD-2026-001       laser     done                          Иванов И.И.
+ORD-2026-001       laser_standard     done                    Иванов И.И.
 ORD-2026-007       impact    done             CMP-0042     Петров П.П.
 ```
 
@@ -163,14 +166,14 @@ python -m retouch order validate /path/to/order.json
 Создать новый заказ из шаблона.
 
 ```bash
-python -m retouch order create <order_id> [--crm CMP-NNNN] [-m laser|impact]
+python -m retouch order create <order_id> [--crm CMP-NNNN] [-m laser_standard|laser_80w|impact]
 ```
 
 | Параметр | Описание |
 |----------|----------|
 | `order_id` | ID заказа (напр. `ORD-2026-042`). Формат: `ORD-YYYY-NNN` |
 | `--crm` | ID компании в CRM (напр. `CMP-0042`) |
-| `-m` | Тип станка: `laser` (default) или `impact` |
+| `-m` | Тип станка: `laser_standard` (default), `laser_80w` или `impact` |
 
 Примеры:
 

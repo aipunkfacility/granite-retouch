@@ -21,7 +21,8 @@
 Читают последовательно для понимания конкретного аспекта.
 
 - **[guides/vignette.md](guides/vignette.md)** — арховая виньетка: параметры, формулы, пресеты, диагностика
-- **[guides/style-guide-laser.md](guides/style-guide-laser.md)** — стиль генерации для лазерной гравировки
+- **[guides/style-guide-laser.md](guides/style-guide-laser.md)** — стиль генерации для лазерной гравировки (20–40W)
+- **[guides/style-guide-laser-80w.md](guides/style-guide-laser-80w.md)** — стиль генерации для мощных лазеров (60–80W+)
 - **[guides/style-guide-impact.md](guides/style-guide-impact.md)** — стиль генерации для ударной гравировки
 - **[guides/nano-banana.md](guides/nano-banana.md)** — работа с Nano Banana Pro
 
@@ -30,11 +31,11 @@
 Для разработчиков и отладки.
 
 - **[architecture/overview.md](architecture/overview.md)** — структура проекта, модули, потоки данных, тестирование
-- **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → glow → levels → vignette → export
+- **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → analytics → glow → levels → unsharp → face brightness → vignette → export
 
 ## Тестирование
 
-98 автотестов покрывают все модули. Запуск: `make test` или `pytest tests/ -v`. Подробнее в [architecture/overview.md](architecture/overview.md#тестирование).
+132+ автотестов покрывают все модули. Запуск: `make test` или `pytest tests/ -v`. Подробнее в [architecture/overview.md](architecture/overview.md#тестирование).
 
 ## Интеграции
 

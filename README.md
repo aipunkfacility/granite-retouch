@@ -8,7 +8,7 @@
 
 ```bash
 uv pip install -e ".[dev]"   # pytest + jsonschema
-make test                     # 98 тестов
+make test                     # 132+ тестов
 ```
 
 ## Быстрый старт
@@ -17,8 +17,11 @@ make test                     # 98 тестов
 # Создать заказ
 python -m retouch order create ORD-2026-042 -m impact
 
-# Обработка портрета
-python -m retouch process -i ai.png -o final.tiff -m laser
+# Обработка портрета (стандартный лазер)
+python -m retouch process -i ai.png -o final.tiff -m laser_standard
+
+# Мощный лазер 60-80W+
+python -m retouch process -i ai.png -o final.tiff -m laser_80w
 
 # Список заказов
 python -m retouch order list
@@ -38,7 +41,7 @@ make ui-prod     # production: один процесс uvicorn, статику �
 Возможности:
 - Загрузка изображения через drag & drop
 - Живой предпросмотр при изменении параметров (слайдеры)
-- Переключение станка laser/impact
+- Переключение станка laser_standard / laser_80w / impact
 - Пресеты (готовые наборы параметров из `presets/`)
 - Экспорт TIFF/PNG в полном разрешении
 
@@ -52,7 +55,8 @@ make ui-prod     # production: один процесс uvicorn, статику �
 | [docs/reference/cli.md](docs/reference/cli.md) | Справочник всех CLI-команд |
 | [docs/reference/config.md](docs/reference/config.md) | Все параметры config.yaml |
 | [docs/guides/vignette.md](docs/guides/vignette.md) | Арховая виньетка |
-| [docs/guides/style-guide-laser.md](docs/guides/style-guide-laser.md) | Стиль лазерной генерации |
+| [docs/guides/style-guide-laser.md](docs/guides/style-guide-laser.md) | Стиль лазерной генерации (20-40W) |
+| [docs/guides/style-guide-laser-80w.md](docs/guides/style-guide-laser-80w.md) | Стиль генерации для мощных лазеров (60-80W+) |
 | [docs/guides/style-guide-impact.md](docs/guides/style-guide-impact.md) | Стиль ударной генерации |
 | [docs/architecture/pipeline.md](docs/architecture/pipeline.md) | Пайплайн обработки |
 | [docs/integration/crm.md](docs/integration/crm.md) | Интеграция с granite-crm |
@@ -71,3 +75,4 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - **Синий хромакей:** Все генерации на фоне `Solid Deep Blue (#0000FF)` для чистой вырезки
 - **Идентичность:** Строгий запрет на изменение геометрии лица
 - **Разделение текстур:** Гладкое лицо для объёма + сверхрезкая одежда для станка
+- **Адаптивный pipeline:** Преданализ (13 метрик) + масочная защита — коррекция только внутри маски субъекта

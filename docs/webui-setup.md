@@ -40,7 +40,7 @@ uv run uvicorn retouch_ui.backend.main:app --port 8001 --reload
 
 ```
 INFO: Uvicorn running on http://127.0.0.1:8001
-granite-retouch backend v3.0.0-dev запущен
+granite-retouch backend v4.0.0 запущен
 ```
 
 ### Терминал 2 — Frontend (порт 5173)
@@ -65,7 +65,7 @@ Vite автоматически проксирует запросы `/api/*` н�
 
 ## Проверка
 
-- Backend health: http://localhost:8001/api/health → `{"status":"ok","version":"3.0.0-dev"}`
+- Backend health: http://localhost:8001/api/health → `{"status":"ok","version":"4.0.0"}`
 - Frontend загружает изображение → preview → экспорт TIFF/PNG
 
 ## Production-режим (один процесс)

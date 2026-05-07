@@ -11,6 +11,7 @@ granite-retouch/
 │   ├── config.py                # Загрузка config.yaml + defaults
 │   ├── processing/
 │   │   ├── chromakey.py         # Удаление синего фона + fringe removal
+│   │   ├── analysis.py          # Преданализ: 13 метрик для адаптивных доработок
 │   │   ├── glow.py              # Inner Glow (contour light)
 │   │   ├── levels.py            # Levels + Brightness + Unsharp + face brightness
 │   │   ├── vignette.py          # Арховая виньетка
@@ -43,14 +44,16 @@ granite-retouch/
 │       ├── src/                 # Компоненты, хуки, API-клиент
 │       └── dist/                # Production-сборка (gitignore)
 ├── presets/                     # YAML-пресеты (laser-default, impact-soft, ...)
-├── tests/                       # Автотесты (~158 тестов)
+├── tests/                       # Автотесты (132+ тестов)
 │   ├── conftest.py              # Фикстуры: синтетические PNG с хромакеем
 │   ├── test_chromakey.py        # Удаление синего фона, fringe, одежда
-│   ├── test_glow.py             # Laser/impact glow размеры и opacity
-│   ├── test_levels.py           # Brightness, unsharp, curves, face brightness
+│   ├── test_glow.py             # Laser/impact glow размеры, opacity, адаптивные параметры
+│   ├── test_levels.py           # Brightness, unsharp, curves, mask shrink, face brightness, адаптивные Levels/Unsharp
 │   ├── test_vignette.py         # Арховая виньетка, масштабирование
 │   ├── test_validation.py       # Валидация изображения и order.json
-│   ├── test_config.py           # Загрузка конфига, defaults, fallback
+│   ├── test_config.py           # Загрузка конфига, defaults, fallback, machine types
+│   ├── test_analysis.py         # Преданализ: классификация, метрики, масштабная инвариантность
+│   ├── test_skill_routing.py    # Routing: machine_type → промпт-файл
 │   ├── test_order_schema.py     # JSON Schema: валидные/невалидные заказы
 │   ├── test_pipeline.py         # Интеграция: полный пайплайн
 │   └── test_cli_integration.py  # CLI: интеграционный тест
@@ -73,7 +76,11 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
                                                ↓
                  [Nano Banana] ──→ ai.png (синий хромакей #0000FF)
                                                ↓
-                 [retouch process] ──→ final.tiff + final.png (чёрный фон)
+                 [retouch process] ──→ analytics (13 метрик)
+                                          ↓
+                              [Glow ← analytics] → [Levels ← analytics + mask] → [Unsharp ← analytics + mask] → ...
+                                               ↓
+                                 final.tiff + final.png (чёрный фон)
 ```
 
 ## Модули обработки
@@ -81,9 +88,11 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
 | Модуль | Файл | Вход | Выход | Зависимости |
 |--------|------|------|-------|-------------|
 | Chromakey | `chromakey.py` | RGBA | RGBA + mask (L) | numpy, scipy |
-| Inner Glow | `glow.py` | L + mask | L | Pillow |
-| Levels | `levels.py` | L | L | Pillow, numpy |
+| Analytics | `analysis.py` | L + mask | dict (13 метрик) | numpy |
+| Inner Glow | `glow.py` | L + mask + analytics | L | Pillow |
+| Levels | `levels.py` | L + mask + analytics | L | Pillow, numpy |
 | Face Brightness | `levels.py` | L + mask | L | numpy, scipy |
+| Unsharp Mask | `levels.py` | L + mask + analytics | L | Pillow |
 | Vignette | `vignette.py` | L + mask | RGBA | Pillow |
 
 ## Конфигурация
@@ -102,7 +111,7 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
 
 ## Тестирование
 
-~158 автотестов покрывают все модули обработки и Web UI API. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
+132+ автотестов покрывают все модули обработки и Web UI API. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
 
 ```bash
 # Запуск всех тестов
@@ -115,11 +124,13 @@ python -m pytest retouch_ui/backend/tests/ -v
 | Модуль | Файл | Тестов | Что проверяет |
 |--------|------|--------|---------------|
 | Chromakey | `test_chromakey.py` | 7 | Удаление синего фона, сохранение субъекта, fringe removal, тёмно-синяя одежда |
-| Inner Glow | `test_glow.py` | 6 | Laser/impact glow размеры, яркость контура, random range, opacity |
-| Levels | `test_levels.py` | 16 | Brightness, unsharp mask, curves, mask shrink, face brightness |
+| Inner Glow | `test_glow.py` | 9 | Laser/impact glow размеры, яркость контура, random range, opacity, адаптивные параметры |
+| Levels | `test_levels.py` | 28 | Brightness, unsharp mask, curves, mask shrink, face brightness, адаптивные Levels/Unsharp, масочная защита |
+| Analytics | `test_analysis.py` | 9 | Преданализ: классификация, метрики, масштабная инвариантность |
+| Routing | `test_skill_routing.py` | 5 | machine_type → промпт-файл |
 | Vignette | `test_vignette.py` | 7 | RGB выход, чёрные углы, headroom, масштабирование, плавная маска |
 | Validation | `test_validation.py` | 20 | Валидация изображения, хромакей, чёрный фон, order.json |
-| Config | `test_config.py` | 30 | DEFAULTS структура, диапазоны glow/brightness, загрузка, fallback, deep_merge |
+| Config | `test_config.py` | 35 | DEFAULTS структура, диапазоны glow/brightness, загрузка, fallback, deep_merge, machine types |
 | Order Schema | `test_order_schema.py` | 26 | Schema integrity, валидные/невалидные заказы, CRM ID, validate_order() |
 | Pipeline | `test_pipeline.py` | 18 | Интеграция: laser/impact пайплайн, >25% чёрного, нет пересвета, process_steps/preview/export |
 | CLI Integration | `test_cli_integration.py` | 1 | CLI: запуск process через subprocess |

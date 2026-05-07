@@ -167,10 +167,13 @@ vignette:
 
 ```bash
 # Стандартная обработка (параметры из config.yaml)
-python -m retouch process -i ai.png -o final.tiff -m laser
+python -m retouch process -i ai.png -o final.tiff -m laser_standard
+
+# Мощный лазер 60-80W+
+python -m retouch process -i ai.png -o final.tiff -m laser_80w
 
 # Нестандартная арка (временный конфиг)
-python -m retouch process -i ai.png -o final.tiff -m laser -c /tmp/config_oval.yaml
+python -m retouch process -i ai.png -o final.tiff -m laser_standard -c /tmp/config_oval.yaml
 
 # Ударный станок — мягкий переход автоматически (если blur_radius: 80 в config.yaml)
 python -m retouch process -i ai.png -o final.tiff -m impact

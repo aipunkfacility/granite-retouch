@@ -28,14 +28,14 @@ granite-retouch — система автоматизации подготовк
 
 ```bash
 # Обработка портрета
-python -m retouch process -i ai.png -o final.tiff -m laser
+python -m retouch process -i ai.png -o final.tiff -m laser_standard
 
 # Управление заказами
 python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 python -m retouch order list
 python -m retouch order validate ORD-2026-042
 
-# Тесты (98 автотестов, не требуют GIMP/фото)
+# Тесты (132+ автотестов, не требуют GIMP/фото)
 make test
 
 # Web UI — интерактивная настройка с предпросмотром
@@ -88,9 +88,9 @@ orders/active/ORD-2026-001/
 
 - Всегда проверять JSON по схеме `orders/schema.json`
 - Обязательные поля: `order_id`, `machine_type`, `source_photo`, `status`
-- Тип станка: только `laser` или `impact`
+- Тип станка: `laser_standard`, `laser_80w` или `impact`
 - При валидации изображения: `ValidationError` + понятное сообщение
 
 ---
 
-Обновлено: 2026-05-05
+Обновлено: 2026-05-07
