@@ -49,6 +49,7 @@ def cmd_process(args):
             glow_size_override=args.glow_size,
             glow_opacity_override=args.glow_opacity,
             config=config,
+            fmt=getattr(args, 'format', 'bmp'),
         )
     except ValidationError as e:
         print(f"VALIDATION ERROR: {e}", file=sys.stderr)
@@ -242,8 +243,9 @@ def main():
     # --- process ---
     p_process = subparsers.add_parser("process", help="Pillow-обработка портрета")
     p_process.add_argument("--input", "-i", required=True, help="Входной PNG (с хромакеем)")
-    p_process.add_argument("--output", "-o", required=True, help="Выходной TIFF")
+    p_process.add_argument("--output", "-o", required=True, help="Выходной BMP/PNG")
     p_process.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
+    p_process.add_argument("--format", "-f", choices=["bmp", "bmp_1bit", "bmp_8bit", "png"], default="bmp", help="Формат экспорта (по умолчанию: bmp)")
     p_process.add_argument("--glow-size", type=int, help="Переопределить размер Inner Glow (px)")
     p_process.add_argument("--glow-opacity", type=int, help="Переопределить opacity Inner Glow (%%)")
     p_process.add_argument("--config", "-c", help="Путь к config.yaml")
@@ -262,7 +264,7 @@ def main():
         help="GIMP-обработка (experimental / не рекомендуется для production)"
     )
     p_gimp.add_argument("--input", "-i", required=True, help="Входной PNG")
-    p_gimp.add_argument("--output", "-o", required=True, help="Выходной TIFF")
+    p_gimp.add_argument("--output", "-o", required=True, help="Выходной BMP/PNG")
     p_gimp.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
     p_gimp.add_argument("--config", "-c", help="Путь к config.yaml")
     p_gimp.set_defaults(func=cmd_gimp)

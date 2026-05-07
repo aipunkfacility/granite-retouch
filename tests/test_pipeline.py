@@ -34,41 +34,41 @@ class TestPipelineIntegration:
         return path
 
     def test_laser_pipeline_produces_output(self, tmp_path):
-        """Laser-пайплайн создаёт TIFF и PNG."""
+        """Laser-пайплайн создаёт BMP и PNG."""
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
         output_png = str(tmp_path / "output.png")
 
-        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
 
-        assert os.path.isfile(output_tiff), "TIFF не создан"
+        assert os.path.isfile(output_bmp), "BMP не создан"
         assert os.path.isfile(output_png), "PNG не создан"
-        assert os.path.getsize(output_tiff) > 0, "TIFF пустой"
+        assert os.path.getsize(output_bmp) > 0, "BMP пустой"
         assert os.path.getsize(output_png) > 0, "PNG пустой"
 
     def test_impact_pipeline_produces_output(self, tmp_path):
-        """Impact-пайплайн создаёт TIFF и PNG."""
+        """Impact-пайплайн создаёт BMP и PNG."""
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        process(input_path, output_tiff, machine_type="impact", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="impact", config=DEFAULTS)
 
-        assert os.path.isfile(output_tiff)
+        assert os.path.isfile(output_bmp)
 
     def test_result_not_empty(self, tmp_path):
         """Результат — не пустое изображение (не полностью чёрный)."""
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
 
-        result = Image.open(output_tiff)
+        result = Image.open(output_bmp)
         arr = np.array(result)
         assert arr.mean() > 10, "Результат не должен быть полностью чёрным"
 
@@ -77,13 +77,17 @@ class TestPipelineIntegration:
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
 
-        result = Image.open(output_tiff)
+        result = Image.open(output_bmp)
         arr = np.array(result)
-        black_mask = (arr[..., 0] < 10) & (arr[..., 1] < 10) & (arr[..., 2] < 10)
+        # BMP может быть L или RGB, обрабатываем оба случая
+        if arr.ndim == 2:
+            black_mask = arr < 10
+        else:
+            black_mask = (arr[..., 0] < 10) & (arr[..., 1] < 10) & (arr[..., 2] < 10)
         black_ratio = black_mask.sum() / black_mask.size
         assert black_ratio >= 0.25, \
             f"Доля чёрного фона {black_ratio:.1%} ниже минимума 25%"
@@ -93,14 +97,17 @@ class TestPipelineIntegration:
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
 
-        result = Image.open(output_tiff)
+        result = Image.open(output_bmp)
         arr = np.array(result)
-        # Считаем пересвет по всем каналам
-        overexposed = (arr.min(axis=-1) > 250)
+        # BMP может быть L или RGB
+        if arr.ndim == 2:
+            overexposed = arr > 250
+        else:
+            overexposed = (arr.min(axis=-1) > 250)
         overexposed_ratio = overexposed.sum() / overexposed.size
         assert overexposed_ratio < 0.30, \
             f"Слишком много пересвеченных пикселей: {overexposed_ratio:.1%}"
@@ -110,27 +117,27 @@ class TestPipelineIntegration:
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
         process(
-            input_path, output_tiff, machine_type="laser_standard",
+            input_path, output_bmp, machine_type="laser_standard",
             glow_size_override=50, glow_opacity_override=35,
             config=DEFAULTS,
         )
 
-        assert os.path.isfile(output_tiff)
+        assert os.path.isfile(output_bmp)
 
-    def test_result_is_rgb(self, tmp_path):
-        """Результат — RGB-изображение."""
+    def test_result_is_correct_mode(self, tmp_path):
+        """Результат — BMP grayscale (8-bit) или RGB."""
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
+        process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
 
-        result = Image.open(output_tiff)
-        assert result.mode == "RGB", f"Результат должен быть RGB, а не {result.mode}"
+        result = Image.open(output_bmp)
+        assert result.mode in ("L", "RGB", "P"), f"Unexpected BMP mode: {result.mode}"
 
     def test_no_validate_mode(self, tmp_path):
         """Режим --no-validate: обработка без проверки хромакея."""
@@ -142,7 +149,7 @@ class TestPipelineIntegration:
         input_path = str(tmp_path / "no_chroma.png")
         img.save(input_path, "PNG")
 
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
         # Конфигурация с выключенной валидацией
         config = {
@@ -158,8 +165,8 @@ class TestPipelineIntegration:
         }
 
         # Не должно упасть — валидация отключена
-        process(input_path, output_tiff, machine_type="laser_standard", config=config)
-        assert os.path.isfile(output_tiff)
+        process(input_path, output_bmp, machine_type="laser_standard", config=config)
+        assert os.path.isfile(output_bmp)
 
 
 class TestPipelineStepsAPI:
@@ -214,17 +221,17 @@ class TestPipelineStepsAPI:
         assert result.height <= 768
 
     def test_process_export_saves_files(self, tmp_path):
-        """process_export() сохраняет TIFF + PNG и освобождает промежуточные."""
+        """process_export() сохраняет BMP + PNG и освобождает промежуточные."""
         from retouch.processing.pipeline import process_export, PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        result = process_export(input_path, output_tiff,
+        result = process_export(input_path, output_bmp,
                                  machine_type="laser_standard", config=DEFAULTS)
 
         assert isinstance(result, PipelineResult)
-        assert os.path.isfile(output_tiff), "TIFF не создан"
+        assert os.path.isfile(output_bmp), "BMP не создан"
         assert result.img_final is not None
         assert result.img_chromakey is None  # Освобождено
 
@@ -261,20 +268,20 @@ class TestPipelineStepsAPI:
         # Glow at midpoint: (40 + 80) // 2 = 60
         assert result.glow_size == 60
 
-    def test_process_export_creates_png_alongside_tiff(self, tmp_path):
-        """process_export() creates both TIFF and PNG files."""
+    def test_process_export_creates_bmp_and_png(self, tmp_path):
+        """process_export() creates both BMP and PNG files."""
         from retouch.processing.pipeline import process_export
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
         output_png = str(tmp_path / "output.png")
 
-        result = process_export(input_path, output_tiff,
+        result = process_export(input_path, output_bmp,
                                  machine_type="laser_standard", config=DEFAULTS)
 
-        assert os.path.isfile(output_tiff), "TIFF not created"
+        assert os.path.isfile(output_bmp), "BMP not created"
         assert os.path.isfile(output_png), "PNG not created"
-        assert os.path.getsize(output_tiff) > 0
+        assert os.path.getsize(output_bmp) > 0
         assert os.path.getsize(output_png) > 0
         # Intermediates released
         assert result.img_chromakey is None
@@ -285,10 +292,10 @@ class TestPipelineStepsAPI:
         from retouch.processing.pipeline import process
 
         input_path = self._save_chromakey_png(tmp_path)
-        output_tiff = str(tmp_path / "output.tiff")
+        output_bmp = str(tmp_path / "output.bmp")
 
-        result = process(input_path, output_tiff, machine_type="laser_standard", config=DEFAULTS)
-        assert os.path.isfile(output_tiff)
+        result = process(input_path, output_bmp, machine_type="laser_standard", config=DEFAULTS)
+        assert os.path.isfile(output_bmp)
         assert result.img_final is not None
 
     def test_process_steps_result_has_diagnostics(self, tmp_path):

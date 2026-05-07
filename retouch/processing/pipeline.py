@@ -17,7 +17,8 @@ from retouch.validation.image import (
 from retouch.processing.chromakey import remove_blue_background
 from retouch.processing.analysis import analyze_input
 from retouch.processing.glow import apply_inner_glow
-from retouch.processing.levels import apply_levels, apply_unsharp_mask, check_face_brightness
+from retouch.processing.levels import apply_levels, apply_unsharp_mask, check_face_brightness, add_shadow_noise
+from retouch.processing.export import export_result
 from retouch.processing.vignette import apply_vignette
 
 try:
@@ -152,12 +153,23 @@ def process_steps(
         face_target = [t_min, t_max]
     face_region_top = machine_cfg.get("face_region_top", 0.45)
     highlight_start = machine_cfg.get("highlight_start", 200)
+    white_ceiling = machine_cfg.get("white_ceiling", None)
     img_face_corrected, face_before, face_after, correction_factor = check_face_brightness(
         img_leveled, face_target, subject_mask,
         glow_size=glow_size,
         face_region_top=face_region_top,
         highlight_start=highlight_start,
+        white_ceiling=white_ceiling,
     )
+
+    # 5a. Shadow noise for impact (prevents needle stagnation on pure black)
+    shadow_noise_min = machine_cfg.get("shadow_noise_min", 0)
+    shadow_noise_max = machine_cfg.get("shadow_noise_max", 0)
+    if shadow_noise_max > 0 and machine_type == "impact":
+        img_face_corrected = add_shadow_noise(
+            img_face_corrected, subject_mask,
+            noise_min=shadow_noise_min, noise_max=shadow_noise_max,
+        )
 
     # 6. Vignette
     vign_cfg = config.get("vignette", {})
@@ -272,12 +284,22 @@ def process_export(
     output_path: str,
     machine_type: str = "laser_standard",
     config: dict | None = None,
+    fmt: str = "bmp",
     **kwargs,
 ) -> PipelineResult:
-    """Полная обработка + сохранение TIFF/PNG (текущее поведение CLI).
+    """Полная обработка + сохранение BMP/PNG.
 
     Вызывает process_steps(), затем сохраняет результат.
+    По умолчанию сохраняет BMP (8-bit grayscale для laser_standard/impact,
+    1-bit dithered для laser_80w) + PNG для предпросмотра.
     Промежуточные изображения освобождаются для экономии памяти.
+
+    Args:
+        input_path: путь к входному изображению
+        output_path: путь к выходному файлу
+        machine_type: тип станка
+        config: конфигурация (None = загрузить из config.yaml)
+        fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
     """
     result = process_steps(
         input_path=input_path,
@@ -286,13 +308,13 @@ def process_export(
         **kwargs,
     )
 
-    # Сохранение TIFF + PNG
-    tiff_path = output_path
-    png_path = str(Path(output_path).with_suffix(".png"))  # Безопасная замена расширения
-    result.img_final.save(tiff_path, format="TIFF", compression="lzw")
-    result.img_final.save(png_path, format="PNG")
+    # Сохранение BMP + PNG через export_result
+    actual_path = export_result(
+        result.img_final, output_path,
+        machine_type=machine_type, fmt=fmt,
+    )
 
-    logger.info("Сохранено: %s, %s", tiff_path, png_path)
+    logger.info("Сохранено: %s (machine=%s, fmt=%s)", actual_path, machine_type, fmt)
 
     # Освобождаем промежуточные для экономии RAM
     result.release_intermediates()
@@ -301,13 +323,14 @@ def process_export(
 
 def process(input_path, output_path, machine_type="laser_standard",
             glow_size_override=None, glow_opacity_override=None,
-            config=None):
+            config=None, fmt="bmp"):
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,
         output_path=output_path,
         machine_type=machine_type,
         config=config,
+        fmt=fmt,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
     )

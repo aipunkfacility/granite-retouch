@@ -54,6 +54,16 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         corrected = np.clip(corrected, 0, 255)
         result_arr = np.where(mask_bool, corrected, arr)
         return Image.fromarray(result_arr.astype(np.uint8), "L")
+    elif subject_mask is not None and not HAS_NUMPY:
+        # Pillow fallback БЕЗ numpy — коррекция глобальная, но маска не применяется.
+        # ВАЖНО: ограничиваем фактор, чтобы не засветить фон.
+        logger.warning(
+            "apply_levels: subject_mask передана, но numpy недоступен — "
+            "коррекция применяется глобально (фон может загрязниться). "
+            "Установите numpy: pip install numpy"
+        )
+        enhancer = ImageEnhance.Brightness(img_gray)
+        return enhancer.enhance(factor)
     else:
         # Без маски — глобальная коррекция (старое поведение)
         enhancer = ImageEnhance.Brightness(img_gray)
@@ -63,6 +73,16 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
 def _adaptive_levels_factor(analytics: dict, machine_type: str | None) -> float:
     """P2: Рассчитать адаптивный фактор яркости на основе аналитики.
 
+    ВАЖНО: target_pre_fb рассчитывается как "предварительная» яркость ПЕРЕД
+    Face Brightness Correction. Поскольку check_face_brightness() уже поднимает
+    яркость до целевого диапазона (230–245 / 190–210 / 200–225), Levels НЕ должен
+    дублировать это осветление. Поэтому target_pre_fb устанавливается НИЖЕ
+    целевого диапазона лица — Levels лишь "подтягивает» средние тона,
+    а финальную настройку лица делает check_face_brightness().
+
+    До этого бага: target_pre_fb=165 + face_target=150-170 давали
+    двойное осветление (Levels ×1.35 × Face ×1.20 = ×1.62 вместо ×1.20).
+
     Args:
         analytics: dict с метриками от analyze_input()
         machine_type: тип станка
@@ -70,19 +90,28 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None) -> float:
     Returns:
         float: множитель яркости
     """
+    # target_pre_fb — целевая МЕДИАНА grayscale ПОСЛЕ Levels, ПЕРЕД Face Brightness.
+    # Должна быть ниже face_target_min, т.к. check_face_brightness() дочерняет.
     target_pre_fb = {
-        'laser_standard': 165,
-        'laser_80w': 150,
-        'impact': 135,
-    }.get(machine_type, 155)
+        'laser_standard': 180,   # face_target 230-245 — Levels поднимает до 180, FB дочерняет
+        'laser_80w': 150,        # face_target 190-210 — Levels поднимает до 150, FB дочерняет
+        'impact': 160,           # face_target 200-225 — Levels поднимает до 160, FB дочерняет
+    }.get(machine_type, 160)
 
     median = analytics['median_brightness']
     factor = target_pre_fb / max(median, 1)
-    factor = max(0.70, min(1.35, factor))
+    # Ограничиваем фактор: не более 1.15, чтобы избежать двойного осветления
+    # (check_face_brightness добавит ещё до 1.20)
+    factor = max(0.70, min(1.15, factor))
 
-    # Защита от клиппинга
-    if analytics['p90_brightness'] * factor > 250:
-        safe_factor = 248 / max(analytics['p90_brightness'], 1)
+    # Защита от клиппинга: не выталкиваем p90 за white_ceiling
+    white_ceiling = {
+        'laser_standard': 250,
+        'laser_80w': 235,
+        'impact': 240,
+    }.get(machine_type, 248)
+    if analytics['p90_brightness'] * factor > white_ceiling:
+        safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)
         factor = min(factor, safe_factor)
 
     logger.info(
@@ -240,8 +269,57 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
     return np.clip(result, 0, 255)
 
 
+def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15):
+    """Добавить лёгкий шум в чёрные области (вне маски субъекта).
+
+    Для ударной гравировки: чисто чёрные области (значение 0) вызывают
+    «застой» иглы — она не бьёт, и на камне остаются необработанные зоны.
+    Добавление шума (5–15) гарантирует, что игла будет работать по всей
+    поверхности, создавая однородную текстуру фона.
+
+    Args:
+        img_gray: PIL.Image в режиме L (grayscale)
+        subject_mask: PIL.Image в режиме L (маска субъекта)
+        noise_min: минимальное значение шума (по умолчанию 5)
+        noise_max: максимальное значение шума (по умолчанию 15)
+
+    Returns:
+        PIL.Image: изображение с шумом в чёрных областях
+    """
+    if not HAS_NUMPY:
+        logger.warning("add_shadow_noise: numpy недоступен — шум не добавлен")
+        return img_gray
+
+    arr = np.array(img_gray, dtype=np.float32)
+    mask_bool = np.array(subject_mask) > 128
+
+    # Области вне маски субъекта (чёрный фон)
+    bg_mask = ~mask_bool
+
+    # Добавляем шум только в действительно чёрные пиксели фона (значение < 5)
+    black_bg = bg_mask & (arr < 5)
+
+    if black_bg.sum() == 0:
+        return img_gray
+
+    # Генерируем шум в диапазоне [noise_min, noise_max]
+    rng = np.random.default_rng(42)  # Фиксированный seed для воспроизводимости
+    noise = rng.integers(noise_min, noise_max + 1, size=arr.shape).astype(np.float32)
+
+    # Применяем шум только к чёрным пикселям фона
+    arr = np.where(black_bg, noise, arr)
+    arr = np.clip(arr, 0, 255)
+
+    logger.info(
+        "Shadow noise: added %d-%d to %d black bg pixels",
+        noise_min, noise_max, black_bg.sum(),
+    )
+    return Image.fromarray(arr.astype(np.uint8), "L")
+
+
 def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
-                          face_region_top=0.45, highlight_start=160):
+                          face_region_top=0.45, highlight_start=160,
+                          white_ceiling=None):
     """Проверить и скорректировать яркость лица для ЧПУ.
 
     Использует НЕлинейную (curves) коррекцию:
@@ -249,6 +327,8 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     - Светлые области (воротник) почти не трогаются
     - Коррекция применяется ТОЛЬКО внутри маски субъекта
     - Пиксели уже выше target_max не осветляются дальше (защита от засвета)
+    - white_ceiling: жёсткий потолок яркости (240 для impact, 235 для laser_80w,
+      250 для laser_standard). Значения выше ceiling обрезаются.
 
     Важное: перед осветлением проверяется РАСПРЕДЕЛЕНИЕ яркости лица.
     Если p75 уже >= target_max — осветление НЕ применяется, даже если
@@ -268,6 +348,8 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             0.45 = верхние 45% картинки (голова без плеч).
         highlight_start: значение (0-255), выше которого коррекция затухает.
             Вынесено из хардкода 200 в параметр конфига.
+        white_ceiling: int (0-255) — жёсткий потолок яркости. Если None,
+            используется target_max (обратно совместимое поведение).
 
     Returns:
         tuple: (img, before, after, factor) — скорректированное изображение,
@@ -376,30 +458,31 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             # Нелинейная коррекция: тени поднимаются, света нет.
             # ВАЖНО: передаём маску субъекта — коррекция только внутри неё,
             # и target_ceiling — пиксели уже выше target_max не осветляются.
+            effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
+                float(target_max) if correction > 1.0 else None
+            )
             result_arr = _curves_correction(
                 arr, correction,
                 highlight_start=highlight_start,
                 mask=full_subject_mask,
-                target_ceiling=float(target_max) if correction > 1.0 else None,
+                target_ceiling=effective_ceiling,
             )
+            # Жёсткий потолок white_ceiling: обрезаем все значения выше ceiling
+            # внутри маски субъекта. Вне маски — не трогаем (чёрный фон = 0).
+            if white_ceiling is not None:
+                ceiling_mask = full_subject_mask & (result_arr > white_ceiling)
+                result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
             result = Image.fromarray(result_arr.astype(np.uint8), "L")
         else:
             # Pillow fallback — простая линейная коррекция
+            # ВАЖНО: Pillow не поддерживает mask-aware enhance, поэтому
+            # применяем глобально и WARN-им пользователя. Это известный баг.
+            logger.warning(
+                "check_face_brightness: numpy недоступен — коррекция применяется "
+                "глобально (фон может загрязниться). Установите numpy: pip install numpy"
+            )
             enhancer = ImageEnhance.Brightness(img_gray)
             result = enhancer.enhance(correction)
-            # P6.4: ограничить коррекцию внутри маски субъекта.
-            # Pillow не умеет mask-aware enhance, поэтому применяем
-            # маску постфактум через numpy: вне маски — оригинал.
-            if HAS_NUMPY:
-                orig_arr = np.array(img_gray, dtype=np.float32)
-                result_arr = np.array(result, dtype=np.float32)
-                result_arr = np.where(full_subject_mask, result_arr, orig_arr)
-                result = Image.fromarray(result_arr.astype(np.uint8), "L")
-            else:
-                logger.warning(
-                    "Pillow-fallback: subject_mask передана, но numpy недоступен — "
-                    "фон может загрязниться. Установите numpy: pip install numpy"
-                )
 
         # Проверяем результат на маске лица (МЕДИАНА, не среднее!)
         if HAS_NUMPY:

@@ -27,7 +27,7 @@ class ExportRequest(BaseModel):
     file_id: str = Field(..., description="UUID загруженного файла")
     machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$")
     params: Optional[dict] = Field(None, description="Параметры обработки (override config.yaml)")
-    format: str = Field("tiff", pattern="^(tiff|png)$", description="Формат экспорта")
+    format: str = Field("bmp", pattern="^(bmp|bmp_1bit|bmp_8bit|png|tiff)$", description="Формат экспорта")
 
 
 class ConfigUpdateRequest(BaseModel):

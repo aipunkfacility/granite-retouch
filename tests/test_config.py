@@ -172,7 +172,7 @@ class TestLoadConfig:
         config["processing"]["laser_standard"]["brightness"] = 999
 
         # DEFAULTS не должен мутировать
-        assert DEFAULTS["processing"]["laser_standard"]["brightness"] == 1.18
+        assert DEFAULTS["processing"]["laser_standard"]["brightness"] == 1.0
 
 
 class TestFindConfigPath:
@@ -318,16 +318,16 @@ class TestConfigMachineTypes:
         assert "laser_80w" in DEFAULTS["processing"]
 
     def test_laser_80w_face_target(self):
-        """Laser 80W target = 135-160."""
+        """Laser 80W target = 190-210 (expert values from knowledge/machines/)."""
         cfg = DEFAULTS["processing"]["laser_80w"]
-        assert cfg["face_brightness_target_min"] == 135
-        assert cfg["face_brightness_target_max"] == 160
+        assert cfg["face_brightness_target_min"] == 190
+        assert cfg["face_brightness_target_max"] == 210
 
     def test_impact_face_target(self):
-        """Impact target = 120-145."""
+        """Impact target = 200-225 (expert values from knowledge/machines/)."""
         cfg = DEFAULTS["processing"]["impact"]
-        assert cfg["face_brightness_target_min"] == 120
-        assert cfg["face_brightness_target_max"] == 145
+        assert cfg["face_brightness_target_min"] == 200
+        assert cfg["face_brightness_target_max"] == 225
 
     def test_laser_standard_renamed(self):
         """Старый ключ 'laser' заменён на 'laser_standard'."""

@@ -22,6 +22,7 @@ from retouch.processing.pipeline import (
     PipelineResult,
 )
 from retouch.processing.vignette import generate_arch_mask
+from retouch.processing.export import export_result
 
 from ..schemas import (
     UploadResponse,
@@ -215,7 +216,7 @@ async def export_image(
     request: ExportRequest,
     background_tasks: BackgroundTasks,
 ):
-    """Экспорт обработанного изображения в полном разрешении (TIFF/PNG)."""
+    """Экспорт обработанного изображения в полном разрешении (BMP/PNG/TIFF)."""
 
     # Найти загруженный файл
     entry = _uploaded_files.get(request.file_id)
@@ -230,13 +231,9 @@ async def export_image(
         from retouch.config import deep_merge
         full_config = deep_merge(full_config, request.params)
 
-    # CPU-bound: запуск в отдельном потоке
-    # Используем process_steps() вместо process_export(), т.к. нам нужен
-    # контроль формата и мы не хотим сохранять оба формата (TIFF+PNG).
-    fmt = request.format  # "tiff" или "png"
-    suffix = ".tiff" if fmt == "tiff" else ".png"
-    media_type = "image/tiff" if fmt == "tiff" else "image/png"
+    fmt = request.format  # "bmp", "bmp_1bit", "bmp_8bit", "png", "tiff"
 
+    # CPU-bound: запуск в отдельном потоке
     try:
         result: PipelineResult = await asyncio.wait_for(
             asyncio.to_thread(
@@ -258,12 +255,33 @@ async def export_image(
         raise HTTPException(500, f"Ошибка обработки: {exc}")
 
     # Сохранить результат во временный файл для отдачи
+    # Определяем расширение и media type по формату
+    ext_map = {
+        "bmp": ".bmp", "bmp_8bit": ".bmp", "bmp_1bit": ".bmp",
+        "png": ".png", "tiff": ".tiff",
+    }
+    media_map = {
+        "bmp": "image/bmp", "bmp_8bit": "image/bmp", "bmp_1bit": "image/bmp",
+        "png": "image/png", "tiff": "image/tiff",
+    }
+    suffix = ext_map.get(fmt, ".bmp")
+    media_type = media_map.get(fmt, "image/bmp")
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp_name = tmp.name
     tmp.close()
 
     try:
-        if fmt == "tiff":
+        if fmt in ("bmp", "bmp_1bit", "bmp_8bit"):
+            actual_path = export_result(
+                result.img_final, tmp_name,
+                machine_type=request.machine, fmt=fmt,
+            )
+            # export_result может вернуть другой путь (с другим расширением)
+            # Если путь не совпадает — читаем из actual_path
+            if actual_path != tmp_name and Path(actual_path).exists():
+                tmp_name = actual_path
+        elif fmt == "tiff":
             result.img_final.save(tmp_name, format="TIFF", compression="lzw")
         else:
             result.img_final.save(tmp_name, format="PNG")
@@ -277,10 +295,11 @@ async def export_image(
     # Освободить память PipelineResult
     result.release_intermediates()
 
+    filename = f"result{suffix}"
     return FileResponse(
         tmp_name,
         media_type=media_type,
-        filename=f"result{suffix}",
+        filename=filename,
         background=background_tasks,
     )
 
