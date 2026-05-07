@@ -1,6 +1,6 @@
 """FastAPI-бэкенд granite-retouch Web UI.
 
-Запуск: uvicorn retouch_ui.backend.main:app --host 127.0.0.1 --port 8001 --reload
+Запуск: uvicorn retouch_ui.backend.main:app --host 127.0.0.1 --port 8000 --reload
 """
 
 from __future__ import annotations
