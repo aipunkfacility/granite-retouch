@@ -1,6 +1,9 @@
 processing:
   blue_threshold: 30
   fringe_radius: 3
+  # A.3: legacy_step_order — true = старый порядок (unsharp до face_brightness)
+  # Для rollback без redeploy. По умолчанию false (новый порядок).
+  legacy_step_order: false
   impact:
     brightness: 1.0
     face_brightness_target_min: 200
@@ -11,9 +14,12 @@ processing:
     glow_opacity_min: 60
     glow_size_max: 25
     glow_size_min: 10
+    glow_style: outer  # A.5: inner | outer
     highlight_start: 160
     shadow_noise_min: 5
     shadow_noise_max: 15
+    shadow_noise_threshold: 30  # A.1: порог яркости для shadow noise
+    shadow_floor: 8  # A.2: минимальная яркость для impact (предотвращает застой иглы)
   laser_80w:
     brightness: 1.0
     face_brightness_target_min: 190
@@ -24,6 +30,7 @@ processing:
     glow_opacity_min: 10
     glow_size_max: 25
     glow_size_min: 15
+    glow_style: outer
     highlight_start: 160
   laser_standard:
     brightness: 1.0
@@ -35,10 +42,16 @@ processing:
     glow_opacity_min: 30
     glow_size_max: 80
     glow_size_min: 40
+    glow_style: outer
     highlight_start: 200
   min_blue_ratio: 0.15
   min_resolution: 512
   result_min_black_ratio: 0.25
+machine:
+  step_mm: 0.300  # B.2: шаг ЧПУ для расчёта BMP resolution
+stone:
+  type: granite  # B.2: granite | marble | gabbro | basalt
+  # heterogeneity: null  # null = auto по stone_type
 vignette:
   blur_radius: 60
   headroom: 0.6

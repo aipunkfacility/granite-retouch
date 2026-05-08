@@ -1,7 +1,13 @@
-"""Inner Glow (Contour Light) — контурное свечение."""
+"""Glow (Contour Light) — контурное свечение: inner и outer."""
 
 import random
 from PIL import Image, ImageFilter, ImageOps, ImageChops
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 
 
 def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
@@ -36,13 +42,104 @@ def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
         return (random.randint(50, 80), random.randint(35, 45))
 
 
+def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
+    """Применить Outer Glow — свечение наружу от контура субъекта.
+
+    Это алгоритм, который ранее назывался «inner glow», но фактически
+    создавал свечение наружу (инвертированная маска → blur → multiply
+    с оригинальной маской = свечение по краю).
+
+    Args:
+        img_gray: PIL.Image в режиме L (grayscale)
+        subject_mask: PIL.Image в режиме L (маска субъекта, 255=субъект)
+        glow_size: размер glow в пикселях
+        glow_opacity: непрозрачность (0.0–1.0)
+
+    Returns:
+        PIL.Image: grayscale с Outer Glow
+    """
+    width, height = img_gray.size
+
+    # Классический outer glow: инвертированная маска → blur → multiply
+    inv_mask = ImageOps.invert(subject_mask)
+    glow_mask = inv_mask.filter(ImageFilter.GaussianBlur(radius=glow_size))
+    glow_mask = ImageChops.multiply(glow_mask, subject_mask)
+    glow_mask = glow_mask.point(lambda p: p * glow_opacity)
+
+    # Composite white glow onto grayscale
+    img_with_glow = Image.composite(
+        Image.new('L', (width, height), 255), img_gray, glow_mask
+    )
+
+    return img_with_glow
+
+
+def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
+                               glow_opacity=0.80, glow_color=255):
+    """Применить настоящий Inner Glow — свечение внутрь от контура субъекта.
+
+    Алгоритм: shrink mask → edge = mask & ~shrunk → blur edge → composite.
+    Свечение появляется ВНУТРИ контура субъекта, затухая к центру.
+
+    Args:
+        img_gray: PIL.Image в режиме L (grayscale)
+        subject_mask: PIL.Image в режиме L (маска субъекта, 255=субъект)
+        glow_size: размер glow в пикселях
+        glow_opacity: непрозрачность (0.0–1.0)
+        glow_color: цвет свечения (0–255, по умолчанию белый)
+
+    Returns:
+        PIL.Image: grayscale с Inner Glow
+    """
+    if not HAS_NUMPY:
+        # Pillow fallback — упрощённая версия
+        blurred_mask = subject_mask.filter(
+            ImageFilter.GaussianBlur(radius=glow_size)
+        )
+        # Композит: яркое свечение через размытую маску
+        glow_layer = Image.new('L', img_gray.size, glow_color)
+        result = Image.composite(glow_layer, img_gray, blurred_mask)
+        if glow_opacity < 1.0:
+            result = Image.blend(img_gray, result, glow_opacity)
+        return result
+
+    from scipy.ndimage import binary_erosion
+
+    mask_arr = np.array(subject_mask) > 128
+
+    # Сжимаем маску — внутренний край = разница
+    iterations = max(1, glow_size // 2)
+    shrunk = binary_erosion(mask_arr, iterations=iterations)
+
+    # Edge = внутренний край (контур внутри маски)
+    edge = mask_arr & ~shrunk
+
+    # Размываем край для плавного затухания к центру
+    edge_img = Image.fromarray((edge.astype(np.uint8) * 255), "L")
+    edge_blurred = edge_img.filter(ImageFilter.GaussianBlur(glow_size // 2))
+
+    # Composite: белый через размытый край поверх оригинала
+    glow_layer = Image.new("L", img_gray.size, glow_color)
+    result = Image.composite(glow_layer, img_gray, edge_blurred)
+
+    if glow_opacity < 1.0:
+        result = Image.blend(img_gray, result, glow_opacity)
+
+    return result
+
+
 def apply_inner_glow(img_gray, subject_mask, machine_cfg,
                      glow_size_override=None, glow_opacity_override=None,
-                     analytics=None, machine_type=None):
-    """Применить Inner Glow к grayscale-изображению.
+                     analytics=None, machine_type=None,
+                     glow_style=None):
+    """Применить Glow к grayscale-изображению.
 
-    Создаёт контурное свечение внутри маски субъекта.
-    Параметры зависят от типа станка (laser: широкий/мягкий, impact: узкий/яркий).
+    Поддерживает два стиля:
+    - 'outer': свечение наружу (старое поведение, до рефакторинга A.5)
+    - 'inner': свечение внутрь (настоящий inner glow, A.5)
+
+    По умолчанию используется стиль из machine_cfg['glow_style'] или 'outer'
+    (обратная совместимость).
 
     Args:
         img_gray: PIL.Image в режиме L (grayscale)
@@ -53,13 +150,15 @@ def apply_inner_glow(img_gray, subject_mask, machine_cfg,
         analytics: dict от analyze_input() — если передан вместе с
             machine_type, параметры glow рассчитываются адаптивно (P3).
         machine_type: str — тип станка. Используется только вместе с analytics.
+        glow_style: 'inner' | 'outer' | None (из конфига)
 
     Returns:
-        PIL.Image: grayscale с Inner Glow
+        PIL.Image: grayscale с Glow
         int: glow_size (px)
         float: glow_opacity (0.0–1.0)
     """
-    width, height = img_gray.size
+    # Определяем стиль glow
+    style = glow_style or machine_cfg.get("glow_style", "outer")
 
     # Определяем параметры glow
     if (analytics is not None and machine_type is not None
@@ -80,15 +179,19 @@ def apply_inner_glow(img_gray, subject_mask, machine_cfg,
             ) / 100
         )
 
-    # Create glow mask
-    inv_mask = ImageOps.invert(subject_mask)
-    glow_mask = inv_mask.filter(ImageFilter.GaussianBlur(radius=glow_size))
-    glow_mask = ImageChops.multiply(glow_mask, subject_mask)
-    glow_mask = glow_mask.point(lambda p: p * glow_opacity)
+    # Применяем выбранный стиль
+    if style == "inner":
+        result = apply_inner_glow_algorithm(
+            img_gray, subject_mask,
+            glow_size=glow_size,
+            glow_opacity=glow_opacity,
+        )
+    else:
+        # 'outer' — старое поведение (обратная совместимость)
+        result = apply_outer_glow(
+            img_gray, subject_mask,
+            glow_size=glow_size,
+            glow_opacity=glow_opacity,
+        )
 
-    # Composite glow onto grayscale
-    img_with_glow = Image.composite(
-        Image.new('L', (width, height), 255), img_gray, glow_mask
-    )
-
-    return img_with_glow, glow_size, glow_opacity
+    return result, glow_size, glow_opacity

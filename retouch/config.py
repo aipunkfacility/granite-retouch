@@ -19,6 +19,14 @@ except ImportError:
 # Все допустимые значения machine_type
 MACHINE_TYPES = ("laser_standard", "laser_80w", "impact")
 
+# Профили камней (B.2: stone_type → heterogeneity)
+STONE_PROFILES = {
+    "granite": {"heterogeneity": 2.0},
+    "gabbro": {"heterogeneity": 1.0},
+    "basalt": {"heterogeneity": 1.5},
+    "marble": {"heterogeneity": 3.0},
+}
+
 DEFAULTS = {
     "processing": {
         "blue_threshold": 30,
@@ -26,9 +34,11 @@ DEFAULTS = {
         "min_resolution": 512,
         "result_min_black_ratio": 0.25,
         "fringe_radius": 3,
+        "legacy_step_order": False,  # A.3: rollback для нового порядка шагов
         "laser_standard": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
+            "glow_style": "outer",  # A.5: inner | outer
             "brightness": 1.0,
             "face_brightness_target_min": 230,
             "face_brightness_target_max": 245,
@@ -39,6 +49,7 @@ DEFAULTS = {
         "laser_80w": {
             "glow_size_min": 15, "glow_size_max": 25,
             "glow_opacity_min": 10, "glow_opacity_max": 20,
+            "glow_style": "outer",
             "brightness": 1.0,
             "face_brightness_target_min": 190,
             "face_brightness_target_max": 210,
@@ -49,6 +60,7 @@ DEFAULTS = {
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
+            "glow_style": "outer",
             "brightness": 1.0,
             "face_brightness_target_min": 200,
             "face_brightness_target_max": 225,
@@ -57,7 +69,16 @@ DEFAULTS = {
             "highlight_start": 160,
             "shadow_noise_min": 5,
             "shadow_noise_max": 15,
+            "shadow_noise_threshold": 30,  # A.1: порог для shadow noise
+            "shadow_floor": 8,  # A.2: минимальная яркость для impact
         },
+    },
+    "machine": {
+        "step_mm": 0.300,  # B.2: шаг ЧПУ для расчёта BMP resolution
+    },
+    "stone": {
+        "type": "granite",  # B.2: тип камня
+        "heterogeneity": None,  # None = auto по stone_type → STONE_PROFILES
     },
     "vignette": {
         "vertical_offset": 0.10,
@@ -69,6 +90,37 @@ DEFAULTS = {
 }
 
 
+def resolve_config(processing_params: dict | None = None,
+                   order_params: dict | None = None,
+                   config_params: dict | None = None) -> dict:
+    """B.2: Трёхуровневое разрешение параметров.
+
+    Приоритет (от высшего к низшему):
+      1. processing_params — UI / сессия (высший)
+      2. order_params — order.json (средний)
+      3. config_params — config.yaml (низший)
+
+    Args:
+        processing_params: параметры из UI/сессии
+        order_params: параметры из order.json
+        config_params: параметры из config.yaml (уже загруженный конфиг)
+
+    Returns:
+        dict: итоговый конфиг с переопределёнными значениями
+    """
+    base = copy.deepcopy(config_params or DEFAULTS)
+
+    # Сливаем order.json поверх config.yaml
+    if order_params:
+        base = deep_merge(base, order_params)
+
+    # Сливаем UI-параметры поверх всего
+    if processing_params:
+        base = deep_merge(base, processing_params)
+
+    return base
+
+
 # --- Pydantic модели (optional) ---
 
 if HAS_PYDANTIC:
@@ -77,6 +129,7 @@ if HAS_PYDANTIC:
         glow_size_max: int = Field(80, ge=5, le=100)
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
+        glow_style: str = Field("outer", pattern="^(inner|outer)$")
         brightness: float = Field(1.0, ge=0.5, le=1.5)
         face_brightness_target_min: int = Field(230, ge=80, le=255)
         face_brightness_target_max: int = Field(245, ge=80, le=255)
@@ -85,6 +138,8 @@ if HAS_PYDANTIC:
         highlight_start: int = Field(200, ge=80, le=250)
         shadow_noise_min: int = Field(0, ge=0, le=50)
         shadow_noise_max: int = Field(15, ge=0, le=50)
+        shadow_noise_threshold: int = Field(30, ge=5, le=80)
+        shadow_floor: int = Field(0, ge=0, le=30)
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -92,18 +147,30 @@ if HAS_PYDANTIC:
         blue_threshold: int = Field(30, ge=10, le=80)
         min_blue_ratio: float = Field(0.15, ge=0.0, le=1.0)
         fringe_radius: int = Field(3, ge=0, le=10)
+        legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            brightness=1.0, face_brightness_target_min=230, face_brightness_target_max=245,
+            glow_style="outer", brightness=1.0,
+            face_brightness_target_min=230, face_brightness_target_max=245,
             white_ceiling=250, highlight_start=200))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            brightness=1.0, face_brightness_target_min=190, face_brightness_target_max=210,
+            glow_style="outer", brightness=1.0,
+            face_brightness_target_min=190, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=160))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            brightness=1.0, face_brightness_target_min=200, face_brightness_target_max=225,
-            white_ceiling=240, highlight_start=160, shadow_noise_min=5, shadow_noise_max=15))
+            glow_style="outer", brightness=1.0,
+            face_brightness_target_min=200, face_brightness_target_max=225,
+            white_ceiling=240, highlight_start=160,
+            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8))
+
+    class MachineGlobalConfig(BaseModel):
+        step_mm: float = Field(0.300, ge=0.10, le=0.50)
+
+    class StoneConfig(BaseModel):
+        type: str = Field("granite", pattern="^(granite|marble|gabbro|basalt)$")
+        heterogeneity: float | None = Field(None, ge=0.0, le=10.0)
 
     class VignetteConfig(BaseModel):
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
@@ -114,6 +181,8 @@ if HAS_PYDANTIC:
 
     class RetouchConfig(BaseModel):
         processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
+        machine: MachineGlobalConfig = Field(default_factory=MachineGlobalConfig)
+        stone: StoneConfig = Field(default_factory=StoneConfig)
         vignette: VignetteConfig = Field(default_factory=VignetteConfig)
         model_config = {"extra": "allow"}
 

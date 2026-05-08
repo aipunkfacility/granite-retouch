@@ -55,6 +55,56 @@ def make_chromakey_image(width=512, height=512,
     return img, subject_mask
 
 
+def make_portrait_image(width=512, height=512):
+    """Создать синтетический «портрет» — эллипс-голова + плечи.
+
+    Имитирует структуру реального портрета:
+    - Голова (верхний эллипс) — лицо
+    - Плечи (нижний широкий эллипс) — одежда
+    - Синий фон
+
+    Returns:
+        tuple: (PIL.Image RGBA, subject_mask L)
+    """
+    arr = np.zeros((height, width, 4), dtype=np.uint8)
+    mask = np.zeros((height, width), dtype=np.uint8)
+
+    # Синий фон
+    arr[..., 2] = 255
+    arr[..., 3] = 255
+
+    y_coords, x_coords = np.ogrid[:height, :width]
+
+    # Голова — верхний эллипс
+    cx, cy_head = width // 2, int(height * 0.30)
+    rx_head, ry_head = int(width * 0.18), int(height * 0.15)
+    head = ((x_coords - cx) / rx_head) ** 2 + ((y_coords - cy_head) / ry_head) ** 2 <= 1.0
+
+    # Плечи — нижний широкий эллипс
+    cy_shoulders = int(height * 0.65)
+    rx_shoulders, ry_shoulders = int(width * 0.35), int(height * 0.25)
+    shoulders = ((x_coords - cx) / rx_shoulders) ** 2 + ((y_coords - cy_shoulders) / ry_shoulders) ** 2 <= 1.0
+
+    # Соединяем голову и плечи (шея)
+    neck_width = int(width * 0.08)
+    neck_top = cy_head + ry_head
+    neck_bottom = cy_shoulders - ry_shoulders // 2
+    neck = ((x_coords >= cx - neck_width) & (x_coords <= cx + neck_width) &
+            (y_coords >= neck_top) & (y_coords <= neck_bottom))
+
+    # Субъект = голова + шея + плечи
+    subject = head | neck | shoulders
+    arr[subject, 0] = 180
+    arr[subject, 1] = 140
+    arr[subject, 2] = 120
+    arr[subject, 3] = 255
+    mask[subject] = 255
+
+    img = Image.fromarray(arr, "RGBA")
+    subject_mask = Image.fromarray(mask, "L")
+    return img, subject_mask
+
+
 def make_no_chromakey_image(width=512, height=512):
     """Изображение БЕЗ синего хромакея — для негативных тестов."""
     arr = np.full((height, width, 4), [120, 100, 80, 255], dtype=np.uint8)
@@ -86,10 +136,6 @@ def make_dark_blue_clothing_image(width=512, height=512):
     arr[:height // 3, :, 2] = 120
 
     # Тёмно-синяя одежда — нижняя треть
-    # B=80, R=30, G=40 — НЕ хромакей (B - R = 50, но B не > R + 80)
-    # С threshold=30: B(80) > R(30)+30=60 → да, B(80) > G(40)+30=70 → да
-    # Это граничный случай — с threshold=30 тёмно-синяя одежда МОЖЕТ попасть в маску
-    # Но с threshold=60 — уже нет
     arr[2 * height // 3:, :, 0] = 30
     arr[2 * height // 3:, :, 1] = 40
     arr[2 * height // 3:, :, 2] = 80
@@ -106,6 +152,12 @@ def chromakey_img():
     """Синтетическое изображение с синим хромакеем."""
     img, mask = make_chromakey_image()
     return img, mask
+
+
+@pytest.fixture
+def portrait_img():
+    """Синтетический «портрет» — голова + плечи."""
+    return make_portrait_image()
 
 
 @pytest.fixture
@@ -139,6 +191,15 @@ def chromakey_png(tmp_path, chromakey_img):
     """Сохранить chromakey-изображение как PNG и вернуть путь."""
     img, _ = chromakey_img
     p = tmp_path / "test_input.png"
+    img.save(str(p), "PNG")
+    return str(p)
+
+
+@pytest.fixture
+def portrait_png(tmp_path, portrait_img):
+    """Сохранить портрет как PNG и вернуть путь."""
+    img, _ = portrait_img
+    p = tmp_path / "portrait_input.png"
     img.save(str(p), "PNG")
     return str(p)
 
@@ -228,3 +289,49 @@ def order_with_crm(tmp_path, schema_path):
     with open(p, "w", encoding="utf-8") as f:
         json.dump(order, f, indent=2, ensure_ascii=False)
     return str(p)
+
+
+# ---------------------------------------------------------------------------
+# Новые фикстуры (C.4)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def sample_face_oval():
+    """Типичный овал лица для тестов."""
+    return {"cx": 0.5, "cy": 0.25, "rx": 0.15, "ry": 0.20, "source": "auto"}
+
+
+@pytest.fixture
+def img_gray_512():
+    """Grayscale-изображение 512x512 с эллипсом-субъектом."""
+    arr = np.full((512, 512), 40, dtype=np.uint8)
+    y, x = np.ogrid[:512, :512]
+    ellipse = ((x - 256) / 150) ** 2 + ((y - 256) / 175) ** 2 <= 1.0
+    arr[ellipse] = 140
+    return Image.fromarray(arr, "L")
+
+
+@pytest.fixture
+def subject_mask_512():
+    """Маска субъекта 512x512 — эллипс."""
+    mask = np.zeros((512, 512), dtype=np.uint8)
+    y, x = np.ogrid[:512, :512]
+    ellipse = ((x - 256) / 150) ** 2 + ((y - 256) / 175) ** 2 <= 1.0
+    mask[ellipse] = 255
+    return Image.fromarray(mask, "L")
+
+
+@pytest.fixture
+def sample_analytics():
+    """Типичные метрики аналитики."""
+    from retouch.processing.analysis import ImageAnalytics
+    return ImageAnalytics(
+        median_brightness=130.0, mean_brightness=125.0,
+        p10_brightness=45.0, p25_brightness=80.0,
+        p75_brightness=180.0, p90_brightness=210.0,
+        tonal_range=165.0,
+        highlight_clipping_pct=0.5, shadow_clipping_pct=2.0,
+        bg_median_brightness=10.0, bg_mean_brightness=12.0,
+        subject_separation=120.0,
+        input_class="medium",
+    )

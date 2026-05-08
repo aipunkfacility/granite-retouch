@@ -1,10 +1,43 @@
 """Модуль преданализа входного grayscale-изображения."""
 
 import logging
+from dataclasses import dataclass, asdict, field
+
 import numpy as np
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ImageAnalytics:
+    """Структурированные метрики входного изображения (B.3).
+
+    Поля совпадают с ключами dict из analyze_input() — обратная
+    совместимость: from_dict(старый_dict).to_dict() == старый_dict.
+    """
+    median_brightness: float = 0.0
+    mean_brightness: float = 0.0
+    p10_brightness: float = 0.0
+    p25_brightness: float = 0.0
+    p75_brightness: float = 0.0
+    p90_brightness: float = 0.0
+    tonal_range: float = 0.0
+    highlight_clipping_pct: float = 0.0
+    shadow_clipping_pct: float = 0.0
+    bg_median_brightness: float = 0.0
+    bg_mean_brightness: float = 0.0
+    subject_separation: float = 0.0
+    input_class: str = 'dark'
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ImageAnalytics":
+        """Создать из dict (обратная совместимость)."""
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+    def to_dict(self) -> dict:
+        """Конвертировать в dict (обратная совместимость)."""
+        return asdict(self)
 
 
 def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray) -> dict:
