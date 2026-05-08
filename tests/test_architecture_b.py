@@ -167,7 +167,7 @@ class TestB3AnalyticsDataclass:
         # Создаём тестовое изображение
         arr = np.full((200, 200), 128, dtype=np.uint8)
         mask = np.full((200, 200), 255, dtype=np.uint8)
-        img = Image.fromarray(arr, "L")
+        img = Image.fromarray(arr)
 
         result = analyze_input(img, mask)
         analytics = ImageAnalytics.from_dict(result)

@@ -29,7 +29,7 @@ class TestF2QualityMetrics:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -57,7 +57,7 @@ class TestF2QualityMetrics:
         arr[ellipse, 2] = 10
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "very_dark.png")
         img.save(input_path, "PNG")
 
@@ -128,7 +128,7 @@ class TestPipelineResultNewFields:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -151,7 +151,7 @@ class TestPipelineResultNewFields:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -173,7 +173,7 @@ class TestPipelineResultNewFields:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 

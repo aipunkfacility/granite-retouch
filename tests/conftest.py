@@ -50,8 +50,8 @@ def make_chromakey_image(width=512, height=512,
     arr[ellipse, 3] = 255
     mask[ellipse] = 255
 
-    img = Image.fromarray(arr, "RGBA")
-    subject_mask = Image.fromarray(mask, "L")
+    img = Image.fromarray(arr)
+    subject_mask = Image.fromarray(mask)
     return img, subject_mask
 
 
@@ -100,15 +100,15 @@ def make_portrait_image(width=512, height=512):
     arr[subject, 3] = 255
     mask[subject] = 255
 
-    img = Image.fromarray(arr, "RGBA")
-    subject_mask = Image.fromarray(mask, "L")
+    img = Image.fromarray(arr)
+    subject_mask = Image.fromarray(mask)
     return img, subject_mask
 
 
 def make_no_chromakey_image(width=512, height=512):
     """Изображение БЕЗ синего хромакея — для негативных тестов."""
     arr = np.full((height, width, 4), [120, 100, 80, 255], dtype=np.uint8)
-    return Image.fromarray(arr, "RGBA")
+    return Image.fromarray(arr)
 
 
 def make_small_image(width=100, height=100):
@@ -140,7 +140,7 @@ def make_dark_blue_clothing_image(width=512, height=512):
     arr[2 * height // 3:, :, 1] = 40
     arr[2 * height // 3:, :, 2] = 80
 
-    return Image.fromarray(arr, "RGBA")
+    return Image.fromarray(arr)
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +308,7 @@ def img_gray_512():
     y, x = np.ogrid[:512, :512]
     ellipse = ((x - 256) / 150) ** 2 + ((y - 256) / 175) ** 2 <= 1.0
     arr[ellipse] = 140
-    return Image.fromarray(arr, "L")
+    return Image.fromarray(arr)
 
 
 @pytest.fixture
@@ -318,7 +318,18 @@ def subject_mask_512():
     y, x = np.ogrid[:512, :512]
     ellipse = ((x - 256) / 150) ** 2 + ((y - 256) / 175) ** 2 <= 1.0
     mask[ellipse] = 255
-    return Image.fromarray(mask, "L")
+    return Image.fromarray(mask)
+
+
+@pytest.fixture
+def sample_pipeline_context(img_gray_512, subject_mask_512):
+    """C.4: Типичный PipelineContext для тестов."""
+    from retouch.processing.pipeline import PipelineContext
+    return PipelineContext(
+        img_gray=img_gray_512,
+        subject_mask=subject_mask_512,
+        machine_type="impact",
+    )
 
 
 @pytest.fixture

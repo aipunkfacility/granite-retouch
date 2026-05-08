@@ -56,6 +56,7 @@ def cmd_process(args):
             glow_opacity_override=args.glow_opacity,
             config=config,
             fmt=getattr(args, 'format', 'bmp'),
+            overwrite=args.overwrite,
         )
     except ValidationError as e:
         print(f"VALIDATION ERROR: {e}", file=sys.stderr)

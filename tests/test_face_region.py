@@ -42,7 +42,7 @@ class TestDetectFaceByWidthProfile:
 
         subject = head | neck | shoulders
         mask[subject] = 255
-        return Image.fromarray(mask, "L")
+        return Image.fromarray(mask)
 
     def test_standard_portrait_finds_face(self):
         """Стандартный портрет → face_region найден через профиль ширины."""
@@ -106,7 +106,7 @@ class TestDetectFaceOval:
         # Широкая область внизу — «плечи»
         shoulders = ((x - 256) / 150) ** 2 + ((y - 350) / 100) ** 2 <= 1.0
         mask[head | shoulders] = 255
-        subject_mask = Image.fromarray(mask, "L")
+        subject_mask = Image.fromarray(mask)
 
         img = Image.new("L", (512, 512), 128)
 
@@ -168,7 +168,7 @@ class TestGenerateFaceMask:
         # Субъект — только верхняя половина
         subject_arr = np.zeros((height, width), dtype=np.uint8)
         subject_arr[:150, :] = 255
-        subject_mask = Image.fromarray(subject_arr, "L")
+        subject_mask = Image.fromarray(subject_arr)
 
         face_mask = generate_face_mask(width, height, face_oval, subject_mask)
         face_arr = np.array(face_mask)

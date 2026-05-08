@@ -93,7 +93,7 @@ class TestValidateResultBlackRatio:
         # 40% чёрного
         arr[:205, :, :] = 0
         arr[205:, :, :] = [128, 128, 128]
-        img = Image.fromarray(arr, "RGB")
+        img = Image.fromarray(arr)
         ratio = validate_result_black_ratio(img, min_black_ratio=0.25)
         assert ratio >= 0.25
 
@@ -102,14 +102,14 @@ class TestValidateResultBlackRatio:
         arr = np.full((512, 512, 3), 128, dtype=np.uint8)
         # Только 5% чёрного
         arr[:25, :, :] = 0
-        img = Image.fromarray(arr, "RGB")
+        img = Image.fromarray(arr)
         with pytest.raises(ValidationError, match="Недостаточно чёрного фона"):
             validate_result_black_ratio(img, min_black_ratio=0.25)
 
     def test_zero_black_fails(self):
         """Полностью белое изображение → ValidationError."""
         arr = np.full((512, 512, 3), 255, dtype=np.uint8)
-        img = Image.fromarray(arr, "RGB")
+        img = Image.fromarray(arr)
         with pytest.raises(ValidationError):
             validate_result_black_ratio(img, min_black_ratio=0.25)
 

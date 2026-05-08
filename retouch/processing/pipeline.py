@@ -44,6 +44,11 @@ class PipelineContext:
     НЕ передаётся в функции обработки — они сохраняют текущие сигнатуры.
     Используется только внутри pipeline.py для уменьшения количества
     аргументов, пробрасываемых между шагами.
+
+    Примечание: img_chromakey добавлено сверх плана (B.1) — оно нужно
+    для передачи результата хромакея в PipelineResult без дополнительного
+    возврата из _run_pipeline_steps(). Практичное дополнение, не ломает
+    обратную совместимость.
     """
     img_gray: Image.Image
     img_chromakey: Image.Image | None = None
@@ -519,6 +524,7 @@ def process_export(
     machine_type: str = "laser_standard",
     config: dict | None = None,
     fmt: str = "bmp",
+    overwrite: bool = True,
     **kwargs,
 ) -> PipelineResult:
     """Полная обработка + сохранение BMP/PNG.
@@ -534,10 +540,17 @@ def process_export(
         machine_type: тип станка
         config: конфигурация (None = загрузить из config.yaml)
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
+        overwrite: D.7 — если False и файл существует, выбрасывает FileExistsError.
+            CLI использует --overwrite флаг для управления.
     """
-    # D.7: Предупреждение при перезаписи
+    # D.7: Проверка перезаписи — согласовано с CLI --overwrite
     output = Path(output_path)
     if output.exists():
+        if not overwrite:
+            raise FileExistsError(
+                f"Выходной файл уже существует: {output_path}. "
+                f"Используйте overwrite=True для перезаписи."
+            )
         logger.warning("Output file already exists, overwriting: %s", output_path)
 
     result = process_steps(
@@ -586,7 +599,7 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
 
 def process(input_path, output_path, machine_type="laser_standard",
             glow_size_override=None, glow_opacity_override=None,
-            config=None, fmt="bmp"):
+            config=None, fmt="bmp", overwrite=True):
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,
@@ -594,6 +607,7 @@ def process(input_path, output_path, machine_type="laser_standard",
         machine_type=machine_type,
         config=config,
         fmt=fmt,
+        overwrite=overwrite,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
     )

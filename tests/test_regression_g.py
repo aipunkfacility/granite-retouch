@@ -26,8 +26,8 @@ class TestG1P0Regression:
         mask_arr[:, :100] = 255
         arr[:, :100] = 0
 
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
 
         result = add_shadow_noise(img, mask, noise_min=5, noise_max=15)
         result_arr = np.array(result)
@@ -51,7 +51,7 @@ class TestG1P0Regression:
         arr[ellipse, 2] = 6
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "dark.png")
         img.save(input_path, "PNG")
 
@@ -81,7 +81,7 @@ class TestG1P0Regression:
         arr[ellipse, 2] = 40
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -107,7 +107,7 @@ class TestG1P0Regression:
         arr[ellipse, 2] = 250
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "bright.png")
         img.save(input_path, "PNG")
 
@@ -206,7 +206,7 @@ class TestG2P1Functional:
         head = ((x - 256) / 80) ** 2 + ((y - 140) / 60) ** 2 <= 1.0
         shoulders = ((x - 256) / 150) ** 2 + ((y - 350) / 100) ** 2 <= 1.0
         mask[head | shoulders] = 255
-        subject_mask = Image.fromarray(mask, "L")
+        subject_mask = Image.fromarray(mask)
 
         img = Image.new("L", (512, 512), 128)
         result = detect_face_oval(img, subject_mask=subject_mask)
@@ -253,7 +253,7 @@ class TestG2P1Functional:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "wide.png")
         img.save(input_path, "PNG")
 
@@ -266,8 +266,10 @@ class TestG2P1Functional:
         result = process_preview(input_path, machine_type="laser_standard",
                                   config=config, max_size=768)
 
-        # Высота должна быть >= 200 (D.2)
+        # D.2: Высота >= 200 для широких кадров
         assert result.height >= 200, f"Высота {result.height} < 200"
+        # D.2: Ширина <= max_size * 3 (768 * 3 = 2304)
+        assert result.width <= 768 * 3, f"Ширина {result.width} > {768 * 3}"
 
     # ─── G.2: Недостающие тесты ──────────────────────────────────────
 
@@ -369,7 +371,7 @@ class TestG3Integration:
         arr[ellipse, 2] = 100
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -410,7 +412,7 @@ class TestG3Integration:
         arr[ellipse, 2] = 40
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "dark.png")
         img.save(input_path, "PNG")
 
@@ -438,7 +440,7 @@ class TestG3Integration:
         arr[ellipse, 2] = 100
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 

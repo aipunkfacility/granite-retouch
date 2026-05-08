@@ -12,6 +12,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from collections import OrderedDict
 from typing import Dict, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
@@ -106,7 +107,7 @@ def _ref_dec(file_id: str) -> None:
 
 # ─── D.6: Кэш preview ────────────────────────────────────────────────
 
-_preview_cache: Dict[str, dict] = {}  # cache_key → {"images": dict, "diagnostics": dict, "warnings": list}
+_preview_cache: OrderedDict[str, dict] = OrderedDict()  # D.6: LRU-кэш — cache_key → {"images": dict, "diagnostics": dict, "warnings": list}
 _PREVIEW_CACHE_MAX = 30  # Максимум записей в кэше
 
 
@@ -230,6 +231,8 @@ async def preview_image(
     cache_k = _cache_key(request.file_id, request.machine, request.params)
     cached = _preview_cache.get(cache_k)
     if cached is not None:
+        # LRU: перемещаем в конец (недавно использованный)
+        _preview_cache.move_to_end(cache_k)
         logger.debug("Preview cache hit: %s", cache_k)
         return PreviewResponse(**cached)
 
@@ -327,11 +330,10 @@ async def preview_image(
         "warnings": result.warnings,
     }
 
-    # D.6: Сохраняем в кэш (base64, не PIL objects)
+    # D.6: Сохраняем в кэш (base64, не PIL objects) — LRU-стратегия
     if len(_preview_cache) >= _PREVIEW_CACHE_MAX:
-        # Удаляем самую старую запись (FIFO)
-        oldest_key = next(iter(_preview_cache))
-        del _preview_cache[oldest_key]
+        # Удаляем наименее недавно использованную запись (LRU)
+        _preview_cache.popitem(last=False)
     _preview_cache[cache_k] = response_data
 
     return PreviewResponse(**response_data)

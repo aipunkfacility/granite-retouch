@@ -19,13 +19,13 @@ class TestC3FaceMaskInCheckFaceBrightness:
         arr = np.full((300, 200), 200, dtype=np.uint8)  # яркое
         arr[:100, :] = 50  # верхняя треть тёмная
 
-        img = Image.fromarray(arr, "L")
+        img = Image.fromarray(arr)
         subject_mask = Image.new("L", (200, 300), 255)
 
         # Маска лица — нижняя часть (где яркие пиксели)
         face_mask_arr = np.zeros((300, 200), dtype=np.uint8)
         face_mask_arr[200:, :] = 255
-        face_mask_img = Image.fromarray(face_mask_arr, "L")
+        face_mask_img = Image.fromarray(face_mask_arr)
 
         # С face_mask_img → замер по маске (нижняя часть, яркость ~200)
         _, before_with_mask, _, _ = check_face_brightness(
@@ -49,7 +49,7 @@ class TestC3FaceMaskInCheckFaceBrightness:
         from retouch.processing.face_correction import check_face_brightness
 
         arr = np.full((200, 200), 150, dtype=np.uint8)
-        img = Image.fromarray(arr, "L")
+        img = Image.fromarray(arr)
         subject_mask = Image.new("L", (200, 200), 255)
 
         # Оба вызова без face_mask — должны дать одинаковый результат

@@ -19,7 +19,7 @@ class TestApplyLevels:
     def test_brightness_1_is_neutral(self):
         """brightness_factor=1.0 не меняет изображение."""
         arr = np.random.randint(50, 200, (100, 100), dtype=np.uint8)
-        img = Image.fromarray(arr, "L")
+        img = Image.fromarray(arr)
         result = apply_levels(img, 1.0)
         result_arr = np.array(result)
         diff = np.abs(result_arr.astype(int) - arr.astype(int))
@@ -47,7 +47,7 @@ class TestApplyUnsharpMask:
         """Unsharp Mask добавляет резкость (разница с оригиналом)."""
         # Создаём плавный градиент
         arr = np.linspace(0, 255, 100 * 100, dtype=np.uint8).reshape(100, 100)
-        img = Image.fromarray(arr, "L")
+        img = Image.fromarray(arr)
         result = apply_unsharp_mask(img)
         # Разница должна быть (резкость меняет градиент)
         diff = np.abs(np.array(result).astype(float) - arr.astype(float))
@@ -205,7 +205,7 @@ class TestCheckFaceBrightness:
         # Изображение 200x200: верхняя часть темная (80), нижняя — светлая (240)
         arr = np.full((200, 200), 240, dtype=np.uint8)
         arr[:100, :] = 80  # верхняя половина — тёмная
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask = Image.new("L", (200, 200), 255)  # всё — субъект
         target = [140, 165]
 
@@ -220,10 +220,10 @@ class TestCheckFaceBrightness:
         """Коррекция применяется только внутри маски субъекта."""
         # Левая половина — субъект (маска=255), правая — фон (маска=0)
         arr = np.full((200, 200), 80, dtype=np.uint8)
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask_arr = np.zeros((200, 200), dtype=np.uint8)
         mask_arr[:, :100] = 255  # левая половина — субъект
-        mask = Image.fromarray(mask_arr, "L")
+        mask = Image.fromarray(mask_arr)
         target = [140, 165]
 
         result, before, after, factor = check_face_brightness(
@@ -246,7 +246,7 @@ class TestCheckFaceBrightness:
         # Изображение: среднее по лицу = 100 (тёмное), но некоторые пиксели уже 190+
         arr = np.full((200, 200), 100, dtype=np.uint8)
         arr[10:30, 10:30] = 190  # уже яркие пиксели кожи
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask = Image.new("L", (200, 200), 255)
         target = [140, 165]
 
@@ -267,7 +267,7 @@ class TestCheckFaceBrightness:
         # Симулируем пайплайн: apply_levels(1.18) → check_face_brightness
         arr = np.full((200, 200), 150, dtype=np.uint8)
         arr[80:120, 80:120] = 200  # яркая область (кожа)
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask = Image.new("L", (200, 200), 255)
         target = [150, 170]
 
@@ -305,7 +305,7 @@ class TestCheckFaceBrightness:
         arr = np.full((h, 200), 30, dtype=np.uint8)
         # В верхней части (rows 100-179): яркая кожа
         arr[100:180, :] = 200
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask = Image.new("L", (200, h), 255)  # width=200, height=h
         target = [150, 170]
 
@@ -325,7 +325,7 @@ class TestCheckFaceBrightness:
         # → нормальная коррекция с cap 1.20 (не gentled)
         arr = np.full((200, 200), 40, dtype=np.uint8)
         arr[100:200, :] = 120  # нижняя половина ярче
-        gray = Image.fromarray(arr, "L")
+        gray = Image.fromarray(arr)
         mask = Image.new("L", (200, 200), 255)
         target = [150, 170]
 
@@ -377,8 +377,8 @@ class TestMaskProtection:
         mask_arr = np.zeros((100, 100), dtype=np.uint8)
         arr[30:70, 30:70] = 180
         mask_arr[30:70, 30:70] = 255
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
         result = apply_levels(img, brightness_factor=1.3, subject_mask=mask)
         result_arr = np.array(result)
         # Фон не изменился (был 128)
@@ -401,8 +401,8 @@ class TestMaskProtection:
         # Резкий переход: субъект=200, фон=0
         arr[30:70, 30:70] = 200
         mask_arr[30:70, 30:70] = 255
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
         result = apply_unsharp_mask(img, subject_mask=mask)
         result_arr = np.array(result)
         # Фон остался чёрным (0 или очень близко)
@@ -414,8 +414,8 @@ class TestMaskProtection:
         mask_arr = np.zeros((100, 100), dtype=np.uint8)
         arr[20:80, 20:80] = 150
         mask_arr[20:80, 20:80] = 255
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
         result, *_ = check_face_brightness(
             img, [150, 170], mask, glow_size=20, face_region_top=0.45,
             highlight_start=160,

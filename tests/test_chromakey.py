@@ -80,7 +80,7 @@ class TestRemoveBlueBackground:
         arr[60:140, 58:60, :] = [30, 30, 180, 255]
         arr[60:140, 140:142, :] = [30, 30, 180, 255]
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
 
         # Без fringe removal
         result_no_fringe, _ = remove_blue_background(img, threshold=30, fringe_radius=0)

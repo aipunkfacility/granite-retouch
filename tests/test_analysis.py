@@ -15,7 +15,7 @@ def _make_synthetic(face_value: int, bg_value: int = 0,
     # Субъект — центральная область
     img_arr[50:150, 50:150] = face_value
     mask[50:150, 50:150] = 255
-    return Image.fromarray(img_arr, mode='L'), mask
+    return Image.fromarray(img_arr), mask
 
 
 def _make_gradient(face_low: int, face_high: int,
@@ -26,7 +26,7 @@ def _make_gradient(face_low: int, face_high: int,
     gradient = np.linspace(face_low, face_high, 100 * 100).reshape(100, 100).astype(np.uint8)
     img_arr[50:150, 50:150] = gradient
     mask[50:150, 50:150] = 255
-    return Image.fromarray(img_arr, mode='L'), mask
+    return Image.fromarray(img_arr), mask
 
 
 class TestAnalyzeInput:
@@ -78,7 +78,7 @@ class TestAnalyzeInput:
         img_arr[50:100, 50:150] = 255
         img_arr[100:150, 50:150] = 200
         mask[50:150, 50:150] = 255
-        img = Image.fromarray(img_arr, mode='L')
+        img = Image.fromarray(img_arr)
         result = analyze_input(img, mask)
         assert result['highlight_clipping_pct'] > 0
 
@@ -93,7 +93,7 @@ class TestAnalyzeInput:
         """bg_median=0 при маске без фоновых пикселей (всё — субъект)."""
         img_arr = np.full((200, 200), 180, dtype=np.uint8)
         mask = np.full((200, 200), 255, dtype=np.uint8)  # Всё — субъект
-        img = Image.fromarray(img_arr, mode='L')
+        img = Image.fromarray(img_arr)
         result = analyze_input(img, mask)
         assert result['bg_median_brightness'] == 0
 

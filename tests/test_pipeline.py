@@ -28,7 +28,7 @@ class TestPipelineIntegration:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         path = str(tmp_path / "input.png")
         img.save(path, "PNG")
         return path
@@ -145,7 +145,7 @@ class TestPipelineIntegration:
 
         # Создаём изображение БЕЗ хромакея
         arr = np.full((512, 512, 4), [120, 100, 80, 255], dtype=np.uint8)
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "no_chroma.png")
         img.save(input_path, "PNG")
 
@@ -188,7 +188,7 @@ class TestPipelineStepsAPI:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         path = str(tmp_path / "input.png")
         img.save(path, "PNG")
         return path

@@ -101,25 +101,28 @@ class TestInnerGlow:
         # Glow на 1% может дать до ~3 единиц разницы на краях
         assert diff.mean() < 5, f"Среднее изменение с opacity=1% слишком большое: {diff.mean():.1f}"
 
-    def test_random_glow_within_range(self):
-        """Случайный glow попадает в заданный диапазон (100 итераций)."""
+    def test_deterministic_glow_midpoint(self):
+        """D.1: Детерминированный glow — midpoint диапазона при отсутствии override."""
         gray, mask = self._make_gray_with_mask()
         impact_cfg = {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
         }
 
-        sizes = []
-        opacities = []
-        for _ in range(100):
-            _, gs, go = apply_inner_glow(gray, mask, impact_cfg)
-            sizes.append(gs)
-            opacities.append(go)
+        # Без override — всегда midpoint
+        _, gs, go = apply_inner_glow(gray, mask, impact_cfg)
+        expected_size = (10 + 25) // 2  # 17
+        expected_opacity = (60 + 80) // 2 / 100  # 0.70
 
-        assert min(sizes) >= 10 and max(sizes) <= 25, \
-            f"Glow size вне диапазона: {min(sizes)}–{max(sizes)}"
-        assert min(opacities) >= 0.60 and max(opacities) <= 0.80, \
-            f"Glow opacity вне диапазона: {min(opacities):.2f}–{max(opacities):.2f}"
+        assert gs == expected_size, \
+            f"Glow size должен быть midpoint ({expected_size}), а не {gs}"
+        assert abs(go - expected_opacity) < 0.01, \
+            f"Glow opacity должен быть midpoint ({expected_opacity}), а не {go}"
+
+        # Повторный вызов — тот же результат (детерминированность)
+        _, gs2, go2 = apply_inner_glow(gray, mask, impact_cfg)
+        assert gs2 == gs, "Glow size должен быть детерминированным"
+        assert go2 == go, "Glow opacity должен быть детерминированным"
 
     def test_output_is_grayscale(self):
         """Результат — L (grayscale)."""
@@ -145,7 +148,7 @@ class TestAdaptiveGlow:
         assert opacity == 15
 
     def test_impact_low_separation_stronger_glow(self):
-        """Impact: низкая сепарация → больший glow для разделения."""
+        """Impact: низкая сепарация → больший glow для разделения (детерминированно)."""
         analytics_low = {'subject_separation': 20, 'tonal_range': 100}
         analytics_high = {'subject_separation': 120, 'tonal_range': 100}
         size_low, opacity_low = _calculate_glow_params(analytics_low, 'impact')
@@ -153,6 +156,11 @@ class TestAdaptiveGlow:
         # Низкая сепарация → нужен больший glow для разделения
         assert size_low >= size_high
         assert opacity_low >= opacity_high
+        # D.1: Детерминированные значения (midpoint диапазонов)
+        assert size_low == 25 and opacity_low == 77, \
+            f"Expected (25, 77), got ({size_low}, {opacity_low})"
+        assert size_high == 14 and opacity_high == 65, \
+            f"Expected (14, 65), got ({size_high}, {opacity_high})"
 
     def test_laser_standard_wide_tonal_range_smaller_glow(self):
         """Laser Standard: широкий тональный диапазон → меньший glow."""

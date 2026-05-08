@@ -28,8 +28,8 @@ class TestA1ShadowNoiseOnSubject:
         mask_arr[:, :100] = 255
         arr[:, :100] = 0  # тёмный субъект
 
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
 
         result = add_shadow_noise(img, mask, noise_min=5, noise_max=15)
         result_arr = np.array(result)
@@ -51,8 +51,8 @@ class TestA1ShadowNoiseOnSubject:
         arr = np.full((200, 200), 100, dtype=np.uint8)  # яркий субъект
         mask_arr = np.full((200, 200), 255, dtype=np.uint8)  # всё — субъект
 
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
 
         result = add_shadow_noise(img, mask, noise_min=5, noise_max=15, shadow_threshold=30)
         result_arr = np.array(result)
@@ -71,8 +71,8 @@ class TestA1ShadowNoiseOnSubject:
         arr[:, 100:] = 40   # средний (> threshold)
 
         mask_arr = np.full((200, 200), 255, dtype=np.uint8)
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
 
         # С threshold=30: только пиксели < 30 получают шум
         result = add_shadow_noise(img, mask, noise_min=5, noise_max=15, shadow_threshold=30)
@@ -92,8 +92,8 @@ class TestA1ShadowNoiseOnSubject:
 
         arr = np.zeros((100, 100), dtype=np.uint8)
         mask_arr = np.full((100, 100), 255, dtype=np.uint8)
-        img = Image.fromarray(arr, "L")
-        mask = Image.fromarray(mask_arr, "L")
+        img = Image.fromarray(arr)
+        mask = Image.fromarray(mask_arr)
 
         result1 = add_shadow_noise(img, mask, noise_min=5, noise_max=15)
         result2 = add_shadow_noise(img, mask, noise_min=5, noise_max=15)
@@ -121,7 +121,7 @@ class TestA2ShadowFloor:
         arr[ellipse, 2] = 6
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "dark.png")
         img.save(input_path, "PNG")
 
@@ -158,7 +158,7 @@ class TestA2ShadowFloor:
         arr[ellipse, 2] = 120
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "input.png")
         img.save(input_path, "PNG")
 
@@ -184,7 +184,7 @@ class TestA3StepOrder:
         arr[ellipse, 2] = 40
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "dark.png")
         img.save(input_path, "PNG")
 
@@ -211,7 +211,7 @@ class TestA3StepOrder:
         arr[ellipse, 2] = 40
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "dark.png")
         img.save(input_path, "PNG")
 
@@ -241,7 +241,7 @@ class TestA4WhiteCeilingClamp:
         arr[ellipse, 2] = 250
         arr[ellipse, 3] = 255
 
-        img = Image.fromarray(arr, "RGBA")
+        img = Image.fromarray(arr)
         input_path = str(tmp_path / "bright.png")
         img.save(input_path, "PNG")
 

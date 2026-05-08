@@ -1,6 +1,5 @@
 """Glow (Contour Light) — контурное свечение: inner и outer."""
 
-import random
 from PIL import Image, ImageFilter, ImageOps, ImageChops
 
 try:
@@ -11,7 +10,10 @@ except ImportError:
 
 
 def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
-    """P3: Рассчитать адаптивные параметры glow на основе аналитики.
+    """D.1: Рассчитать детерминированные параметры glow на основе аналитики.
+
+    Рандомизация убрана — glow всегда одинаковый при одинаковых входных
+    данных. Это гарантирует preview-export consistency (D.1).
 
     Args:
         analytics: dict с метриками от analyze_input()
@@ -26,20 +28,20 @@ def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
     if machine_type == 'impact':
         separation = analytics.get('subject_separation', 150)
         if separation > 80:
-            return (random.randint(10, 18), random.randint(60, 70))
+            return (14, 65)   # midpoint(10..18), midpoint(60..70)
         elif separation > 40:
-            return (random.randint(15, 25), random.randint(65, 75))
+            return (20, 70)   # midpoint(15..25), midpoint(65..75)
         else:
-            return (random.randint(20, 30), random.randint(70, 85))
+            return (25, 77)   # midpoint(20..30), midpoint(70..85)
 
     # laser_standard: by tonal_range
     tonal_range = analytics.get('tonal_range', 100)
     if tonal_range > 120:
-        return (random.randint(30, 50), random.randint(20, 30))
+        return (40, 25)   # midpoint(30..50), midpoint(20..30)
     elif tonal_range > 80:
-        return (random.randint(40, 60), random.randint(30, 40))
+        return (50, 35)   # midpoint(40..60), midpoint(30..40)
     else:
-        return (random.randint(50, 80), random.randint(35, 45))
+        return (65, 40)   # midpoint(50..80), midpoint(35..45)
 
 
 def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
@@ -167,16 +169,15 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
         glow_size, glow_opacity_pct = _calculate_glow_params(analytics, machine_type)
         glow_opacity = glow_opacity_pct / 100
     else:
-        # Старое поведение: random из конфига или override
-        glow_size = glow_size_override or random.randint(
-            machine_cfg.get("glow_size_min", 40),
-            machine_cfg.get("glow_size_max", 80),
-        )
+        # D.1: Детерминированный fallback — midpoint диапазона из конфига
+        glow_size_min = machine_cfg.get("glow_size_min", 40)
+        glow_size_max = machine_cfg.get("glow_size_max", 80)
+        glow_opacity_min = machine_cfg.get("glow_opacity_min", 30)
+        glow_opacity_max = machine_cfg.get("glow_opacity_max", 40)
+
+        glow_size = glow_size_override or (glow_size_min + glow_size_max) // 2
         glow_opacity = (glow_opacity_override / 100) if glow_opacity_override else (
-            random.randint(
-                machine_cfg.get("glow_opacity_min", 30),
-                machine_cfg.get("glow_opacity_max", 40),
-            ) / 100
+            (glow_opacity_min + glow_opacity_max) // 2 / 100
         )
 
     # Применяем выбранный стиль

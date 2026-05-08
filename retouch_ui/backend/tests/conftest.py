@@ -25,7 +25,7 @@ def sample_chromakey_png():
     arr[:, :] = [0, 0, 255, 255]           # blue background (RGBA)
     arr[200:312, 200:312] = [180, 140, 120, 255]  # skin-colored subject
 
-    img = Image.fromarray(arr, mode="RGBA")
+    img = Image.fromarray(arr)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
