@@ -23,7 +23,7 @@ def _shrink_mask(subject_mask, shrink_px):
         from scipy.ndimage import binary_erosion
         arr = np.array(subject_mask) > 128
         eroded = binary_erosion(arr, iterations=shrink_px)
-        return Image.fromarray((eroded.astype(np.uint8) * 255), "L")
+        return Image.fromarray(eroded.astype(np.uint8) * 255)
     else:
         # Pillow fallback: invert → blur → threshold
         from PIL import ImageOps
@@ -230,7 +230,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             if white_ceiling is not None:
                 ceiling_mask = full_subject_mask & (result_arr > white_ceiling)
                 result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
-            result = Image.fromarray(result_arr.astype(np.uint8), "L")
+            result = Image.fromarray(result_arr.astype(np.uint8))
         else:
             logger.warning(
                 "check_face_brightness: numpy недоступен — коррекция применяется "

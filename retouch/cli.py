@@ -28,6 +28,12 @@ def cmd_process(args):
     """Pillow-обработка портрета."""
     from retouch.processing.pipeline import process
 
+    # D.7: Проверка перезаписи выходного файла
+    if os.path.isfile(args.output) and not args.overwrite:
+        print(f"Error: выходной файл уже существует: {args.output}\n"
+              f"Используйте --overwrite для перезаписи.", file=sys.stderr)
+        sys.exit(1)
+
     config = load_config(args.config)
 
     if args.no_validate:
@@ -250,6 +256,7 @@ def main():
     p_process.add_argument("--glow-opacity", type=int, help="Переопределить opacity Inner Glow (%%)")
     p_process.add_argument("--config", "-c", help="Путь к config.yaml")
     p_process.add_argument("--no-validate", action="store_true", help="Пропустить валидацию")
+    p_process.add_argument("--overwrite", action="store_true", help="D.7: Перезаписать выходной файл без подтверждения")
     p_process.set_defaults(func=cmd_process)
 
     # --- validate ---

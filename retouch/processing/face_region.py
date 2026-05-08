@@ -175,7 +175,7 @@ def generate_hair_mask(face_mask, subject_mask, gap_ratio=0.05):
     hair_arr = np.zeros_like(subject_arr)
     hair_arr[:hair_zone_top, :] = subject_arr[:hair_zone_top, :]
 
-    return Image.fromarray((hair_arr.astype(np.uint8) * 255), "L")
+    return Image.fromarray(hair_arr.astype(np.uint8) * 255)
 
 
 def _heuristic_face_mask(width, height, subject_mask, top_ratio=0.45):
@@ -188,4 +188,4 @@ def _heuristic_face_mask(width, height, subject_mask, top_ratio=0.45):
     face_arr = np.zeros_like(mask_arr)
     face_arr[:cutoff, :] = mask_arr[:cutoff, :]
 
-    return Image.fromarray(face_arr, "L")
+    return Image.fromarray(face_arr)

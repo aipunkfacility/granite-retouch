@@ -49,7 +49,7 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3):
     arr[blue_mask] = [0, 0, 0, 0]
     subject_arr = (~blue_mask).astype(np.uint8) * 255
 
-    return Image.fromarray(arr.astype(np.uint8), "RGBA"), Image.fromarray(subject_arr, "L")
+    return Image.fromarray(arr.astype(np.uint8)), Image.fromarray(subject_arr)
 
 
 def _remove_blue_pillow(img, threshold=30, fringe_radius=3):

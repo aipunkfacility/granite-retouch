@@ -60,7 +60,7 @@ def floyd_steinberg_dither(img_gray):
                 if x + 1 < width:
                     arr[y + 1, x + 1] += error * 1 / 16
 
-    return Image.fromarray(result, mode='L').convert('1')
+    return Image.fromarray(result).convert('1')
 
 
 def floyd_steinberg_dither_fast(img_gray):
@@ -100,7 +100,7 @@ def floyd_steinberg_dither_fast(img_gray):
                     arr[y + 1, x + 1] += error * 1 / 16
 
     # Конвертируем в 1-bit через порог 128
-    return Image.fromarray(result, mode='L').convert('1')
+    return Image.fromarray(result).convert('1')
 
 
 def save_bmp_8bit(img, output_path, machine_type=None):

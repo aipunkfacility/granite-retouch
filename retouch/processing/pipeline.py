@@ -16,7 +16,7 @@ from retouch.validation.image import (
 )
 from retouch.processing.chromakey import remove_blue_background
 from retouch.processing.analysis import analyze_input, ImageAnalytics
-from retouch.processing.glow import apply_inner_glow
+from retouch.processing.glow import apply_glow
 from retouch.processing.levels import (
     apply_levels, apply_unsharp_mask, check_face_brightness, add_shadow_noise,
 )
@@ -46,6 +46,7 @@ class PipelineContext:
     аргументов, пробрасываемых между шагами.
     """
     img_gray: Image.Image
+    img_chromakey: Image.Image | None = None
     subject_mask: Image.Image | None = None
     face_mask: Image.Image | None = None
     face_oval: dict | None = None
@@ -246,6 +247,7 @@ def process_steps(
     # B.1: Заполняем PipelineContext — внутренняя упаковка
     machine_cfg = proc_cfg.get(machine_type, {})
     ctx = PipelineContext(
+        img_chromakey=img_chromakey,
         img_gray=img_gray,
         subject_mask=subject_mask,
         face_mask=face_mask,
@@ -259,46 +261,83 @@ def process_steps(
         warnings=warnings,
     )
 
-    # 3. Glow
-    img_glow, glow_size, glow_opacity = apply_inner_glow(
-        img_gray, subject_mask, machine_cfg,
+    # B.1: Выполнение шагов через PipelineContext
+    result = _run_pipeline_steps(
+        ctx, proc_cfg,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
-        analytics=analytics,
-        machine_type=machine_type,
+        no_validate=no_validate,
+        blue_ratio=blue_ratio,
+    )
+    return result
+
+
+def _run_pipeline_steps(
+    ctx: PipelineContext,
+    proc_cfg: dict,
+    glow_size_override: int | None = None,
+    glow_opacity_override: float | None = None,
+    no_validate: bool = False,
+    blue_ratio: float = 0.0,
+) -> PipelineResult:
+    """B.1: Выполнение шагов пайплайна с использованием PipelineContext.
+
+    Все параметры извлекаются из ctx, а не пробрасываются отдельно.
+    Публичный API функций обработки НЕ меняется — ctx только упаковка.
+    """
+    width = ctx.img_gray.width
+    height = ctx.img_gray.height
+
+    # 3. Glow
+    img_glow, glow_size, glow_opacity = apply_glow(
+        ctx.img_gray, ctx.subject_mask, ctx.machine_cfg,
+        glow_size_override=glow_size_override,
+        glow_opacity_override=glow_opacity_override,
+        analytics=ctx.analytics,
+        machine_type=ctx.machine_type,
     )
 
     # Определяем порядок шагов (A.3)
     legacy_order = proc_cfg.get("legacy_step_order", False)
 
     # 4. Levels
-    img_leveled = apply_levels(img_glow, analytics=analytics, machine_type=machine_type, subject_mask=subject_mask)
+    img_leveled = apply_levels(
+        img_glow, analytics=ctx.analytics,
+        machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
+    )
 
     if legacy_order:
         # СТАРЫЙ порядок (до A.3): unsharp ДО face_brightness
-        img_temp = apply_unsharp_mask(img_leveled, subject_mask=subject_mask, analytics=analytics)
+        img_temp = apply_unsharp_mask(
+            img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+        )
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-            img_temp, machine_cfg, subject_mask, glow_size, face_mask,
+            img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
         img_sharpened = img_face_corrected  # В legacy-порядке unsharp уже применён
     else:
         # НОВЫЙ порядок (A.3): face_brightness ПЕРЕД unsharp
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-            img_leveled, machine_cfg, subject_mask, glow_size, face_mask,
+            img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
         img_sharpened = apply_unsharp_mask(
-            img_face_corrected, subject_mask=subject_mask, analytics=analytics,
+            img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
         )
+
+    # Сохраняем результаты в контекст
+    ctx.face_brightness_before = face_before
+    ctx.face_brightness_after = face_after
+    ctx.correction_factor = correction_factor
 
     # 5a. Shadow noise for impact (prevents needle stagnation on pure black)
     # ВАЖНО: shadow_noise ПЕРЕД shadow_floor! Шум добавляет текстуру,
     # затем shadow_floor гарантирует что ничего не уйдёт ниже пола.
-    shadow_noise_min = machine_cfg.get("shadow_noise_min", 0)
-    shadow_noise_max = machine_cfg.get("shadow_noise_max", 0)
-    shadow_threshold = machine_cfg.get("shadow_noise_threshold", 30)
-    if shadow_noise_max > 0 and machine_type == "impact":
+    shadow_noise_min = ctx.machine_cfg.get("shadow_noise_min", 0)
+    shadow_noise_max = ctx.machine_cfg.get("shadow_noise_max", 0)
+    shadow_threshold = ctx.machine_cfg.get("shadow_noise_threshold", 30)
+    if shadow_noise_max > 0 and ctx.machine_type == "impact":
         img_sharpened = add_shadow_noise(
-            img_sharpened, subject_mask,
+            img_sharpened, ctx.subject_mask,
             noise_min=shadow_noise_min, noise_max=shadow_noise_max,
             shadow_threshold=shadow_threshold,
         )
@@ -306,27 +345,27 @@ def process_steps(
     # A.2: Shadow floor — отдельный шаг для impact
     # Предотвращает уход теней в 0 (игла застревает на чистом чёрном).
     # После shadow_noise: гарантирует что шум не создал значения < floor.
-    shadow_floor = machine_cfg.get("shadow_floor", 0)
-    if shadow_floor > 0 and machine_type == "impact" and HAS_NUMPY:
+    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
+    if shadow_floor > 0 and ctx.machine_type == "impact" and HAS_NUMPY:
         arr = np.array(img_sharpened, dtype=np.float32)
-        mask_bool_floor = np.array(subject_mask) > 128
+        mask_bool_floor = np.array(ctx.subject_mask) > 128
         # Применяем floor только внутри маски субъекта
         arr = np.where(mask_bool_floor, np.maximum(arr, shadow_floor), arr)
-        img_sharpened = Image.fromarray(arr.astype(np.uint8), "L")
+        img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("Shadow floor applied: %d (impact)", shadow_floor)
 
     # A.4: Hard clamp белой точки перед виньеткой
-    white_ceiling = machine_cfg.get("white_ceiling", None)
+    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
     if white_ceiling is not None and HAS_NUMPY:
         arr = np.array(img_sharpened, dtype=np.float32)
-        mask_bool = np.array(subject_mask) > 128
+        mask_bool = np.array(ctx.subject_mask) > 128
         # Ограничиваем только внутри маски — фон остаётся 0
         arr = np.where(mask_bool, np.clip(arr, 0, white_ceiling), arr)
-        img_sharpened = Image.fromarray(arr.astype(np.uint8), "L")
+        img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("White ceiling clamp: %d", white_ceiling)
 
     # 6. Vignette
-    vign_cfg = config.get("vignette", {})
+    vign_cfg = ctx.config.get("vignette", {})
     img_final, arch_mask = apply_vignette(img_sharpened, width, height, vign_cfg)
 
     # 7. Валидация результата
@@ -336,7 +375,7 @@ def process_steps(
         black_ratio = validate_result_black_ratio(img_final, min_black_ratio=result_min_black)
 
     # F.2: Метрики качества
-    quality = _compute_quality_metrics(img_final, subject_mask, machine_cfg)
+    quality = _compute_quality_metrics(img_final, ctx.subject_mask, ctx.machine_cfg)
 
     logger.info(
         "Pipeline complete: %dx%d, glow=%dpx/%.0f%%, face=%.0f→%.0f",
@@ -344,27 +383,27 @@ def process_steps(
     )
 
     return PipelineResult(
-        img_chromakey=img_chromakey,
-        img_gray=img_gray,
+        img_chromakey=ctx.img_chromakey,
+        img_gray=ctx.img_gray,
         img_glow=img_glow,
         img_leveled=img_leveled,
         img_face_corrected=img_face_corrected,
         img_sharpened=img_sharpened,
         img_final=img_final,
         arch_mask=arch_mask,
-        subject_mask=subject_mask,
-        face_mask=face_mask,
+        subject_mask=ctx.subject_mask,
+        face_mask=ctx.face_mask,
         glow_size=glow_size,
         glow_opacity=glow_opacity,
         face_brightness_before=face_before,
         face_brightness_after=face_after,
         face_correction_factor=correction_factor,
-        analytics=analytics,
+        analytics=ctx.analytics,
         black_ratio=black_ratio,
         blue_ratio=blue_ratio,
         width=width,
         height=height,
-        warnings=warnings,
+        warnings=ctx.warnings,
         clipped_pixels_pct=quality["clipped_pixels_pct"],
         shadow_crush_pct=quality["shadow_crush_pct"],
         tonal_range_output=quality["tonal_range_output"],

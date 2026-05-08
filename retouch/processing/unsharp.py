@@ -42,7 +42,7 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=N
         orig_arr = np.array(img, dtype=np.float32)
         sharp_arr = np.array(sharpened, dtype=np.float32)
         result_arr = np.where(mask_bool, sharp_arr, orig_arr)
-        return Image.fromarray(result_arr.astype(np.uint8), "L")
+        return Image.fromarray(result_arr.astype(np.uint8))
 
     return sharpened
 

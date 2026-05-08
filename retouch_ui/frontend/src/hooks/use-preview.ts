@@ -16,6 +16,9 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // D.8.3: Version counter — protects against race conditions where
+  // an older (slower) request resolves after a newer (faster) one.
+  const versionRef = useRef(0);
 
   const requestPreview = useCallback(
     (fileId: string, machineType: MachineType, config?: Record<string, any>) => {
@@ -23,6 +26,9 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
       if (abortRef.current) {
         abortRef.current.abort();
       }
+
+      // Increment version — only the latest request can update state
+      const thisVersion = ++versionRef.current;
 
       // Debounce
       if (timerRef.current) {
@@ -38,16 +44,20 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
 
         try {
           const data = await fetchPreview(fileId, machineType, config, controller.signal);
-          if (!controller.signal.aborted) {
+          // D.8.3: Only accept result if this is still the latest request
+          if (!controller.signal.aborted && versionRef.current === thisVersion) {
             setResult(data);
           }
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
-          if (!controller.signal.aborted) {
+          if (!controller.signal.aborted && versionRef.current === thisVersion) {
             setError(msg);
           }
         } finally {
-          setLoading(false);
+          // Only clear loading if this is the latest request
+          if (versionRef.current === thisVersion) {
+            setLoading(false);
+          }
         }
       }, debounceMs);
     },

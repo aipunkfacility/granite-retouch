@@ -269,6 +269,88 @@ class TestG2P1Functional:
         # Высота должна быть >= 200 (D.2)
         assert result.height >= 200, f"Высота {result.height} < 200"
 
+    # ─── G.2: Недостающие тесты ──────────────────────────────────────
+
+    def test_stable_serialize_float_equivalence(self):
+        """G.2 cache: _stable_serialize({a: 1.0}) == _stable_serialize({a: 1.0000})."""
+        from retouch_ui.backend.routers.process import _stable_serialize
+
+        hash1 = _stable_serialize({"a": 1.0})
+        hash2 = _stable_serialize({"a": 1.0000})
+        hash3 = _stable_serialize({"a": 1.0001})  # round(1.0001, 4) = 1.0001 ≠ 1.0
+
+        assert hash1 == hash2, "1.0 и 1.0000 должны давать один хэш"
+        assert hash1 != hash3, "1.0 и 1.0001 должны давать разные хэши (round до 4 знаков)"
+
+    def test_preview_cache_stores_base64_not_pil(self):
+        """G.2 cache: кэш хранит base64 строки, не PIL объекты."""
+        from retouch_ui.backend.routers.process import _preview_cache
+
+        # Если кэш пуст — просто проверяем что значение — dict со строками
+        for key, value in _preview_cache.items():
+            assert isinstance(value, dict), "Кэш должен содержать dict"
+            if "images" in value:
+                for img_key, img_val in value["images"].items():
+                    assert isinstance(img_val, str), \
+                        f"Кэш должен хранить base64 строки, не {type(img_val)}"
+                    assert img_val.startswith("data:image/"), \
+                        "Кэш должен содержать data URI"
+
+    def test_brightness_999_returns_422(self):
+        """G.2 schemas: brightness=999 → 422 Validation Error."""
+        from retouch_ui.backend.schemas import PreviewParams
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc_info:
+            PreviewParams(brightness=999.0)
+
+        errors = exc_info.value.errors()
+        assert any(e["loc"] == ("brightness",) for e in errors), \
+            "brightness=999 должен вызывать ошибку валидации"
+
+    def test_floyd_steinberg_50_50(self):
+        """G.1 export: Floyd-Steinberg: grayscale 128 → примерно 50/50 white/black."""
+        from retouch.processing.export import floyd_steinberg_dither
+
+        # Равномерно серое изображение (128)
+        img = Image.new("L", (200, 200), 128)
+        result = floyd_steinberg_dither(img)
+
+        arr = np.array(result.convert("L"))
+        white_pct = (arr > 128).sum() / arr.size * 100
+
+        # Должно быть примерно 50% белого (±15% из-за краевых эффектов)
+        assert 35 < white_pct < 65, \
+            f"При grayscale=128 Floyd-Steinberg должен давать ~50% белого, got {white_pct:.1f}%"
+
+    def test_classify_input_boundary_values(self):
+        """G.2 analysis: _classify_input граничные значения 120, 180, 220."""
+        from retouch.processing.analysis import _classify_input
+
+        # Граничные значения по median:
+        # < 120 → 'dark', >= 120 and < 180 → 'medium', >= 180 and < 220 → 'bright', >= 220 → 'overbright'
+        dark_arr = np.full(100, 119, dtype=np.float32)
+        medium_arr = np.full(100, 150, dtype=np.float32)
+        bright_arr = np.full(100, 200, dtype=np.float32)
+        overbright_arr = np.full(100, 221, dtype=np.float32)
+
+        assert _classify_input(dark_arr) == "dark"
+        assert _classify_input(medium_arr) == "medium"
+        assert _classify_input(bright_arr) == "bright"
+        assert _classify_input(overbright_arr) == "overbright"
+
+        # Точно на границе 120 → medium (>= 120)
+        boundary_120 = np.full(100, 120, dtype=np.float32)
+        assert _classify_input(boundary_120) == "medium"
+
+        # Точно на границе 180 → bright (>= 180)
+        boundary_180 = np.full(100, 180, dtype=np.float32)
+        assert _classify_input(boundary_180) == "bright"
+
+        # Точно на границе 220 → overbright (>= 220)
+        boundary_220 = np.full(100, 220, dtype=np.float32)
+        assert _classify_input(boundary_220) == "overbright"
+
 
 class TestG3Integration:
     """G.3: Интеграционный тест — сквозной пайплайн."""

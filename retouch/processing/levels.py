@@ -71,7 +71,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         corrected = arr * factor
         corrected = np.clip(corrected, 0, 255)
         result_arr = np.where(mask_bool, corrected, arr)
-        return Image.fromarray(result_arr.astype(np.uint8), "L")
+        return Image.fromarray(result_arr.astype(np.uint8))
     elif subject_mask is not None and not HAS_NUMPY:
         # Pillow fallback БЕЗ numpy — коррекция глобальная, но маска не применяется.
         logger.warning(

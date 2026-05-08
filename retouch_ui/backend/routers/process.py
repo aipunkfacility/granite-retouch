@@ -179,13 +179,16 @@ async def upload_image(file: UploadFile = File(...)):
     )
 
 
-def _params_to_overrides(params: PreviewParams | None) -> dict:
+def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | None]:
     """Преобразовать PreviewParams в dict для deep_merge в конфиг.
 
     E.2: Поддерживает face_oval → передача в pipeline.
+
+    Returns:
+        tuple: (overrides_dict, face_oval_dict или None)
     """
     if params is None:
-        return {}
+        return {}, None
 
     overrides = {}
     p = params.model_dump(exclude_none=True)

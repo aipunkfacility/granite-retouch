@@ -115,7 +115,7 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     edge = mask_arr & ~shrunk
 
     # Размываем край для плавного затухания к центру
-    edge_img = Image.fromarray((edge.astype(np.uint8) * 255), "L")
+    edge_img = Image.fromarray(edge.astype(np.uint8) * 255)
     edge_blurred = edge_img.filter(ImageFilter.GaussianBlur(glow_size // 2))
 
     # Composite: белый через размытый край поверх оригинала
@@ -128,7 +128,7 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     return result
 
 
-def apply_inner_glow(img_gray, subject_mask, machine_cfg,
+def apply_glow(img_gray, subject_mask, machine_cfg,
                      glow_size_override=None, glow_opacity_override=None,
                      analytics=None, machine_type=None,
                      glow_style=None):
@@ -195,3 +195,7 @@ def apply_inner_glow(img_gray, subject_mask, machine_cfg,
         )
 
     return result, glow_size, glow_opacity
+
+
+# A.5: Backward-compatible alias — старое имя было обманчивым
+apply_inner_glow = apply_glow

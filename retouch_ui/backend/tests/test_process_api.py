@@ -65,8 +65,9 @@ def test_upload_limit(client, monkeypatch):
     """Uploading beyond MAX_UPLOADED_FILES returns 503."""
     # Fill the store to capacity
     _uploaded_files.clear()
+    import time
     for i in range(MAX_UPLOADED_FILES):
-        _uploaded_files[f"fake-{i}"] = (None, f"file-{i}.png")
+        _uploaded_files[f"fake-{i}"] = (None, f"file-{i}.png", 0, time.time())
 
     try:
         img = Image.new("RGB", (64, 64), (0, 0, 255))

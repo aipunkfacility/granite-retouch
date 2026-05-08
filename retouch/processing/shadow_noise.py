@@ -63,4 +63,4 @@ def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15,
         "Shadow noise: added %d-%d to %d dark subject pixels (threshold=%d)",
         noise_min, noise_max, subject_dark.sum(), shadow_threshold,
     )
-    return Image.fromarray(arr.astype(np.uint8), "L")
+    return Image.fromarray(arr.astype(np.uint8))
