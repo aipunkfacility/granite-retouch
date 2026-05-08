@@ -6,6 +6,45 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
+# ─── Валидация параметров обработки (D.4) ─────────────────────────────
+
+class FaceOvalParams(BaseModel):
+    """Параметры овала зоны лица (0-1 нормализованные координаты)."""
+    cx: float = Field(0.5, ge=0.0, le=1.0, description="Центр X (0-1)")
+    cy: float = Field(0.25, ge=0.0, le=1.0, description="Центр Y (0-1)")
+    rx: float = Field(0.15, ge=0.01, le=0.50, description="Радиус X (0-1)")
+    ry: float = Field(0.20, ge=0.01, le=0.50, description="Радиус Y (0-1)")
+    source: str = Field("heuristic", pattern="^(heuristic|manual|auto|heuristic_legacy)$",
+                        description="Источник овала")
+
+
+class PreviewParams(BaseModel):
+    """Валидированные параметры обработки (D.4).
+
+    Все параметры опциональны — None означает «использовать из конфига».
+    При передаче невалидного значения → 422 Validation Error.
+    """
+    brightness: Optional[float] = Field(None, ge=0.5, le=2.0,
+                                        description="Множитель яркости (0.5–2.0)")
+    glow_size: Optional[int] = Field(None, ge=5, le=100,
+                                     description="Размер glow (5–100 px)")
+    glow_opacity: Optional[int] = Field(None, ge=0, le=100,
+                                        description="Непрозрачность glow (0–100%)")
+    face_oval: Optional[FaceOvalParams] = Field(None,
+                                                description="Овал зоны лица (нормализованный)")
+    stone_type: Optional[str] = Field(None,
+                                      pattern="^(granite|marble|gabbro|basalt)$",
+                                      description="Тип камня")
+    step_mm: Optional[float] = Field(None, ge=0.10, le=0.50,
+                                     description="Шаг ЧПУ (мм)")
+    highlight_start: Optional[int] = Field(None, ge=80, le=250,
+                                           description="Порог затухания коррекции (80–250)")
+    face_region_top: Optional[float] = Field(None, ge=0.2, le=0.8,
+                                             description="Доля высоты для зоны лица (0.2–0.8)")
+    legacy_step_order: Optional[bool] = Field(None,
+                                              description="Старый порядок шагов (rollback)")
+
+
 # ─── Запросы ──────────────────────────────────────────────────────────
 
 class UploadResponse(BaseModel):
@@ -18,16 +57,21 @@ class UploadResponse(BaseModel):
 class PreviewRequest(BaseModel):
     """Запрос POST /api/process/preview."""
     file_id: str = Field(..., description="UUID загруженного файла")
-    machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$", description="Тип станка")
-    params: Optional[dict] = Field(None, description="Параметры обработки (override config.yaml)")
+    machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$",
+                         description="Тип станка")
+    params: Optional[PreviewParams] = Field(None,
+                                            description="Валидированные параметры обработки")
+    full_steps: bool = Field(True, description="D.3: true=все шаги, false=только final")
 
 
 class ExportRequest(BaseModel):
     """Запрос POST /api/process/export."""
     file_id: str = Field(..., description="UUID загруженного файла")
     machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$")
-    params: Optional[dict] = Field(None, description="Параметры обработки (override config.yaml)")
-    format: str = Field("bmp", pattern="^(bmp|bmp_1bit|bmp_8bit|png|tiff)$", description="Формат экспорта")
+    params: Optional[PreviewParams] = Field(None,
+                                            description="Валидированные параметры обработки")
+    format: str = Field("bmp", pattern="^(bmp|bmp_1bit|bmp_8bit|png|tiff)$",
+                        description="Формат экспорта")
 
 
 class ConfigUpdateRequest(BaseModel):

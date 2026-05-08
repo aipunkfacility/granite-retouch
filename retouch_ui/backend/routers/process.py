@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import io
+import json
 import logging
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Dict, Tuple
@@ -15,7 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from PIL import Image
 
-from retouch.config import load_config
+from retouch.config import load_config, deep_merge
 from retouch.processing.pipeline import (
     process_preview,
     process_steps,
@@ -30,6 +33,8 @@ from ..schemas import (
     PreviewResponse,
     PreviewDiagnostics,
     ExportRequest,
+    FaceOvalParams,
+    PreviewParams,
     VignetteMaskRequest,
     VignetteMaskResponse,
     VignetteMaskParams,
@@ -40,8 +45,9 @@ logger = logging.getLogger("retouch_ui.process")
 router = APIRouter(prefix="/api", tags=["process"])
 
 # ─── Хранилище загруженных файлов ─────────────────────────────────────
-# Ключ: file_id (UUID), значение: (путь к файлу, оригинальное имя)
-_uploaded_files: Dict[str, Tuple[Path, str]] = {}
+# Ключ: file_id (UUID), значение: (путь к файлу, оригинальное имя, ref_count, upload_time)
+_UploadedEntry = Tuple[Path, str, int, float]
+_uploaded_files: Dict[str, _UploadedEntry] = {}
 
 MAX_UPLOADED_FILES = 50  # A16: лимит на количество одновременно загруженных файлов
 
@@ -51,7 +57,7 @@ def _cleanup_uploaded(file_id: str) -> None:
     entry = _uploaded_files.pop(file_id, None)
     if entry is None:
         return
-    path, _ = entry
+    path, _, _, _ = entry
     try:
         if path.exists():
             path.unlink()
@@ -61,24 +67,73 @@ def _cleanup_uploaded(file_id: str) -> None:
 
 
 async def _ttl_cleanup() -> None:
-    """Фоновая корутина: удалять файлы старше 30 минут."""
-    import time
-
+    """Фоновая корутина: удалять файлы старше 30 минут (D.5: с учётом ref_count)."""
     MAX_AGE_SEC = 1800  # 30 минут
 
     while True:
         await asyncio.sleep(60)
         now = time.time()
         expired = []
-        for fid, (path, _) in _uploaded_files.items():
+        for fid, (path, _, ref_count, upload_time) in _uploaded_files.items():
             try:
-                if path.exists() and (now - path.stat().st_mtime) > MAX_AGE_SEC:
+                # D.5: Файл с ref_count > 0 НЕ удаляется при TTL cleanup
+                if ref_count > 0:
+                    continue
+                if path.exists() and (now - upload_time) > MAX_AGE_SEC:
                     expired.append(fid)
             except OSError:
                 expired.append(fid)
         for fid in expired:
             _cleanup_uploaded(fid)
             logger.info("TTL-очистка: удалён file_id=%s", fid)
+
+
+def _ref_inc(file_id: str) -> None:
+    """D.5: Увеличить ref_count для файла."""
+    entry = _uploaded_files.get(file_id)
+    if entry is not None:
+        path, name, ref, ts = entry
+        _uploaded_files[file_id] = (path, name, ref + 1, ts)
+
+
+def _ref_dec(file_id: str) -> None:
+    """D.5: Уменьшить ref_count для файла."""
+    entry = _uploaded_files.get(file_id)
+    if entry is not None:
+        path, name, ref, ts = entry
+        _uploaded_files[file_id] = (path, name, max(0, ref - 1), ts)
+
+
+# ─── D.6: Кэш preview ────────────────────────────────────────────────
+
+_preview_cache: Dict[str, dict] = {}  # cache_key → {"images": dict, "diagnostics": dict, "warnings": list}
+_PREVIEW_CACHE_MAX = 30  # Максимум записей в кэше
+
+
+def _stable_serialize(params: dict) -> str:
+    """D.6: Стабильная сериализация параметров для хэша.
+
+    Округляем float до 4 знаков → compact JSON separators → SHA256.
+    _stable_serialize({a: 1.0}) == _stable_serialize({a: 1.0000})
+    """
+    def _round_values(obj):
+        if isinstance(obj, dict):
+            return {k: _round_values(v) for k, v in sorted(obj.items())}
+        elif isinstance(obj, list):
+            return [_round_values(v) for v in obj]
+        elif isinstance(obj, float):
+            return round(obj, 4)
+        return obj
+
+    normalized = _round_values(params)
+    serialized = json.dumps(normalized, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(serialized.encode()).hexdigest()[:16]
+
+
+def _cache_key(file_id: str, machine: str, params: PreviewParams | None) -> str:
+    """D.6: Ключ кэша = file_id + machine + хэш параметров."""
+    params_dict = params.model_dump(exclude_none=True) if params else {}
+    return f"{file_id}:{machine}:{_stable_serialize(params_dict)}"
 
 
 # ─── Эндпоинты ────────────────────────────────────────────────────────
@@ -113,7 +168,8 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(500, "Ошибка при сохранении файла")
 
     file_id = uuid.uuid4().hex
-    _uploaded_files[file_id] = (Path(tmp.name), file.filename or "upload.png")
+    # D.5: Добавляем ref_count=0 и upload_time
+    _uploaded_files[file_id] = (Path(tmp.name), file.filename or "upload.png", 0, time.time())
     logger.info("Загружен файл: %s → file_id=%s", file.filename, file_id)
 
     return UploadResponse(
@@ -121,6 +177,37 @@ async def upload_image(file: UploadFile = File(...)):
         filename=file.filename or "upload.png",
         size_bytes=len(content),
     )
+
+
+def _params_to_overrides(params: PreviewParams | None) -> dict:
+    """Преобразовать PreviewParams в dict для deep_merge в конфиг.
+
+    E.2: Поддерживает face_oval → передача в pipeline.
+    """
+    if params is None:
+        return {}
+
+    overrides = {}
+    p = params.model_dump(exclude_none=True)
+
+    # face_oval → отдельный параметр (не в конфиг)
+    face_oval = p.pop("face_oval", None)
+
+    # stone_type → в секцию stone
+    stone_type = p.pop("stone_type", None)
+    if stone_type:
+        overrides["stone"] = {"type": stone_type}
+
+    # step_mm → в секцию machine
+    step_mm = p.pop("step_mm", None)
+    if step_mm:
+        overrides["machine"] = {"step_mm": step_mm}
+
+    # Остальные параметры → в processing.<machine>
+    if p:
+        overrides["processing"] = p
+
+    return overrides, face_oval
 
 
 @router.post("/process/preview", response_model=PreviewResponse)
@@ -134,13 +221,31 @@ async def preview_image(
     if entry is None:
         raise HTTPException(404, f"Файл не найден: {request.file_id}")
 
-    input_path, _ = entry
+    input_path, _, _, _ = entry
+
+    # D.6: Проверяем кэш
+    cache_k = _cache_key(request.file_id, request.machine, request.params)
+    cached = _preview_cache.get(cache_k)
+    if cached is not None:
+        logger.debug("Preview cache hit: %s", cache_k)
+        return PreviewResponse(**cached)
 
     # Собрать конфиг: загрузить полный, затем наложить params
     full_config = load_config()
-    if request.params:
-        from retouch.config import deep_merge
-        full_config = deep_merge(full_config, request.params)
+    overrides_data = _params_to_overrides(request.params)
+    overrides, face_oval_dict = overrides_data
+
+    if overrides:
+        full_config = deep_merge(full_config, overrides)
+
+    # E.2: face_oval из запроса
+    face_oval = face_oval_dict  # dict с cx, cy, rx, ry, source или None
+
+    # D.3: full_steps — какие шаги возвращать
+    full_steps = request.full_steps
+
+    # D.5: Увеличиваем ref_count
+    _ref_inc(request.file_id)
 
     # CPU-bound: запуск в отдельном потоке
     try:
@@ -151,21 +256,27 @@ async def preview_image(
                 machine_type=request.machine,
                 config=full_config,
                 max_size=768,
+                face_oval=face_oval,
             ),
             timeout=15.0,
         )
     except asyncio.TimeoutError:
+        _ref_dec(request.file_id)
         raise HTTPException(
             408,
             "Превышено время предпросмотра (15 сек). "
             "Попробуйте уменьшить размер изображения.",
         )
     except Exception as exc:
+        _ref_dec(request.file_id)
         logger.exception("Ошибка предпросмотра: %s", exc)
         raise HTTPException(500, f"Ошибка обработки: {exc}")
 
+    # D.5: Уменьшаем ref_count
+    _ref_dec(request.file_id)
+
     # Кодируем каждый шаг в base64 data URI
-    step_images: dict[str, Image.Image | None] = {
+    all_step_images: dict[str, Image.Image | None] = {
         "chromakey": result.img_chromakey,
         "glow": result.img_glow,
         "leveled": result.img_leveled,
@@ -173,6 +284,9 @@ async def preview_image(
         "final": result.img_final,
         "arch_mask": result.arch_mask,
     }
+
+    # D.3: При full_steps=False — только final
+    step_images = all_step_images if full_steps else {"final": result.img_final}
 
     images: dict[str, str] = {}
     for key, img in step_images.items():
@@ -204,11 +318,20 @@ async def preview_image(
         height=result.height,
     )
 
-    return PreviewResponse(
-        images=images,
-        diagnostics=diagnostics,
-        warnings=result.warnings,
-    )
+    response_data = {
+        "images": images,
+        "diagnostics": diagnostics.model_dump(),
+        "warnings": result.warnings,
+    }
+
+    # D.6: Сохраняем в кэш (base64, не PIL objects)
+    if len(_preview_cache) >= _PREVIEW_CACHE_MAX:
+        # Удаляем самую старую запись (FIFO)
+        oldest_key = next(iter(_preview_cache))
+        del _preview_cache[oldest_key]
+    _preview_cache[cache_k] = response_data
+
+    return PreviewResponse(**response_data)
 
 
 @router.post("/process/export")
@@ -223,15 +346,23 @@ async def export_image(
     if entry is None:
         raise HTTPException(404, f"Файл не найден: {request.file_id}")
 
-    input_path, _ = entry
+    input_path, _, _, _ = entry
 
     # Собрать конфиг
     full_config = load_config()
-    if request.params:
-        from retouch.config import deep_merge
-        full_config = deep_merge(full_config, request.params)
+    overrides_data = _params_to_overrides(request.params)
+    overrides, face_oval_dict = overrides_data
+
+    if overrides:
+        full_config = deep_merge(full_config, overrides)
+
+    # E.2: face_oval из запроса
+    face_oval = face_oval_dict
 
     fmt = request.format  # "bmp", "bmp_1bit", "bmp_8bit", "png", "tiff"
+
+    # D.5: Увеличиваем ref_count
+    _ref_inc(request.file_id)
 
     # CPU-bound: запуск в отдельном потоке
     try:
@@ -241,18 +372,24 @@ async def export_image(
                 input_path=str(input_path),
                 machine_type=request.machine,
                 config=full_config,
+                face_oval=face_oval,
             ),
             timeout=60.0,
         )
     except asyncio.TimeoutError:
+        _ref_dec(request.file_id)
         raise HTTPException(
             408,
             "Превышено время экспорта (60 сек). "
             "Попробуйте уменьшить размер изображения.",
         )
     except Exception as exc:
+        _ref_dec(request.file_id)
         logger.exception("Ошибка экспорта: %s", exc)
         raise HTTPException(500, f"Ошибка обработки: {exc}")
+
+    # D.5: Уменьшаем ref_count
+    _ref_dec(request.file_id)
 
     # Сохранить результат во временный файл для отдачи
     # Определяем расширение и media type по формату

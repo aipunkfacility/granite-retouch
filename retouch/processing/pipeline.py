@@ -243,8 +243,23 @@ def process_steps(
     # 2c. Генерация маски лица из овала (C.2)
     face_mask = generate_face_mask(width, height, face_oval, subject_mask)
 
-    # 3. Glow
+    # B.1: Заполняем PipelineContext — внутренняя упаковка
     machine_cfg = proc_cfg.get(machine_type, {})
+    ctx = PipelineContext(
+        img_gray=img_gray,
+        subject_mask=subject_mask,
+        face_mask=face_mask,
+        face_oval=face_oval,
+        analytics=analytics,
+        machine_type=machine_type,
+        config=config,
+        machine_cfg=machine_cfg,
+        stone_type=config.get("stone", {}).get("type", "granite"),
+        step_mm=config.get("machine", {}).get("step_mm", 0.300),
+        warnings=warnings,
+    )
+
+    # 3. Glow
     img_glow, glow_size, glow_opacity = apply_inner_glow(
         img_gray, subject_mask, machine_cfg,
         glow_size_override=glow_size_override,
@@ -380,6 +395,7 @@ def _apply_face_brightness(img, machine_cfg, subject_mask, glow_size, face_mask=
         face_region_top=face_region_top,
         highlight_start=highlight_start,
         white_ceiling=white_ceiling,
+        face_mask_img=face_mask,  # C.3: маска лица из овала (приоритет над face_region_top)
     )
 
 

@@ -46,7 +46,9 @@ class TestDefaults:
         """DEFAULTS содержит параметры impact."""
         assert "impact" in DEFAULTS["processing"]
         impact = DEFAULTS["processing"]["impact"]
-        assert "shadow_noise" not in impact  # BACKLOG-006: не реализован
+        assert "shadow_noise_min" in impact  # A.1: shadow noise реализован
+        assert "shadow_noise_max" in impact
+        assert "shadow_floor" in impact      # A.2: shadow floor реализован
         assert "face_region_top" in impact
         assert "highlight_start" in impact
 
