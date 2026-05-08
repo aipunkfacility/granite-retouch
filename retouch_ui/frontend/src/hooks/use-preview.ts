@@ -2,12 +2,18 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchPreview } from "../lib/api";
 import type { PreviewResult } from "../lib/api";
 import type { MachineType } from "../lib/types";
+import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 interface UsePreviewReturn {
   result: PreviewResult | null;
   loading: boolean;
   error: string | null;
-  requestPreview: (fileId: string, machineType: MachineType, config?: Record<string, any>) => void;
+  requestPreview: (
+    fileId: string,
+    machineType: MachineType,
+    config?: Record<string, any>,
+    faceOval?: FaceOvalParams | null,
+  ) => void;
 }
 
 export function usePreview(debounceMs = 300): UsePreviewReturn {
@@ -21,7 +27,12 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
   const versionRef = useRef(0);
 
   const requestPreview = useCallback(
-    (fileId: string, machineType: MachineType, config?: Record<string, any>) => {
+    (
+      fileId: string,
+      machineType: MachineType,
+      config?: Record<string, any>,
+      faceOval?: FaceOvalParams | null,
+    ) => {
       // Cancel previous request
       if (abortRef.current) {
         abortRef.current.abort();
@@ -43,7 +54,14 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
         abortRef.current = controller;
 
         try {
-          const data = await fetchPreview(fileId, machineType, config, controller.signal);
+          const data = await fetchPreview(
+            fileId,
+            machineType,
+            config,
+            controller.signal,
+            faceOval,
+            true,  // full_steps
+          );
           // D.8.3: Only accept result if this is still the latest request
           if (!controller.signal.aborted && versionRef.current === thisVersion) {
             setResult(data);

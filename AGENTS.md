@@ -6,6 +6,19 @@ granite-retouch — система автоматизации подготовк
 
 **Важно:** Агенты генерируют только текстовые промпты для Nano Banana, а не изображения напрямую. Генерация выполняется оператором вручную.
 
+**Модули обработки (v5.0.0):**
+- `retouch/processing/chromakey.py` — удаление синего фона + fringe removal
+- `retouch/processing/analysis.py` — преданализ: 13 метрик + ImageAnalytics dataclass
+- `retouch/processing/glow.py` — Glow: inner + outer, детерминированный
+- `retouch/processing/levels.py` — Levels (адаптивный)
+- `retouch/processing/face_region.py` — детекция лица + генерация масок
+- `retouch/processing/face_correction.py` — check_face_brightness + curves
+- `retouch/processing/unsharp.py` — unsharp mask
+- `retouch/processing/shadow_noise.py` — shadow noise для impact
+- `retouch/processing/export.py` — BMP/PNG экспорт + Floyd-Steinberg дизеринг
+- `retouch/processing/vignette.py` — арховая виньетка
+- `retouch/processing/pipeline.py` — полный пайплайн + PipelineContext + PipelineResult
+
 ## Документация
 
 Полная документация в `docs/`. См. [docs/index.md](docs/index.md).
@@ -35,7 +48,7 @@ uv run python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 uv run python -m retouch order list
 uv run python -m retouch order validate ORD-2026-042
 
-# Тесты (132+ автотестов, не требуют GIMP/фото)
+# Тесты (266+ автотестов + 31 backend API тест, не требуют GIMP/фото)
 make test
 
 # Web UI — интерактивная настройка с предпросмотром
@@ -93,4 +106,4 @@ orders/active/ORD-2026-001/
 
 ---
 
-Обновлено: 2026-05-07
+Обновлено: 2026-05-09

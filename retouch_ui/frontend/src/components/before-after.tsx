@@ -1,9 +1,11 @@
-/** Side-by-side before/after preview with step labels and vignette overlay */
+/** Side-by-side before/after preview with step labels, vignette overlay, and face oval overlay */
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { VignetteOverlay } from "./vignette-overlay";
+import { FaceOvalOverlay } from "./face-oval-overlay";
 import { computeImgRenderMetrics } from "../lib/vignette-geometry";
 import type { VignetteParams } from "../lib/vignette-geometry";
+import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 interface Props {
   originalUrl: string | null;
@@ -12,6 +14,10 @@ interface Props {
   onStepChange: (step: string) => void;
   /** Vignette overlay props (only when enabled and on "final" step) */
   vignetteOverlayEnabled: boolean;
+  /** Face oval overlay props */
+  faceOvalOverlayEnabled: boolean;
+  faceOval: FaceOvalParams | null;
+  onFaceOvalChange: (params: FaceOvalParams) => void;
   imageWidth: number;
   imageHeight: number;
   vignetteParams: VignetteParams;
@@ -32,6 +38,9 @@ export function BeforeAfter({
   images,
   selectedStep,
   vignetteOverlayEnabled,
+  faceOvalOverlayEnabled,
+  faceOval,
+  onFaceOvalChange,
   imageWidth,
   imageHeight,
   vignetteParams,
@@ -81,12 +90,20 @@ export function BeforeAfter({
     return () => observer.disconnect();
   }, [updateMetrics]);
 
-  // Show overlay only on "final" step with overlay enabled
-  const showOverlay =
+  // Show vignette overlay only on "final" step with overlay enabled
+  const showVignetteOverlay =
     vignetteOverlayEnabled &&
     selectedStep === "final" &&
     imageWidth > 0 &&
     imageHeight > 0;
+
+  // Show face oval overlay on "face_corrected" or "final" step
+  const showFaceOvalOverlay =
+    faceOvalOverlayEnabled &&
+    (selectedStep === "face_corrected" || selectedStep === "final") &&
+    imageWidth > 0 &&
+    imageHeight > 0 &&
+    faceOval !== null;
 
   return (
     <div className="flex gap-4 w-full">
@@ -122,7 +139,7 @@ export function BeforeAfter({
             <span className="text-text-muted text-sm">Нет данных</span>
           )}
           {/* Vignette overlay */}
-          {showOverlay && (
+          {showVignetteOverlay && (
             <VignetteOverlay
               imageWidth={imageWidth}
               imageHeight={imageHeight}
@@ -132,6 +149,19 @@ export function BeforeAfter({
               offsetY={renderMetrics.offsetY}
               vignetteParams={vignetteParams}
               onVignetteParamChange={onVignetteParamChange}
+            />
+          )}
+          {/* Face oval overlay */}
+          {showFaceOvalOverlay && faceOval && (
+            <FaceOvalOverlay
+              imageWidth={imageWidth}
+              imageHeight={imageHeight}
+              renderedWidth={renderMetrics.renderedWidth}
+              renderedHeight={renderMetrics.renderedHeight}
+              offsetX={renderMetrics.offsetX}
+              offsetY={renderMetrics.offsetY}
+              faceOval={faceOval}
+              onFaceOvalChange={onFaceOvalChange}
             />
           )}
         </div>

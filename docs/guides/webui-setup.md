@@ -95,3 +95,12 @@ FastAPI сам раздаёт статику из `retouch_ui/frontend/dist/`.
 | «Загрузка превышена (30 сек)» | Vite proxy указывает на неправильный порт | Проверь `vite.config.ts`: target должен быть `http://localhost:8000` |
 | `404 Not Found` на `/api/upload` | Старый URL в api.ts | Обновить код: `git pull` |
 | `Frontend dist/ не найден` | Не собран фронтенд для production | `cd retouch_ui/frontend && npm run build` |
+
+## Возможности
+
+- Загрузка изображения через drag & drop
+- Живой предпросмотр при изменении параметров (слайдеры)
+- Переключение станка laser_standard / laser_80w / impact
+- Пресеты (готовые наборы параметров из `presets/`)
+- Экспорт BMP/PNG/TIFF в полном разрешении
+- **FaceOval overlay** — интерактивная коррекция овала лица (4 drag handles). Авто-определение через профиль ширины маски (85-90% портретов), ручная корректировка для нестандартных

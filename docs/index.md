@@ -31,11 +31,13 @@
 Для разработчиков и отладки.
 
 - **[architecture/overview.md](architecture/overview.md)** — структура проекта, модули, потоки данных, тестирование
-- **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → analytics → glow → levels → unsharp → face brightness → vignette → export
+- **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → analytics → face detection → glow → levels → face brightness → unsharp → shadow noise/floor → vignette → export
+- **Face Pipeline** — детекция лица (C.1) → маска лица/волос (C.2) → интеграция в пайплайн (C.3). См. [architecture/pipeline.md](architecture/pipeline.md#4b-детекция-зоны-лица-c1)
+- **Export Reference** — BMP 8-bit/1-bit, Floyd-Steinberg дизеринг, post-validation (F.3). См. [architecture/pipeline.md](architecture/pipeline.md#11-сохранение-bmppng)
 
 ## Тестирование
 
-132+ автотестов покрывают все модули. Запуск: `make test` или `pytest tests/ -v`. Подробнее в [architecture/overview.md](architecture/overview.md#тестирование).
+266+ автотестов + 31 backend API тест покрывают все модули. Запуск: `make test` или `pytest tests/ -v`. Подробнее в [architecture/overview.md](architecture/overview.md#тестирование).
 
 ## Интеграции
 

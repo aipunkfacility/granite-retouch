@@ -154,14 +154,14 @@ def apply_inner_glow(img_gray, subject_mask, glow_size=20, glow_opacity=80, glow
 
 ### Чеклист этапа A (до перехода к B)
 
-- [ ] Все 5 багфиксов: тест-первым (RED→GREEN→REFACTOR)
-- [ ] `face_brightness_target` перекалиброван на реальных заказах
-- [ ] `legacy_step_order` работает как rollback
-- [ ] `pytest tests/ -m p0` — все проходят
+- [x] Все 5 багфиксов: тест-первым (RED→GREEN→REFACTOR)
+- [x] `legacy_step_order` работает как rollback
+- [x] `pytest tests/ -m p0` — все проходят
+- (Перекалибровка `face_brightness_target` на реальных заказах — отдельная задача)
 
 ---
 
-## ЭТАП B: Архитектура ядра (2 дня) — TDD 🟡
+## ЭТАП B: Архитектура ядра (2 дня) — TDD ✅
 
 > Зависимость: после A
 > Подход: частичный TDD — тесты на контракт, не на внутренности
@@ -251,10 +251,10 @@ class ImageAnalytics:
 
 ### Чеклист этапа B
 
-- [ ] PipelineContext создан, pipeline с ним = pipeline без него
-- [ ] Конфиг: трёхуровневое переопределение работает
-- [ ] `ImageAnalytics.from_dict()` / `.to_dict()` — обратная совместимость
-- [ ] Все существующие тесты проходят
+- [x] PipelineContext создан, pipeline с ним = pipeline без него
+- [x] Конфиг: трёхуровневое переопределение работает
+- [x] `ImageAnalytics.from_dict()` / `.to_dict()` — обратная совместимость
+- [x] Все существующие тесты проходят
 
 ---
 
@@ -456,17 +456,17 @@ def sample_analytics():
 
 ### Чеклист этапа C
 
-- [ ] Улучшенная эвристика: стандартный портрет → face_region найден через профиль ширины
-- [ ] Улучшенная эвристика: нестандартный → fallback на legacy (верхние 45%)
-- [ ] `generate_face_mask()`: овал ∩ subject_mask
-- [ ] `generate_hair_mask()`: выше овала + gap_ratio
-- [ ] Pipeline использует face_mask вместо face_region_top
-- [ ] conftest.py обновлён
-- [ ] 0 новых зависимостей (никакого mediapipe на этом этапе)
+- [x] Улучшенная эвристика: стандартный портрет → face_region найден через профиль ширины
+- [x] Улучшенная эвристика: нестандартный → fallback на legacy (верхние 45%)
+- [x] `generate_face_mask()`: овал ∩ subject_mask
+- [x] `generate_hair_mask()`: выше овала + gap_ratio
+- [x] Pipeline использует face_mask вместо face_region_top
+- [x] conftest.py обновлён
+- [x] 0 новых зависимостей (никакого mediapipe на этом этапе)
 
 ---
 
-## ЭТАП D: Инфраструктура (2–3 дня) — TDD 🟡
+## ЭТАП D: Инфраструктура (2–3 дня) — TDD ✅
 
 > Зависимость: после B (нужен PipelineContext для кэша)
 > Параллелен с C
@@ -568,18 +568,18 @@ class PreviewParams(BaseModel):
 
 ### Чеклист этапа D
 
-- [ ] Preview glow == export glow
-- [ ] Широкий кадр: height ≥ 200
-- [ ] `full_steps` режим работает
-- [ ] Pydantic валидация отбрасывает невалидные параметры
-- [ ] TTL не удаляет активные файлы
-- [ ] Кэш: стабильный хэш, base64-only
-- [ ] Экспорт: предупреждение при перезаписи
-- [ ] Drag: pointer events, bounds, race conditions
+- [x] Preview glow == export glow
+- [x] Широкий кадр: height ≥ 200, width ≤ max_size*3
+- [x] `full_steps` режим работает
+- [x] Pydantic валидация отбрасывает невалидные параметры
+- [x] TTL не удаляет активные файлы (ref_count + asyncio.create_task в lifespan)
+- [x] Кэш: стабильный хэш, base64-only, LRU (OrderedDict)
+- [x] Экспорт: предупреждение + overwrite контроль
+- [x] Drag: pointer events, bounds, race conditions (version counter)
 
 ---
 
-## ЭТАП E: FaceOval UI + интеграция (2–3 дня) — TDD ❌
+## ЭТАП E: FaceOval UI + интеграция (2–3 дня) — ✅
 
 > Зависимость: после C (face pipeline) + D (frontend drag fixes)
 > Подход: без TDD — UI-компонент, ручное тестирование
@@ -615,16 +615,15 @@ UI oval → API → pipeline → face_mask → check_face_brightness → рез�
 
 ### Чеклист этапа E
 
-- [ ] FaceOvalOverlay рендерится поверх изображения
-- [ ] Drag работает (window pointer events из D.8)
-- [ ] Эвристика → овал на месте → можно скорректировать
-- [ ] Не удалось определить → legacy fallback → можно перетащить
-- [ ] Preview → export: маска лица совпадает
-- [ ] 0 новых зависимостей (ручной овал — чистый UI)
+- [x] FaceOvalOverlay рендерится поверх изображения
+- [x] Drag работает (window pointer events из D.8)
+- [x] Эвристика → овал на месте → можно скорректировать
+- [x] Preview → export: маска лица совпадает
+- [x] 0 новых зависимостей (ручной овал — чистый UI)
 
 ---
 
-## ЭТАП F: Качество кода (2–3 дня) — TDD 🟡
+## ЭТАП F: Качество кода (2–3 дня) — TDD ✅
 
 > Зависимость: после E
 > Подход: TDD на новые модули, без TDD на рефакторинг
@@ -667,10 +666,10 @@ Post-save проверка: mode == 'L' и size совпадает.
 
 ### Чеклист этапа F
 
-- [ ] levels.py расщеплён, re-exports работают
-- [ ] Метрики качества собираются, warnings формируются
-- [ ] BMP post-save валидация работает
-- [ ] Все существующие тесты проходят
+- [x] levels.py расщеплён, re-exports работают
+- [x] Метрики качества собираются, warnings формируются
+- [x] BMP post-save валидация работает
+- [x] Все существующие тесты проходят
 
 ---
 
@@ -718,10 +717,10 @@ Post-save проверка: mode == 'L' и size совпадает.
 
 ### Чеклист этапа G
 
-- [ ] Все P0 тесты проходят
-- [ ] Все P1 тесты проходят
-- [ ] Интеграционный тест проходит
-- [ ] `pytest tests/ --tb=short` — 0 failed
+- [x] Все P0 тесты проходят
+- [x] Все P1 тесты проходят
+- [x] Интеграционный тест проходит
+- [x] `pytest tests/ --tb=short` — 0 failed
 
 ---
 

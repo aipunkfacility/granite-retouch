@@ -30,6 +30,7 @@ new → analyzing → prompting → generating → postprocessing → done
 | `final_file` | string | Путь к готовому файлу для станка |
 | `notes` | string | Заметки к заказу |
 | `created_at` | string | Дата создания (ISO 8601) |
+| `face_oval` | object | Ручная коррекция овала лица (этап E). Если указан — используется вместо автоматической детекции |
 
 ## client
 
@@ -51,6 +52,31 @@ new → analyzing → prompting → generating → postprocessing → done
 | `headgear` | string | `none`, `cap`, `preserve` | Головной убор |
 | `face_quality` | string | `high`, `medium`, `low` | Качество лица на фото |
 | `defects` | [string] | — | Массив дефектов (noise, low contrast, cracks, etc.) |
+
+## face_oval
+
+Ручная коррекция овала лица (этап E). Если указан — используется вместо автоматической детекции.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `cx` | float | Центр овала по X (0–1, нормализованный) |
+| `cy` | float | Центр овала по Y (0–1, нормализованный) |
+| `rx` | float | Радиус овала по X (0–1, нормализованный) |
+| `ry` | float | Радиус овала по Y (0–1, нормализованный) |
+| `source` | string | Источник: `"heuristic"` (автоматический) или `"manual"` (пользовательский) |
+
+Пример:
+```json
+{
+  "face_oval": {
+    "cx": 0.5,
+    "cy": 0.25,
+    "rx": 0.15,
+    "ry": 0.20,
+    "source": "manual"
+  }
+}
+```
 
 ## postprocessing
 

@@ -9,6 +9,8 @@ interface Props {
   onConfigChange: (path: string[], value: number) => void;
   vignetteOverlayEnabled: boolean;
   onVignetteOverlayToggle: (enabled: boolean) => void;
+  faceOvalOverlayEnabled: boolean;
+  onFaceOvalOverlayToggle: (enabled: boolean) => void;
 }
 
 export function ParamsPanel({
@@ -17,6 +19,8 @@ export function ParamsPanel({
   onConfigChange,
   vignetteOverlayEnabled,
   onVignetteOverlayToggle,
+  faceOvalOverlayEnabled,
+  onFaceOvalOverlayToggle,
 }: Props) {
   const [activeTab, setActiveTab] = useState<string>("common");
 
@@ -103,6 +107,21 @@ export function ParamsPanel({
           <i className="ri-shape-line text-base" />
           Показать оверлей виньетки
           <span className="text-text-muted text-xs ml-1">(Shift+drag: диаметр)</span>
+        </label>
+      )}
+
+      {/* Face oval overlay toggle — shown only on common tab */}
+      {effectiveTab === "common" && (
+        <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={faceOvalOverlayEnabled}
+            onChange={(e) => onFaceOvalOverlayToggle(e.target.checked)}
+            className="accent-accent-orange"
+          />
+          <i className="ri-user-line text-base" />
+          Показать овал зоны лица
+          <span className="text-text-muted text-xs ml-1">(drag: перемещение)</span>
         </label>
       )}
 

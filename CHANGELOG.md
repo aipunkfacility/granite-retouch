@@ -2,6 +2,50 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [5.0.0] - 2026-05-08
+
+### 💥 Breaking Changes
+
+- **Порядок шагов пайплайна** (A.3): unsharp mask теперь ПОСЛЕ face_brightness correction. Старый порядок доступен через `legacy_step_order: true` в config.yaml для rollback без redeploy
+- **Glow детерминирован** (D.1): `random.randint()` заменён на midpoint диапазона. Результат воспроизводим — preview и export дают одинаковый glow
+- **Glow rename** (A.5): `apply_inner_glow()` — это теперь диспетчер `apply_glow()`, а настоящий inner glow — `apply_inner_glow_algorithm()`. Параметр `glow_style: inner | outer`
+- **Модули расщеплены** (F.1): `levels.py` разделён на `levels.py`, `unsharp.py`, `face_correction.py`, `shadow_noise.py`. Backward-compatible re-exports сохранены
+
+### ✨ Новые возможности
+
+- **PipelineContext** (B.1): внутренняя упаковка параметров пайплайна — уменьшает количество пробрасываемых аргументов между шагами
+- **ImageAnalytics dataclass** (B.3): структурированные метрики с `from_dict()`/`to_dict()`
+- **Детекция зоны лица** (C.1): трёхуровневая стратегия — профиль ширины маски (85-90% покрытий) → ручной овал (FaceOvalOverlay) → mediapipe (будущее)
+- **Маска лица и волос** (C.2): `generate_face_mask()`, `generate_hair_mask()` из овала
+- **FaceOval UI** (E.1): интерактивный SVG-эллипс для ручной коррекции овала лица
+- **Shadow Floor** (A.2): отдельный шаг для impact — `np.maximum(arr, shadow_floor)`
+- **White Ceiling Clamp** (A.4): hard clamp белой точки перед виньеткой
+- **Quality Metrics** (F.2): `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings` в PipelineResult
+- **BMP Post-Validation** (F.3): автоматическая проверка mode и size после сохранения
+- **Preview Cache** (D.6): LRU-кэш с `_stable_serialize()` (float round 4 знака → SHA256)
+- **TTL Cleanup** (D.5): фоновая корутина удаляет файлы старше 30 мин с учётом ref_count
+- **Pydantic валидация** (D.4): `brightness=999` → 422 Validation Error
+- **CLI `--overwrite`** (D.7): защита от случайной перезаписи выходного файла
+- **`process_export(overwrite=)`** (D.7): программный контроль перезаписи, согласованный с CLI
+
+### 🐛 Исправления
+
+- **Shadow noise на фоне** (A.1): `add_shadow_noise()` добавлял шум в чёрные пиксели фона вместо субъекта — исправлено на `subject_dark = mask_bool & (arr < threshold)`
+- **Shadow floor для impact** (A.2): тени уходили в 0 без восстановления — добавлен отдельный шаг `np.maximum(arr, shadow_floor)`
+- **Порядок шагов** (A.3): unsharp до face_brightness → резкость смазывалась коррекцией — переставлен порядок, legacy_step_order для rollback
+- **White ceiling clamp** (A.4): после shadow_noise и vignette могли появиться пиксели > white_ceiling — hard clamp перед виньеткой
+- **Glow rename** (A.5): `apply_inner_glow()` делал outer glow — переименован в `apply_outer_glow()`, написан настоящий `apply_inner_glow_algorithm()`
+- **Pillow DeprecationWarning**: `Image.fromarray(arr, "L")` → `Image.fromarray(arr)` в 7 processing-модулях и 13 тест-файлах (60+ вызовов)
+- **Preview cache FIFO→LRU**: заменён на OrderedDict + `move_to_end()` для оптимального вытеснения
+- **`_params_to_overrides()` P0**: возвращал `{}` вместо `({}, None)` — ломал распаковку кортежа
+- **`test_upload_limit` P0**: использовал 2-элементные кортежи вместо 4-элементных
+
+### 🧪 Тестирование
+
+- **266+ автотестов** (было 132+) + 31 backend API тест
+- Новые файлы: `test_bugfixes_a.py` (15), `test_architecture_b.py` (14), `test_face_region.py` (12), `test_audit_fixes.py` (7), `test_quality_f.py` (8), `test_regression_g.py` (16)
+- 0 DeprecationWarnings при `-W error::DeprecationWarning:PIL`
+
 ## [3.1.0] - 2026-05-08
 
 ### 💥 Breaking Changes

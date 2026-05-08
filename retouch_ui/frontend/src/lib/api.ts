@@ -1,4 +1,5 @@
 import type { MachineType } from "./types";
+import type { FaceOvalParams } from "./face-oval-geometry";
 
 const API_BASE = "/api";
 
@@ -16,6 +17,19 @@ export interface PreviewResult {
     height: number;
   };
   warnings: string[];
+}
+
+/** Параметры предпросмотра — соответствует backend PreviewParams */
+export interface PreviewParams {
+  brightness?: number | null;
+  glow_size?: number | null;
+  glow_opacity?: number | null;
+  face_oval?: FaceOvalParams | null;
+  stone_type?: string | null;
+  step_mm?: number | null;
+  highlight_start?: number | null;
+  face_region_top?: number | null;
+  legacy_step_order?: boolean | null;
 }
 
 export interface ConfigResult {
@@ -78,13 +92,20 @@ export async function fetchPreview(
   machineType: MachineType,
   configOverride?: Record<string, any>,
   signal?: AbortSignal,
+  faceOval?: FaceOvalParams | null,
+  fullSteps: boolean = true,
 ): Promise<PreviewResult> {
   const body: Record<string, any> = {
     file_id: fileId,
     machine: machineType,
+    full_steps: fullSteps,
   };
-  if (configOverride) {
-    body.params = configOverride;
+  if (configOverride || faceOval) {
+    const params: Record<string, any> = configOverride ? { ...configOverride } : {};
+    if (faceOval) {
+      params.face_oval = faceOval;
+    }
+    body.params = params;
   }
 
   const res = await fetch(`${API_BASE}/process/preview`, {
@@ -108,14 +129,19 @@ export async function fetchExport(
   machineType: MachineType,
   format: "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff",
   configOverride?: Record<string, any>,
+  faceOval?: FaceOvalParams | null,
 ): Promise<Blob> {
   const body: Record<string, any> = {
     file_id: fileId,
     machine: machineType,
     format,
   };
-  if (configOverride) {
-    body.params = configOverride;
+  if (configOverride || faceOval) {
+    const params: Record<string, any> = configOverride ? { ...configOverride } : {};
+    if (faceOval) {
+      params.face_oval = faceOval;
+    }
+    body.params = params;
   }
 
   const res = await fetch(`${API_BASE}/process/export`, {

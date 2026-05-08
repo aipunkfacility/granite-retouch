@@ -28,6 +28,7 @@ python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|lase
 | `--glow-opacity` | — | Нет | Переопределить opacity Inner Glow (%) |
 | `--config` | `-c` | Нет | Путь к config.yaml (default: автопоиск) |
 | `--no-validate` | — | Нет | Пропустить валидацию входа и результата |
+| `--overwrite` | — | Нет | Перезаписать выходной файл без подтверждения. Без флага — exit(1) если файл существует |
 
 ### Примеры
 
@@ -58,6 +59,9 @@ python -m retouch process -i ai.png -o final.bmp -c /path/to/config.yaml
 
 # Пропустить валидацию (для нестандартных изображений)
 python -m retouch process -i ai.png -o final.bmp --no-validate
+
+# Перезаписать существующий выходной файл
+python -m retouch process -i ai.png -o final.bmp --overwrite
 ```
 
 ### Результат

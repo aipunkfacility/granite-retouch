@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { fetchExport } from "../lib/api";
 import type { MachineType } from "../lib/types";
+import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 type ExportFormat = "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff";
 
@@ -9,6 +10,7 @@ interface Props {
   fileId: string | null;
   machineType: MachineType;
   config: Record<string, any>;
+  faceOval?: FaceOvalParams | null;
 }
 
 /** Default export format per machine type */
@@ -38,7 +40,7 @@ function formatLabel(format: ExportFormat): string {
   }
 }
 
-export function ExportButtons({ fileId, machineType, config }: Props) {
+export function ExportButtons({ fileId, machineType, config, faceOval }: Props) {
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
 
@@ -47,7 +49,7 @@ export function ExportButtons({ fileId, machineType, config }: Props) {
     setExporting(true);
     setExportFormat(format);
     try {
-      const blob = await fetchExport(fileId, machineType, format, config);
+      const blob = await fetchExport(fileId, machineType, format, config, faceOval);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

@@ -11,6 +11,7 @@ import { ExportButtons } from "./components/export-buttons";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
 import type { VignetteParams } from "./lib/vignette-geometry";
+import type { FaceOvalParams } from "./lib/face-oval-geometry";
 
 /** Extract vignette params from config, with defaults */
 function getVignetteParams(config: Record<string, any>): VignetteParams {
@@ -24,6 +25,15 @@ function getVignetteParams(config: Record<string, any>): VignetteParams {
   };
 }
 
+/** Default face oval params */
+const DEFAULT_FACE_OVAL: FaceOvalParams = {
+  cx: 0.5,
+  cy: 0.25,
+  rx: 0.15,
+  ry: 0.20,
+  source: "heuristic",
+};
+
 export default function App() {
   // State
   const [fileId, setFileId] = useState<string | null>(null);
@@ -32,6 +42,8 @@ export default function App() {
   const [selectedStep, setSelectedStep] = useState("final");
   const [backendDown, setBackendDown] = useState(false);
   const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
+  const [faceOvalOverlayEnabled, setFaceOvalOverlayEnabled] = useState(false);
+  const [faceOval, setFaceOval] = useState<FaceOvalParams | null>(null);
 
   // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
@@ -66,23 +78,34 @@ export default function App() {
     };
   }, [originalUrl]);
 
+  // Helpers
+  const requestPreviewWithOval = useCallback(
+    (fid: string, mt: MachineType, cfg: Record<string, any>) => {
+      const oval = faceOvalOverlayEnabled ? faceOval : null;
+      requestPreview(fid, mt, cfg, oval);
+    },
+    [faceOvalOverlayEnabled, faceOval, requestPreview],
+  );
+
   // Handlers
   const handleImageUploaded = useCallback(
     (newFileId: string, previewUrl: string) => {
       setFileId(newFileId);
       setOriginalUrl(previewUrl);
+      // Reset face oval to default on new image
+      setFaceOval({ ...DEFAULT_FACE_OVAL });
       // Auto-preview after upload
-      requestPreview(newFileId, machineType, config);
+      requestPreview(newFileId, machineType, config, faceOvalOverlayEnabled ? faceOval : null);
     },
-    [machineType, config, requestPreview],
+    [machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval],
   );
 
   const handleMachineChange = useCallback(
     (type: MachineType) => {
       setMachineType(type);
-      if (fileId) requestPreview(fileId, type, config);
+      if (fileId) requestPreviewWithOval(fileId, type, config);
     },
-    [fileId, config, requestPreview],
+    [fileId, config, requestPreviewWithOval],
   );
 
   const handleConfigChangeByPath = useCallback(
@@ -95,25 +118,33 @@ export default function App() {
       }
       obj[path[path.length - 1]] = value;
       updateConfig(newConfig);
-      if (fileId) requestPreview(fileId, machineType, newConfig);
+      if (fileId) requestPreviewWithOval(fileId, machineType, newConfig);
     },
-    [config, fileId, machineType, updateConfig, requestPreview],
+    [config, fileId, machineType, updateConfig, requestPreviewWithOval],
   );
 
   const handleConfigChangeFull = useCallback(
     (newConfig: Record<string, any>) => {
       updateConfig(newConfig);
-      if (fileId) requestPreview(fileId, machineType, newConfig);
+      if (fileId) requestPreviewWithOval(fileId, machineType, newConfig);
     },
-    [fileId, machineType, updateConfig, requestPreview],
+    [fileId, machineType, updateConfig, requestPreviewWithOval],
   );
 
   const handleReset = useCallback(
     (defaults: Record<string, any>) => {
       resetConfig(defaults);
-      if (fileId) requestPreview(fileId, machineType, defaults);
+      if (fileId) requestPreviewWithOval(fileId, machineType, defaults);
     },
-    [fileId, machineType, resetConfig, requestPreview],
+    [fileId, machineType, resetConfig, requestPreviewWithOval],
+  );
+
+  const handleFaceOvalChange = useCallback(
+    (newOval: FaceOvalParams) => {
+      setFaceOval(newOval);
+      if (fileId) requestPreview(fileId, machineType, config, newOval);
+    },
+    [fileId, machineType, config, requestPreview],
   );
 
   // Layout: sidebar left (params) + main area (image) right
@@ -135,7 +166,7 @@ export default function App() {
         </h1>
         <div className="flex gap-4 items-center">
           <MachineSwitch value={machineType} onChange={handleMachineChange} />
-          <ExportButtons fileId={fileId} machineType={machineType} config={config} />
+          <ExportButtons fileId={fileId} machineType={machineType} config={config} faceOval={faceOvalOverlayEnabled ? faceOval : null} />
         </div>
       </header>
 
@@ -164,6 +195,8 @@ export default function App() {
                 onConfigChange={handleConfigChangeByPath}
                 vignetteOverlayEnabled={vignetteOverlayEnabled}
                 onVignetteOverlayToggle={setVignetteOverlayEnabled}
+                faceOvalOverlayEnabled={faceOvalOverlayEnabled}
+                onFaceOvalOverlayToggle={setFaceOvalOverlayEnabled}
               />
               <div className="border-t border-border pt-4">
                 <ConfigActions
@@ -183,6 +216,7 @@ export default function App() {
                 onClick={() => {
                   setFileId(null);
                   setOriginalUrl(null);
+                  setFaceOval(null);
                 }}
                 className="text-sm text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
               >
@@ -208,6 +242,9 @@ export default function App() {
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 vignetteOverlayEnabled={vignetteOverlayEnabled}
+                faceOvalOverlayEnabled={faceOvalOverlayEnabled}
+                faceOval={faceOval}
+                onFaceOvalChange={handleFaceOvalChange}
                 imageWidth={imageWidth}
                 imageHeight={imageHeight}
                 vignetteParams={vignetteParams}
