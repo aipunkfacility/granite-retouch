@@ -45,12 +45,12 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=N
     if subject_mask is not None and HAS_NUMPY:
         orig_arr = np.array(img, dtype=np.float32)
         sharp_arr = np.array(sharpened, dtype=np.float32)
-        result_arr = apply_masked(orig_arr, sharp_arr, subject_mask)
+        mask_bool = np.array(subject_mask) > 128
+        result_arr = apply_masked(orig_arr, sharp_arr, subject_mask, mask_bool=mask_bool)
 
         # White ceiling: обрезаем значения внутри маски, чтобы unsharp
         # не вытолкнул пиксели за потолок яркости
         if white_ceiling is not None:
-            mask_bool = np.array(subject_mask) > 128
             result_arr[mask_bool] = np.minimum(result_arr[mask_bool], float(white_ceiling))
             logger.info("Unsharp white ceiling: %d", white_ceiling)
 

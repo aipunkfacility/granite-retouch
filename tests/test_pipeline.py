@@ -372,3 +372,76 @@ class TestPipelineStepsAPI:
         result.release_intermediates()  # Не должно быть AttributeError
 
         assert result.img_final is not None
+
+    def test_pipeline_result_context_manager(self, tmp_path):
+        """with PipelineResult: автоматически освобождает промежуточные."""
+        from retouch.processing.pipeline import process_steps
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
+
+        # Используем как context manager
+        with result:
+            assert result.img_final is not None
+            assert result.img_chromakey is not None
+
+        # После выхода из with — промежуточные освобождены
+        assert result.img_chromakey is None
+        assert result.img_final is not None
+
+    def test_process_steps_with_input_image(self, tmp_path):
+        """process_steps(input_image=img) работает без файла на диске."""
+        from retouch.processing.pipeline import process_steps
+
+        # Создаём изображение с хромакеем В ПАМЯТИ
+        arr = np.zeros((512, 512, 4), dtype=np.uint8)
+        arr[..., 2] = 255; arr[..., 3] = 255  # синий фон
+        cx, cy = 256, 256
+        rx, ry = 128, 154
+        y_c, x_c = np.ogrid[:512, :512]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 180; arr[ellipse, 1] = 140
+        arr[ellipse, 2] = 120; arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+
+        result = process_steps(input_image=img, machine_type="laser_standard",
+                               config=DEFAULTS, no_validate=True)
+        assert result.img_final is not None
+        assert result.width == 512
+        assert result.height == 512
+
+    def test_input_image_no_temp_files(self, tmp_path):
+        """При input_image не создаётся временных файлов."""
+        import tempfile
+        import unittest.mock
+        from retouch.processing.pipeline import process_steps
+
+        arr = np.zeros((512, 512, 4), dtype=np.uint8)
+        arr[..., 2] = 255; arr[..., 3] = 255
+        arr[200:400, 150:350] = [180, 140, 120, 255]
+        img = Image.fromarray(arr)
+
+        with unittest.mock.patch.object(tempfile, 'NamedTemporaryFile',
+                                        wraps=tempfile.NamedTemporaryFile) as mock_tmp:
+            process_steps(input_image=img, machine_type="laser_standard",
+                          config=DEFAULTS, no_validate=True)
+            mock_tmp.assert_not_called()
+
+    def test_preview_no_disk_write(self, tmp_path):
+        """process_preview не пишет на диск при ресайзе (input_image path)."""
+        from retouch.processing.pipeline import process_preview
+
+        # Создаём большой файл для триггера thumbnail
+        arr = np.zeros((2048, 2048, 4), dtype=np.uint8)
+        arr[..., 2] = 255; arr[..., 3] = 255
+        arr[500:1500, 500:1500] = [180, 140, 120, 255]
+        img = Image.fromarray(arr)
+        input_path = str(tmp_path / "big.png")
+        img.save(input_path)
+
+        import tempfile
+        import unittest.mock
+        with unittest.mock.patch.object(tempfile, 'NamedTemporaryFile',
+                                        wraps=tempfile.NamedTemporaryFile) as mock_tmp:
+            process_preview(input_path, machine_type="laser_standard",
+                            config=DEFAULTS, max_size=768)
+            mock_tmp.assert_not_called()

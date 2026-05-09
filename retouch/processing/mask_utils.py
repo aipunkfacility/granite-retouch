@@ -11,7 +11,7 @@ except ImportError:
     HAS_NUMPY = False
 
 
-def apply_masked(original_arr, modified_arr, subject_mask):
+def apply_masked(original_arr, modified_arr, subject_mask, mask_bool=None):
     """Применить modified_arr только внутри маски субъекта.
 
     Пиксели внутри маски (subject_mask > 128) = modified_arr.
@@ -21,17 +21,21 @@ def apply_masked(original_arr, modified_arr, subject_mask):
         original_arr: numpy array — оригинальные значения
         modified_arr: numpy array — модифицированные значения
         subject_mask: PIL.Image L — маска субъекта (255=субъект)
+        mask_bool: numpy bool array | None — предвычисленная маска.
+            При None вычисляется из subject_mask (backward compat).
+            Передача mask_bool избегает повторной конвертации PIL→numpy.
 
     Returns:
         numpy array: результат с масочным ограничением
     """
     if not HAS_NUMPY:
         return modified_arr  # fallback — применять везде
-    mask_bool = np.array(subject_mask) > 128
+    if mask_bool is None:
+        mask_bool = np.array(subject_mask) > 128
     return np.where(mask_bool, modified_arr, original_arr)
 
 
-def clamp_masked(arr, subject_mask, vmin=0, vmax=None):
+def clamp_masked(arr, subject_mask, vmin=0, vmax=None, mask_bool=None):
     """Ограничить значения внутри маски диапазоном [vmin, vmax].
 
     По умолчанию vmin=0 — предотвращает отрицательные значения
@@ -46,13 +50,17 @@ def clamp_masked(arr, subject_mask, vmin=0, vmax=None):
         subject_mask: PIL.Image L — маска субъекта (255=субъект)
         vmin: минимальное значение (по умолчанию 0, FIX #7)
         vmax: максимальное значение (или None)
+        mask_bool: numpy bool array | None — предвычисленная маска.
+            При None вычисляется из subject_mask (backward compat).
+            Передача mask_bool избегает повторной конвертации PIL→numpy.
 
     Returns:
         numpy array: ограниченный массив
     """
     if not HAS_NUMPY:
         return arr
-    mask_bool = np.array(subject_mask) > 128
+    if mask_bool is None:
+        mask_bool = np.array(subject_mask) > 128
     result = arr.copy()
     if vmin is not None:
         result = np.where(mask_bool, np.maximum(result, vmin), result)

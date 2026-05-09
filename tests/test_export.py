@@ -268,12 +268,8 @@ class TestBMPValidation:
         assert not os.path.isfile(str(tmp_path / "output.png")), \
             "PNG-дубликат не должен создаваться по умолчанию"
 
-    def test_floyd_steinberg_50_50(self):
-        """Floyd-Steinberg: grayscale 128 — примерно 50/50 white/black.
-
-        NOTE: Floyd-Steinberg удалён из production, но тест сохранён
-        для проверки что _apply_dither('floyd_steinberg') редиректит на jarvis.
-        """
+    def test_floyd_steinberg_redirect_produces_valid_output(self):
+        """_apply_dither('floyd_steinberg') → jarvis редирект: примерно 50% белого на grayscale=128."""
         from retouch.processing.export import _apply_dither
 
         img = Image.new("L", (200, 200), 128)
@@ -285,3 +281,31 @@ class TestBMPValidation:
 
         assert 35 < white_pct < 65, \
             f"При grayscale=128 редирект FS→jarvis даёт примерно 50% белого, got {white_pct:.1f}%"
+
+
+class TestValidateExport:
+    """Пост-валидация BMP: RuntimeError вместо молчаливого брака."""
+
+    def test_validate_export_raises_on_missing_file(self):
+        """_validate_export выбрасывает RuntimeError для несуществующего файла."""
+        from retouch.processing.pipeline import _validate_export
+        with pytest.raises(RuntimeError, match="Пост-валидация"):
+            _validate_export("/nonexistent/path.bmp", "laser_standard", "bmp")
+
+    def test_validate_export_raises_on_corrupt_bmp(self, tmp_path):
+        """_validate_export выбрасывает RuntimeError для повреждённого BMP."""
+        from retouch.processing.pipeline import _validate_export
+        corrupt_path = str(tmp_path / "corrupt.bmp")
+        with open(corrupt_path, "w") as f:
+            f.write("NOT_A_BMP")
+        with pytest.raises(RuntimeError, match="Пост-валидация"):
+            _validate_export(corrupt_path, "laser_standard", "bmp")
+
+    def test_validate_export_succeeds_on_valid_bmp(self, tmp_path):
+        """_validate_export не выбрасывает для валидного BMP."""
+        from retouch.processing.pipeline import _validate_export
+        img = Image.new("L", (100, 100), 128)
+        path = str(tmp_path / "valid.bmp")
+        img.save(path, format="BMP")
+        # Не должно выбрасывать
+        _validate_export(path, "laser_standard", "bmp")

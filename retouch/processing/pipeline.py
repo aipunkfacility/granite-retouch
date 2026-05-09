@@ -1,7 +1,6 @@
 """Полный пайплайн обработки портрета для гравировки."""
 
 import logging
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -124,6 +123,14 @@ class PipelineResult:
         self.subject_mask = None
         self.face_mask = None
 
+    def __enter__(self):
+        """Контекстный менеджер: автоматическое освобождение при выходе."""
+        return self
+
+    def __exit__(self, *exc):
+        """Освободить промежуточные при выходе из with-блока."""
+        self.release_intermediates()
+
 
 def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
     """F.2: Вычислить метрики качества выходного изображения."""
@@ -184,7 +191,7 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
 
 
 def process_steps(
-    input_path: str,
+    input_path: str | None = None,
     machine_type: str = "laser_standard",
     config: dict | None = None,
     glow_size_override: int | None = None,
@@ -192,6 +199,7 @@ def process_steps(
     face_oval: dict | None = None,
     no_validate: bool = False,
     keep_intermediates: bool = True,
+    input_image: Image.Image | None = None,
 ) -> PipelineResult:
     """Полный пайплайн с доступом к каждому шагу.
 
@@ -205,7 +213,7 @@ def process_steps(
         glow → levels → unsharp → face_brightness → shadow_noise → vignette
 
     Args:
-        input_path: путь к входному изображению
+        input_path: путь к входному изображению (mutually exclusive с input_image)
         machine_type: тип станка
         config: конфигурация (None = загрузить из config.yaml)
         glow_size_override: ручное переопределение glow size
@@ -214,6 +222,9 @@ def process_steps(
         no_validate: отключить валидацию
         keep_intermediates: True = сохранять промежуточные (по умолчанию),
             False = освободить после сборки PipelineResult
+        input_image: PIL.Image — входное изображение напрямую (без disk I/O).
+            При передаче input_path игнорируется. Если оба None — ошибка.
+            Изображение конвертируется в RGBA внутри функции.
 
     Raises:
         FileNotFoundError: input_path не существует
@@ -225,11 +236,30 @@ def process_steps(
     # Валидация конфига
     warnings = validate_config(config)
 
-    # Валидация входного изображения
-    validate_image_input(input_path, config)
+    # Загрузка изображения — из файла или из PIL напрямую
+    if input_image is not None:
+        img = input_image.convert("RGBA") if input_image.mode != "RGBA" else input_image.copy()
+        if not no_validate:
+            proc_cfg_v = config.get("processing", {})
+            min_res = proc_cfg_v.get("min_resolution", 512)
+            max_res = proc_cfg_v.get("max_resolution", None)
+            w, h = img.size
+            if w < min_res or h < min_res:
+                raise ValidationError(
+                    f"Разрешение {w}x{h} ниже минимума {min_res}x{min_res}. "
+                    f"Для качественной гравировки нужно изображение большего размера."
+                )
+            if max_res and (w > max_res or h > max_res):
+                raise ValidationError(
+                    f"Разрешение {w}x{h} превышает максимум {max_res}x{max_res}. "
+                    f"Слишком большое изображение может вызвать нехватку памяти (OOM)."
+                )
+    else:
+        if input_path is None:
+            raise ValueError("Нужен либо input_path, либо input_image")
+        validate_image_input(input_path, config)
+        img = Image.open(input_path).convert("RGBA")
 
-    # Загрузка
-    img = Image.open(input_path).convert("RGBA")
     width, height = img.size
 
     # Валидация хромакея
@@ -394,7 +424,7 @@ def _run_pipeline_steps(
 
         # Shadow floor
         if shadow_floor > 0:
-            arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor)
+            arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor, mask_bool=mask_bool)
             logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
 
         # Stone gamma (SOP 5.1)
@@ -404,7 +434,7 @@ def _run_pipeline_steps(
 
         # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
         if white_ceiling is not None:
-            arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
+            arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling, mask_bool=mask_bool)
             logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
 
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
@@ -495,9 +525,8 @@ def process_preview(
     1. Загружает полное изображение ОДИН раз
     2. Уменьшает до max_size по длинной стороне (thumbnail), если нужно
     3. D.2: Минимальная высота >= 200 для широких кадров
-    4. Сохраняет уменьшенное во временный файл (дескриптор закрыт ДО записи — Windows-safe)
-    5. Вызывает process_steps() на уменьшенном
-    6. Возвращает PipelineResult (все картинки уменьшенные)
+    4. Передаёт уменьшенное PIL-изображение напрямую в process_steps() — БЕЗ disk I/O
+    5. Возвращает PipelineResult (все картинки уменьшенные)
 
     Glow фиксируется на середине диапазона для стабильности preview (D.1).
     """
@@ -518,44 +547,32 @@ def process_preview(
     # Открываем изображение ОДИН раз
     img = Image.open(input_path)
     needs_resize = max(img.size) > max_size
-    tmp_path = None
 
-    try:
-        if needs_resize:
-            img.thumbnail((max_size, max_size), Image.LANCZOS)
+    if needs_resize:
+        img.thumbnail((max_size, max_size), Image.LANCZOS)
 
-            # D.2: Минимальная высота >= 200 для широких кадров
-            if img.height < 200:
-                ratio = 200 / img.height
-                new_w = min(int(img.width * ratio), max_size * 3)
-                # Перезагружаем и делаем правильный ресайз
-                img.close()
-                img = Image.open(input_path)
-                img.thumbnail((new_w, 200), Image.LANCZOS)
-
-            # Создаём временный файл, сразу закрываем дескриптор (Windows-safe)
-            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            tmp_name = tmp.name
-            tmp.close()
-            img.save(tmp_name, format="PNG")
+        # D.2: Минимальная высота >= 200 для широких кадров
+        if img.height < 200:
+            ratio = 200 / img.height
+            new_w = min(int(img.width * ratio), max_size * 3)
+            # Перезагружаем и делаем правильный ресайз
             img.close()
-            tmp_path = tmp_name
-            work_path = tmp_path
-        else:
-            img.close()
-            work_path = input_path
+            img = Image.open(input_path)
+            img.thumbnail((new_w, 200), Image.LANCZOS)
 
-        return process_steps(
-            input_path=work_path,
-            machine_type=machine_type,
-            config=config,
-            glow_size_override=glow_mid,
-            glow_opacity_override=opacity_mid,
-            **kwargs,
-        )
-    finally:
-        if tmp_path:
-            Path(tmp_path).unlink(missing_ok=True)
+    # Конвертируем в RGBA и передаём напрямую — БЕЗ disk I/O
+    img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img.copy()
+    img.close()
+
+    return process_steps(
+        input_image=img_rgba,
+        machine_type=machine_type,
+        config=config,
+        glow_size_override=glow_mid,
+        glow_opacity_override=opacity_mid,
+        no_validate=True,  # Превью без строгой валидации
+        **kwargs,
+    )
 
 
 def process_export(
