@@ -8,6 +8,11 @@
   - Stucki: чёткие линии, лучший для impact (SOP 4.1)
 - PNG — для предпросмотра (обратно совместимый)
 
+Формат BMP выбирается по dither_method из конфига станка:
+  - laser_standard: dither_method='none' → 8-bit grayscale
+  - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
+  - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
+
 FIX #9: Добавлены Stucki и Jarvis dithering
 FIX #10: Upsampling перед дизерингом (SOP 5.2)
 """
@@ -325,15 +330,24 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
                   dither_method=None, dither_upsample=1):
     """Экспорт результата пайплайна в нужном формате.
 
-    Формат по умолчанию — BMP. Для laser_80w: 1-bit BMP с дизерингом.
-    Для laser_standard и impact: 8-bit grayscale BMP.
+    Логика выбора формата:
+    - fmt='png' → PNG (предпросмотр)
+    - fmt='bmp_1bit' → 1-bit BMP с дизерингом (любой станок)
+    - fmt='bmp' + dither_method != 'none' → 1-bit BMP с дизерингом из конфига
+    - fmt='bmp' + dither_method == 'none' → 8-bit grayscale BMP
+
+    Машины по умолчанию:
+    - laser_standard: dither_method='none' → 8-bit grayscale
+    - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
+    - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
 
     Args:
         img: PIL.Image (RGB или L) — финальное изображение от пайплайна
         output_path: путь к выходному файлу (расширение будет заменено на .bmp)
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
-        dither_method: алгоритм дизеринга ('floyd_steinberg', 'jarvis', 'stucki')
+        dither_method: алгоритм дизеринга ('floyd_steinberg', 'jarvis', 'stucki', 'none')
+            None = авто (из конфига станка)
         dither_upsample: int — upsampling перед дизерингом (SOP 5.2)
 
     Returns:
@@ -354,17 +368,22 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
     # BMP — основной формат для ЧПУ
     bmp_path = str(output.with_suffix(".bmp"))
 
-    if fmt == "bmp_1bit" or (fmt == "bmp" and machine_type == "laser_80w"):
-        # laser_80w: 1-bit BMP с дизерингом (FIX #9: метод из конфига)
-        save_bmp_1bit(img, bmp_path, machine_type=machine_type,
-                      dither_method=dither_method, dither_upsample=dither_upsample)
-    elif fmt == "bmp_1bit" and machine_type == "impact":
-        # impact: 1-bit BMP с Stucki (SOP 4.1)
-        method = dither_method or 'stucki'
+    if fmt == "bmp_8bit":
+        # Явный запрос 8-bit grayscale
+        save_bmp_8bit(img, bmp_path, machine_type=machine_type)
+    elif fmt == "bmp_1bit":
+        # Явный запрос 1-bit — дизеринг обязателен
+        method = dither_method if dither_method and dither_method != "none" else "floyd_steinberg"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=method, dither_upsample=dither_upsample)
+    elif fmt == "bmp" and dither_method and dither_method != "none":
+        # Конфиг станка требует дизеринг → 1-bit BMP
+        # laser_80w (jarvis), impact (stucki)
+        save_bmp_1bit(img, bmp_path, machine_type=machine_type,
+                      dither_method=dither_method, dither_upsample=dither_upsample)
     else:
-        # laser_standard, impact: 8-bit grayscale BMP
+        # fmt='bmp' + dither_method='none' → 8-bit grayscale
+        # laser_standard
         save_bmp_8bit(img, bmp_path, machine_type=machine_type)
 
     # Также сохраняем PNG для предпросмотра

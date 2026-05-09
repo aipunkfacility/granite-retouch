@@ -441,9 +441,16 @@ async def export_image(
 
     try:
         if fmt in ("bmp", "bmp_1bit", "bmp_8bit"):
+            # Передаём dither_method/dither_upsample из machine_cfg
+            proc_cfg = full_config.get("processing", {})
+            machine_cfg = proc_cfg.get(request.machine, {})
+            dither_method = machine_cfg.get("dither_method", "none")
+            dither_upsample = machine_cfg.get("dither_upsample", 1)
+
             actual_path = export_result(
                 result.img_final, tmp_name,
                 machine_type=request.machine, fmt=fmt,
+                dither_method=dither_method, dither_upsample=dither_upsample,
             )
             # export_result может вернуть другой путь (с другим расширением)
             # Если путь не совпадает — читаем из actual_path

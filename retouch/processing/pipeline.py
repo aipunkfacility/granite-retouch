@@ -549,8 +549,10 @@ def process_export(
     """Полная обработка + сохранение BMP/PNG.
 
     Вызывает process_steps(), затем сохраняет результат.
-    По умолчанию сохраняет BMP (8-bit grayscale для laser_standard/impact,
-    1-bit dithered для laser_80w) + PNG для предпросмотра.
+    Формат BMP зависит от dither_method в конфиге станка:
+    - laser_standard: dither_method='none' → 8-bit grayscale
+    - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
+    - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
     Промежуточные изображения освобождаются для экономии памяти.
 
     Args:
@@ -580,9 +582,17 @@ def process_export(
     )
 
     # Сохранение BMP + PNG через export_result
+    # Передаём dither_method/dither_upsample из machine_cfg —
+    # без этого export_result() не знает какой метод дизеринга использовать
+    proc_cfg = config.get("processing", {}) if config else {}
+    machine_cfg = proc_cfg.get(machine_type, {})
+    dither_method = machine_cfg.get("dither_method", "none")
+    dither_upsample = machine_cfg.get("dither_upsample", 1)
+
     actual_path = export_result(
         result.img_final, output_path,
         machine_type=machine_type, fmt=fmt,
+        dither_method=dither_method, dither_upsample=dither_upsample,
     )
 
     # F.3: BMP post-save валидация
@@ -599,13 +609,20 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
     """F.3: Пост-сохранная валидация BMP.
 
     Проверяет что файл можно открыть, mode и size соответствуют ожиданиям.
+    fmt='bmp' может давать как 8-bit (laser_standard), так и 1-bit (laser_80w/impact).
     """
     try:
         with Image.open(output_path) as img:
-            if fmt in ("bmp", "bmp_8bit"):
+            if fmt == "bmp_8bit":
                 if img.mode not in ("L", "P"):
                     logger.warning(
-                        "BMP validation: expected mode L or P, got %s", img.mode
+                        "BMP 8-bit validation: expected mode L or P, got %s", img.mode
+                    )
+            elif fmt == "bmp":
+                # fmt='bmp' — формат зависит от dither_method в конфиге станка
+                if img.mode not in ("L", "P", "1"):
+                    logger.warning(
+                        "BMP validation: unexpected mode %s", img.mode
                     )
             elif fmt == "bmp_1bit":
                 if img.mode != "1":
