@@ -27,16 +27,19 @@ from retouch.processing.face_correction import (
     _shrink_mask,
 )
 from retouch.processing.shadow_noise import add_shadow_noise
+from retouch.processing.mask_utils import apply_masked
 
 
 # ─── Levels — основная функция ────────────────────────────────────────
 
-def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None, subject_mask=None):
+def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None, subject_mask=None, machine_cfg=None):
     """Применить Levels (brightness adjustment).
 
     Поддерживает два режима:
     - Legacy: positional brightness_factor, analytics=None → простой brightness enhance.
     - Adaptive: analytics provided → фактор вычисляется из метрик и machine_type.
+      При наличии machine_cfg, адаптивный фактор умножается на brightness из конфига
+      и white_ceiling читается из конфига вместо хардкода.
 
     Args:
         img_gray: PIL.Image в режиме L
@@ -48,6 +51,9 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
             Используется только вместе с analytics.
         subject_mask: PIL.Image в режиме L — маска субъекта.
             Когда передана, коррекция применяется только внутри маски (P6).
+        machine_cfg: dict — параметры станка из config.yaml.
+            Когда передан с analytics, brightness используется как корректирующий
+            коэффициент, а white_ceiling — вместо хардкода.
 
     Returns:
         PIL.Image: скорректированное изображение
@@ -55,7 +61,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
     # Определяем фактор яркости
     if analytics is not None:
         # P2: Адаптивный расчёт фактора
-        factor = _adaptive_levels_factor(analytics, machine_type)
+        factor = _adaptive_levels_factor(analytics, machine_type, machine_cfg=machine_cfg)
     elif brightness_factor is not None:
         # Legacy: явный фактор
         factor = brightness_factor
@@ -66,11 +72,10 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
     # Применяем коррекцию
     if subject_mask is not None and HAS_NUMPY:
         # P6: Mask protection — коррекция только внутри маски
-        mask_bool = np.array(subject_mask) > 128
         arr = np.array(img_gray, dtype=np.float32)
         corrected = arr * factor
         corrected = np.clip(corrected, 0, 255)
-        result_arr = np.where(mask_bool, corrected, arr)
+        result_arr = apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))
     elif subject_mask is not None and not HAS_NUMPY:
         # Pillow fallback БЕЗ numpy — коррекция глобальная, но маска не применяется.
@@ -87,46 +92,69 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         return enhancer.enhance(factor)
 
 
-def _adaptive_levels_factor(analytics: dict, machine_type: str | None) -> float:
+def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_cfg: dict | None = None) -> float:
     """P2: Рассчитать адаптивный фактор яркости на основе аналитики.
 
     ВАЖНО: target_pre_fb рассчитывается как "предварительная" яркость ПЕРЕД
-    Face Brightness Correction. Поскольку check_face_brightness() уже поднимает
-    яркость до целевого диапазона (230–245 / 190–210 / 200–225), Levels НЕ должен
-    дублировать это осветление. Поэтому target_pre_fb устанавливается НИЖЕ
-    целевого диапазона лица — Levels лишь "подтягивает" средние тона,
+    Face Brightness Correction. Levels лишь "подтягивает" средние тона,
     а финальную настройку лица делает check_face_brightness().
+
+    Когда передан machine_cfg:
+    - brightness используется как корректирующий коэффициент (умножается на фактор)
+    - white_ceiling читается из конфига вместо хардкода
+    - target_pre_fb может быть переопределён через конфиг (ключ target_pre_fb)
 
     Args:
         analytics: dict с метриками от analyze_input()
         machine_type: тип станка
+        machine_cfg: dict — параметры станка из config.yaml (опционально)
 
     Returns:
         float: множитель яркости
     """
     # target_pre_fb — целевая МЕДИАНА grayscale ПОСЛЕ Levels, ПЕРЕД Face Brightness.
-    target_pre_fb = {
-        'laser_standard': 180,   # face_target 230-245
-        'laser_80w': 150,        # face_target 190-210
-        'impact': 160,           # face_target 200-225
+    # Приоритет: machine_cfg > хардкод по machine_type
+    hardcoded_pre_fb = {
+        'laser_standard': 180,
+        'laser_80w': 150,
+        'impact': 160,
     }.get(machine_type, 160)
+
+    target_pre_fb = hardcoded_pre_fb
+    if machine_cfg:
+        target_pre_fb = machine_cfg.get("target_pre_fb", hardcoded_pre_fb)
 
     median = analytics['median_brightness']
     factor = target_pre_fb / max(median, 1)
     factor = max(0.70, min(1.15, factor))
 
+    # Корректирующий коэффициент brightness из конфига
+    if machine_cfg:
+        brightness = machine_cfg.get("brightness", 1.0)
+        factor *= brightness
+        # После умножения на brightness — ещё раз ограничим
+        factor = max(0.50, min(1.50, factor))
+
     # Защита от клиппинга: не выталкиваем p90 за white_ceiling
-    white_ceiling = {
+    # Приоритет: machine_cfg > хардкод по machine_type
+    hardcoded_ceiling = {
         'laser_standard': 250,
         'laser_80w': 235,
         'impact': 240,
     }.get(machine_type, 248)
+
+    white_ceiling = hardcoded_ceiling
+    if machine_cfg:
+        white_ceiling = machine_cfg.get("white_ceiling", hardcoded_ceiling)
+
     if analytics['p90_brightness'] * factor > white_ceiling:
         safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)
         factor = min(factor, safe_factor)
 
     logger.info(
-        "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",
-        machine_type, median, target_pre_fb, factor,
+        "Adaptive levels: machine=%s, median=%.1f, target=%d, brightness=%.2f, factor=%.3f",
+        machine_type, median, target_pre_fb,
+        machine_cfg.get("brightness", 1.0) if machine_cfg else 1.0,
+        factor,
     )
     return factor

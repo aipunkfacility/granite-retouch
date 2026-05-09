@@ -31,20 +31,24 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     mask_arr = np.array(subject_mask) > 128
     widths = mask_arr.sum(axis=1)  # ширина по каждой строке
 
+    # Если маска пустая — профиль нечитаем
+    if widths.max() == 0:
+        return None
+
     # Скользящее среднее (сгладить шум маски)
     kernel_size = max(1, img_height // 50)  # адаптивный kernel
     kernel = np.ones(kernel_size) / kernel_size
     smooth = np.convolve(widths, kernel, mode='same')
 
-    # Первый локальный максимум сверху = скулы
-    face_row = None
-    for i in range(kernel_size, len(smooth) - kernel_size):
-        if smooth[i] > smooth[i - 1] and smooth[i] >= smooth[i + 1]:
-            face_row = i  # строка максимальной ширины
-            break
-
-    if face_row is None:
+    # Наибольший максимум ширины в верхней половине = скулы
+    # (Первый максимум = макушка/волосы — не подходит для портретов
+    # с объёмной причёской. Нужен именно наибольший пик в зоне лица.)
+    top_half = len(smooth) // 2
+    search = smooth[kernel_size:top_half]
+    if search.size == 0 or search.max() == 0:
         return None  # профиль нечитаем → fallback
+
+    face_row = int(np.argmax(search)) + kernel_size
 
     # Лицо ≈ от макушки до скул с запасом вниз
     # Высота лица ≈ ширина в точке скул (лицо ~овальное)

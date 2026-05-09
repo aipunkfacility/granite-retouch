@@ -23,6 +23,7 @@ from retouch.processing.levels import (
 from retouch.processing.face_region import detect_face_oval, generate_face_mask
 from retouch.processing.export import export_result
 from retouch.processing.vignette import apply_vignette
+from retouch.processing.mask_utils import clamp_masked
 
 try:
     import numpy as np
@@ -309,6 +310,7 @@ def _run_pipeline_steps(
     img_leveled = apply_levels(
         img_glow, analytics=ctx.analytics,
         machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
+        machine_cfg=ctx.machine_cfg,
     )
 
     if legacy_order:
@@ -353,9 +355,7 @@ def _run_pipeline_steps(
     shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
     if shadow_floor > 0 and ctx.machine_type == "impact" and HAS_NUMPY:
         arr = np.array(img_sharpened, dtype=np.float32)
-        mask_bool_floor = np.array(ctx.subject_mask) > 128
-        # Применяем floor только внутри маски субъекта
-        arr = np.where(mask_bool_floor, np.maximum(arr, shadow_floor), arr)
+        arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor)
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("Shadow floor applied: %d (impact)", shadow_floor)
 
@@ -363,9 +363,7 @@ def _run_pipeline_steps(
     white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
     if white_ceiling is not None and HAS_NUMPY:
         arr = np.array(img_sharpened, dtype=np.float32)
-        mask_bool = np.array(ctx.subject_mask) > 128
-        # Ограничиваем только внутри маски — фон остаётся 0
-        arr = np.where(mask_bool, np.clip(arr, 0, white_ceiling), arr)
+        arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("White ceiling clamp: %d", white_ceiling)
 

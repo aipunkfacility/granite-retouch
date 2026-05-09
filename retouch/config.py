@@ -40,6 +40,7 @@ DEFAULTS = {
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "glow_style": "outer",  # A.5: inner | outer
             "brightness": 1.0,
+            "target_pre_fb": 180,
             "face_brightness_target_min": 230,
             "face_brightness_target_max": 245,
             "white_ceiling": 250,
@@ -51,6 +52,7 @@ DEFAULTS = {
             "glow_opacity_min": 10, "glow_opacity_max": 20,
             "glow_style": "outer",
             "brightness": 1.0,
+            "target_pre_fb": 150,
             "face_brightness_target_min": 190,
             "face_brightness_target_max": 210,
             "white_ceiling": 235,
@@ -62,6 +64,7 @@ DEFAULTS = {
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "glow_style": "outer",
             "brightness": 1.0,
+            "target_pre_fb": 160,
             "face_brightness_target_min": 200,
             "face_brightness_target_max": 225,
             "white_ceiling": 240,
@@ -131,9 +134,10 @@ if HAS_PYDANTIC:
         glow_opacity_max: int = Field(40, ge=10, le=100)
         glow_style: str = Field("outer", pattern="^(inner|outer)$")
         brightness: float = Field(1.0, ge=0.5, le=1.5)
+        target_pre_fb: int = Field(160, ge=60, le=220)
         face_brightness_target_min: int = Field(230, ge=80, le=255)
         face_brightness_target_max: int = Field(245, ge=80, le=255)
-        white_ceiling: int = Field(250, ge=200, le=255)
+        white_ceiling: int = Field(250, ge=100, le=255)
         face_region_top: float = Field(0.45, ge=0.2, le=0.8)
         highlight_start: int = Field(200, ge=80, le=250)
         shadow_noise_min: int = Field(0, ge=0, le=50)
@@ -150,17 +154,17 @@ if HAS_PYDANTIC:
         legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            glow_style="outer", brightness=1.0,
+            glow_style="outer", brightness=1.0, target_pre_fb=180,
             face_brightness_target_min=230, face_brightness_target_max=245,
             white_ceiling=250, highlight_start=200))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            glow_style="outer", brightness=1.0,
+            glow_style="outer", brightness=1.0, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=160))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            glow_style="outer", brightness=1.0,
+            glow_style="outer", brightness=1.0, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=160,
             shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8))

@@ -199,7 +199,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
             if face_p90 >= target_max - 15:
-                gentle_cap = 1.08
+                gentle_cap = 1.15
                 logger.info(
                     "Face brightening CAPPED at %.2f: p90=%.1f near target_max=%d",
                     gentle_cap, face_p90, target_max,
@@ -221,14 +221,18 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
                 float(target_max) if correction > 1.0 else None
             )
+            # Коррекция применяется по face_mask (той же маске, по которой
+            # делался замер), а не по full_subject_mask. Это исключает
+            # непредсказуемый эффект на glow-пикселях контура и ярком
+            # воротнике рядом с контуром.
             result_arr = _curves_correction(
                 arr, correction,
                 highlight_start=highlight_start,
-                mask=full_subject_mask,
+                mask=face_mask,
                 target_ceiling=effective_ceiling,
             )
             if white_ceiling is not None:
-                ceiling_mask = full_subject_mask & (result_arr > white_ceiling)
+                ceiling_mask = face_mask & (result_arr > white_ceiling)
                 result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
             result = Image.fromarray(result_arr.astype(np.uint8))
         else:

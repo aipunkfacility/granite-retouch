@@ -21,15 +21,16 @@ processing:
     shadow_noise_threshold: 30  # A.1: порог яркости для shadow noise
     shadow_floor: 8  # A.2: минимальная яркость для impact (предотвращает застой иглы)
   laser_80w:
-    brightness: 1.0
-    face_brightness_target_min: 190
-    face_brightness_target_max: 210
-    white_ceiling: 235
+    brightness: 0.85
+    target_pre_fb: 120           # целевая медиана ПОСЛЕ Levels, ПЕРЕД Face Brightness
+    face_brightness_target_min: 140
+    face_brightness_target_max: 165
+    white_ceiling: 200
     face_region_top: 0.45
-    glow_opacity_max: 20
+    glow_opacity_max: 15
     glow_opacity_min: 10
-    glow_size_max: 25
-    glow_size_min: 15
+    glow_size_max: 18
+    glow_size_min: 10
     glow_style: outer
     highlight_start: 160
   laser_standard:
@@ -56,5 +57,5 @@ vignette:
   blur_radius: 60
   headroom: 0.6
   horizontal_oversize: 0.2
-  vertical_diameter: 0.5
-  vertical_offset: 0.1
+  vertical_diameter: 0.55
+  vertical_offset: 0.30

@@ -10,6 +10,8 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
+from retouch.processing.mask_utils import apply_masked
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,10 +40,9 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=N
 
     # P6: Mask protection — резкость только внутри маски
     if subject_mask is not None and HAS_NUMPY:
-        mask_bool = np.array(subject_mask) > 128
         orig_arr = np.array(img, dtype=np.float32)
         sharp_arr = np.array(sharpened, dtype=np.float32)
-        result_arr = np.where(mask_bool, sharp_arr, orig_arr)
+        result_arr = apply_masked(orig_arr, sharp_arr, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))
 
     return sharpened
