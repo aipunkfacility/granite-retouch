@@ -31,17 +31,20 @@ def apply_masked(original_arr, modified_arr, subject_mask):
     return np.where(mask_bool, modified_arr, original_arr)
 
 
-def clamp_masked(arr, subject_mask, vmin=None, vmax=None):
+def clamp_masked(arr, subject_mask, vmin=0, vmax=None):
     """Ограничить значения внутри маски диапазоном [vmin, vmax].
+
+    По умолчанию vmin=0 — предотвращает отрицательные значения
+    в массивах, пришедших из float32-арифметики.
 
     Пиксели вне маски не трогаются. Типичный use case:
     - shadow_floor: vmin=8, vmax=None
-    - white_ceiling: vmin=None, vmax=200
+    - white_ceiling: vmin=0, vmax=200
 
     Args:
         arr: numpy array (float32 или uint8)
         subject_mask: PIL.Image L — маска субъекта (255=субъект)
-        vmin: минимальное значение (или None)
+        vmin: минимальное значение (по умолчанию 0, FIX #7)
         vmax: максимальное значение (или None)
 
     Returns:

@@ -199,7 +199,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
             if face_p90 >= target_max - 15:
-                gentle_cap = 1.15
+                gentle_cap = 1.08  # FIX #5: восстановлено (было 1.15)
                 logger.info(
                     "Face brightening CAPPED at %.2f: p90=%.1f near target_max=%d",
                     gentle_cap, face_p90, target_max,
@@ -221,18 +221,22 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
                 float(target_max) if correction > 1.0 else None
             )
-            # Коррекция применяется по face_mask (той же маске, по которой
-            # делался замер), а не по full_subject_mask. Это исключает
-            # непредсказуемый эффект на glow-пикселях контура и ярком
-            # воротнике рядом с контуром.
+            # FIX #4: маска коррекции = сжатая subject_mask (без glow-зоны),
+            # а НЕ face_mask (овал лица). Это исключает glow-пиксели контура
+            # без создания шва на границе овала.
+            if glow_size > 0:
+                correction_mask_arr = np.array(_shrink_mask(subject_mask, glow_size)) > 128
+            else:
+                correction_mask_arr = full_subject_mask
+
             result_arr = _curves_correction(
                 arr, correction,
                 highlight_start=highlight_start,
-                mask=face_mask,
+                mask=correction_mask_arr,
                 target_ceiling=effective_ceiling,
             )
             if white_ceiling is not None:
-                ceiling_mask = face_mask & (result_arr > white_ceiling)
+                ceiling_mask = correction_mask_arr & (result_arr > white_ceiling)
                 result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
             result = Image.fromarray(result_arr.astype(np.uint8))
         else:

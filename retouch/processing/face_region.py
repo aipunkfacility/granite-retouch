@@ -40,15 +40,37 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     kernel = np.ones(kernel_size) / kernel_size
     smooth = np.convolve(widths, kernel, mode='same')
 
-    # Наибольший максимум ширины в верхней половине = скулы
-    # (Первый максимум = макушка/волосы — не подходит для портретов
-    # с объёмной причёской. Нужен именно наибольший пик в зоне лица.)
+    # FIX #6: комбинированная стратегия вместо простого argmax
+    # Наибольший пик в верхней половине часто = макушка/причёска (шире лица).
+    # Локальный максимум ПОСЛЕ начального спада = скулы.
     top_half = len(smooth) // 2
     search = smooth[kernel_size:top_half]
     if search.size == 0 or search.max() == 0:
         return None  # профиль нечитаем → fallback
 
-    face_row = int(np.argmax(search)) + kernel_size
+    # Ищем локальные максимумы: точки где производная меняет знак с + на -
+    diff = np.diff(search)
+    local_maxima = np.where((diff[:-1] > 0) & (diff[1:] <= 0))[0]
+
+    if len(local_maxima) >= 2:
+        # Есть минимум 2 локальных максимума → первый = макушка/причёска,
+        # второй или далее = скулы. Берём последний из первых 5 (глубже в лицо).
+        candidates = local_maxima[:min(5, len(local_maxima))]
+        # Выбираем тот, что дальше от края (ближе к центру лица)
+        # но не самый маленький — берём тот что ближе к середине candidates
+        mid_idx = len(candidates) // 2
+        # Берём медианного кандидата (не первый=макушка, не последний=плечи)
+        best_candidate = candidates[mid_idx]
+        face_row = int(best_candidate) + kernel_size
+        method = "local_max"
+    elif len(local_maxima) == 1:
+        # Один локальный максимум — используем его
+        face_row = int(local_maxima[0]) + kernel_size
+        method = "local_max_single"
+    else:
+        # Fallback: наибольший пик (старое поведение)
+        face_row = int(np.argmax(search)) + kernel_size
+        method = "argmax_fallback"
 
     # Лицо ≈ от макушки до скул с запасом вниз
     # Высота лица ≈ ширина в точке скул (лицо ~овальное)
@@ -69,8 +91,8 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
 
     logger.info(
         "Face detection (width profile): face_row=%d, cx=%.2f, cy=%.2f, "
-        "rx=%.2f, ry=%.2f",
-        face_row, cx_norm, cy_norm, rx_norm, ry_norm,
+        "rx=%.2f, ry=%.2f, method=%s",
+        face_row, cx_norm, cy_norm, rx_norm, ry_norm, method,
     )
 
     return {
