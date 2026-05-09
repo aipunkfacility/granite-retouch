@@ -6,21 +6,13 @@ import pytest
 class TestPydanticValidation:
     """Валидация параметров API через Pydantic."""
 
-    def test_preview_params_rejects_bad_brightness(self):
-        """brightness=999 — ValidationError."""
+    def test_preview_params_rejects_bad_step_mm(self):
+        """step_mm=0.01 — ValidationError (ge=0.10)."""
         from pydantic import ValidationError
         from retouch_ui.backend.schemas import PreviewParams
 
         with pytest.raises(ValidationError):
-            PreviewParams(brightness=999)
-
-    def test_preview_params_rejects_bad_glow_size(self):
-        """glow_size=0 — ValidationError (ge=5)."""
-        from pydantic import ValidationError
-        from retouch_ui.backend.schemas import PreviewParams
-
-        with pytest.raises(ValidationError):
-            PreviewParams(glow_size=0)
+            PreviewParams(step_mm=0.01)
 
     def test_preview_params_rejects_bad_stone_type(self):
         """stone_type='obsidian' — ValidationError."""
@@ -35,16 +27,30 @@ class TestPydanticValidation:
         from retouch_ui.backend.schemas import PreviewParams, FaceOvalParams
 
         params = PreviewParams(
-            brightness=1.2,
-            glow_size=50,
-            glow_opacity=40,
             face_oval=FaceOvalParams(cx=0.5, cy=0.25, rx=0.15, ry=0.20),
             stone_type="granite",
+            step_mm=0.30,
         )
 
-        assert params.brightness == 1.2
         assert params.face_oval is not None
         assert params.face_oval.cx == 0.5
+        assert params.step_mm == 0.30
+
+    def test_preview_params_allows_extra_fields(self):
+        """extra='allow' — вложенные секции конфига от UI проходят."""
+        from retouch_ui.backend.schemas import PreviewParams
+
+        params = PreviewParams(
+            stone_type="gabbro",
+            processing={"laser_80w": {"glow_size_min": 10, "glow_size_max": 18}},
+            vignette={"blur_radius": 60},
+        )
+
+        assert params.stone_type == "gabbro"
+        # extra fields доступны через model_dump или __pydantic_extra__
+        dumped = params.model_dump()
+        assert dumped["processing"]["laser_80w"]["glow_size_min"] == 10
+        assert dumped["vignette"]["blur_radius"] == 60
 
     def test_face_oval_params_validation(self):
         """FaceOvalParams с невалидными координатами — ValidationError."""
@@ -57,17 +63,17 @@ class TestPydanticValidation:
         with pytest.raises(ValidationError):
             FaceOvalParams(rx=0.001)
 
-    def test_brightness_999_returns_422(self):
-        """brightness=999 — 422 Validation Error."""
+    def test_bad_step_mm_returns_validation_error(self):
+        """step_mm=99.0 — ValidationError (le=0.50)."""
         from retouch_ui.backend.schemas import PreviewParams
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError) as exc_info:
-            PreviewParams(brightness=999.0)
+            PreviewParams(step_mm=99.0)
 
         errors = exc_info.value.errors()
-        assert any(e["loc"] == ("brightness",) for e in errors), \
-            "brightness=999 должен вызывать ошибку валидации"
+        assert any(e["loc"] == ("step_mm",) for e in errors), \
+            "step_mm=99.0 должен вызывать ошибку валидации"
 
 
 class TestStableSerialize:
@@ -98,7 +104,7 @@ class TestStableSerialize:
         from retouch_ui.backend.routers.process import _cache_key
         from retouch_ui.backend.schemas import PreviewParams
 
-        params = PreviewParams(brightness=1.1, glow_size=50)
+        params = PreviewParams(step_mm=0.30, stone_type="granite")
         k1 = _cache_key("abc123", "laser_standard", params)
         k2 = _cache_key("abc123", "laser_standard", params)
 

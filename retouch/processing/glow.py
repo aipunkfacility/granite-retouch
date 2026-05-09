@@ -47,14 +47,20 @@ def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
 def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
     """Применить Outer Glow — свечение наружу от контура субъекта.
 
-    Это алгоритм, который ранее назывался «inner glow», но фактически
-    создавал свечение наружу (инвертированная маска → blur → multiply
-    с оригинальной маской = свечение по краю).
+    Алгоритм:
+      1. Размываем маску субъекта → градиент от края наружу
+      2. Вычитаем оригинальную маску → остаётся только свечение ВНЕ субъекта
+      3. Масштабируем по opacity
+      4. Composite: белое свечение поверх оригинала через glow_mask
+
+    Результат: мягкое белое свечение вокруг контура портрета,
+    затухающее к периферии. Именно это нужно для компенсации
+    «съедания» границ камнем (принцип 4: stone eats boundaries).
 
     Args:
         img_gray: PIL.Image в режиме L (grayscale)
         subject_mask: PIL.Image в режиме L (маска субъекта, 255=субъект)
-        glow_size: размер glow в пикселях
+        glow_size: размер glow в пикселях (радиус GaussianBlur)
         glow_opacity: непрозрачность (0.0–1.0)
 
     Returns:
@@ -62,13 +68,17 @@ def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
     """
     width, height = img_gray.size
 
-    # Классический outer glow: инвертированная маска → blur → multiply
-    inv_mask = ImageOps.invert(subject_mask)
-    glow_mask = inv_mask.filter(ImageFilter.GaussianBlur(radius=glow_size))
-    glow_mask = ImageChops.multiply(glow_mask, subject_mask)
-    glow_mask = glow_mask.point(lambda p: p * glow_opacity)
+    # Размываем маску субъекта — получаем градиент от края наружу
+    blurred_mask = subject_mask.filter(ImageFilter.GaussianBlur(radius=glow_size))
 
-    # Composite white glow onto grayscale
+    # Вычитаем оригинальную маску → остаётся только область ВНЕ субъекта
+    # (внутри субъекта blurred ≈ 255, после вычитания → 0)
+    glow_mask = ImageChops.subtract(blurred_mask, subject_mask)
+
+    # Масштабируем по opacity
+    glow_mask = glow_mask.point(lambda p: min(255, int(p * glow_opacity)))
+
+    # Composite: белое свечение через glow_mask поверх оригинала
     img_with_glow = Image.composite(
         Image.new('L', (width, height), 255), img_gray, glow_mask
     )

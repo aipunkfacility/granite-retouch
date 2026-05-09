@@ -11,16 +11,3 @@ export interface FaceOvalParams {
   ry: number;    // радиус Y (0–1)
   source: "heuristic" | "manual" | "auto" | "heuristic_legacy";
 }
-
-/** Preview params — matches backend PreviewParams schema (D.4) */
-export interface PreviewParams {
-  brightness?: number | null;
-  glow_size?: number | null;
-  glow_opacity?: number | null;
-  face_oval?: FaceOvalParams | null;
-  stone_type?: string | null;
-  step_mm?: number | null;
-  highlight_start?: number | null;
-  face_region_top?: number | null;
-  legacy_step_order?: boolean | null;
-}

@@ -19,17 +19,17 @@ export interface PreviewResult {
   warnings: string[];
 }
 
-/** Параметры предпросмотра — соответствует backend PreviewParams */
+/** Параметры предпросмотра — соответствует backend PreviewParams.
+
+ * UI передаёт полный конфиг как configOverride — вложенные секции
+ * (processing.laser_80w.*, vignette.* и т.д.) проходят через
+ * PreviewParams с extra="allow" на backend.
+ */
 export interface PreviewParams {
-  brightness?: number | null;
-  glow_size?: number | null;
-  glow_opacity?: number | null;
   face_oval?: FaceOvalParams | null;
   stone_type?: string | null;
   step_mm?: number | null;
-  highlight_start?: number | null;
-  face_region_top?: number | null;
-  legacy_step_order?: boolean | null;
+  [key: string]: unknown;  // позволяет передавать вложенные секции конфига
 }
 
 export interface ConfigResult {
@@ -55,13 +55,13 @@ export interface PresetItem {
   config: Record<string, any>;
 }
 
-/** Upload image — returns file_id. 30s timeout. */
+/** Upload image — returns file_id. 120s timeout. */
 export async function uploadImage(file: File): Promise<{ file_id: string }> {
   const formData = new FormData();
   formData.append("file", file);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
   try {
     const res = await fetch(`${API_BASE}/upload`, {
@@ -78,7 +78,11 @@ export async function uploadImage(file: File): Promise<{ file_id: string }> {
     return res.json();
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error("Загрузка превышена (30 сек). Проверьте подключение к backend.");
+      throw new Error("Загрузка превышена (120 сек). Проверьте подключение к backend.");
+    }
+    if (e instanceof TypeError) {
+      // TypeError = сетевая ошибка (backend недоступен)
+      throw new Error("Backend недоступен. Убедитесь что сервер запущен (make ui-backend).");
     }
     throw e;
   } finally {

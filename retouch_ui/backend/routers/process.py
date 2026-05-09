@@ -51,6 +51,7 @@ _UploadedEntry = Tuple[Path, str, int, float]
 _uploaded_files: Dict[str, _UploadedEntry] = {}
 
 MAX_UPLOADED_FILES = 50  # A16: лимит на количество одновременно загруженных файлов
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 МБ — лимит размера загружаемого файла
 
 
 def _cleanup_uploaded(file_id: str) -> None:
@@ -160,9 +161,26 @@ async def upload_image(file: UploadFile = File(...)):
     suffix = Path(file.filename or "upload.png").suffix or ".png"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
-        content = await file.read()
+        content = await asyncio.wait_for(file.read(), timeout=60.0)
+
+        # Проверка размера файла
+        if len(content) > MAX_UPLOAD_BYTES:
+            tmp.close()
+            Path(tmp.name).unlink(missing_ok=True)
+            raise HTTPException(
+                413,
+                f"Файл слишком большой ({len(content) / 1024 / 1024:.1f} МБ). "
+                f"Максимум: {MAX_UPLOAD_BYTES // 1024 // 1024} МБ.",
+            )
+
         tmp.write(content)
         tmp.close()  # Закрыть ДО передачи пути в PIL (Windows: PermissionError)
+    except asyncio.TimeoutError:
+        tmp.close()
+        Path(tmp.name).unlink(missing_ok=True)
+        raise HTTPException(408, "Превышено время загрузки файла (60 сек)")
+    except HTTPException:
+        raise
     except Exception:
         tmp.close()
         Path(tmp.name).unlink(missing_ok=True)
@@ -182,6 +200,10 @@ async def upload_image(file: UploadFile = File(...)):
 
 def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | None]:
     """Преобразовать PreviewParams в dict для deep_merge в конфиг.
+
+    Поддерживает два формата:
+    1. Полный конфиг от UI: {processing: {laser_80w: {...}}, vignette: {...}, ...}
+    2. Плоские параметры: {face_oval: {...}, stone_type: "granite", step_mm: 0.3}
 
     E.2: Поддерживает face_oval → передача в pipeline.
 
@@ -207,9 +229,13 @@ def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | Non
     if step_mm:
         overrides["machine"] = {"step_mm": step_mm}
 
-    # Остальные параметры → в processing.<machine>
-    if p:
-        overrides["processing"] = p
+    # Вложенные секции конфига от UI (processing, vignette, stone, machine)
+    # передаём напрямую — они содержат glow_size_min/max и др.
+    CONFIG_SECTIONS = {"processing", "vignette", "stone", "machine"}
+    for key in CONFIG_SECTIONS:
+        value = p.pop(key, None)
+        if value is not None and isinstance(value, dict):
+            overrides[key] = value
 
     return overrides, face_oval
 
@@ -264,13 +290,13 @@ async def preview_image(
                 max_size=768,
                 face_oval=face_oval,
             ),
-            timeout=15.0,
+            timeout=45.0,
         )
     except asyncio.TimeoutError:
         _ref_dec(request.file_id)
         raise HTTPException(
             408,
-            "Превышено время предпросмотра (15 сек). "
+            "Превышено время предпросмотра (45 сек). "
             "Попробуйте уменьшить размер изображения.",
         )
     except Exception as exc:

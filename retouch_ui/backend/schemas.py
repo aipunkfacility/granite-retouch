@@ -23,13 +23,14 @@ class PreviewParams(BaseModel):
 
     Все параметры опциональны — None означает «использовать из конфига».
     При передаче невалидного значения → 422 Validation Error.
+
+    model_config extra="allow" — UI передаёт полный конфиг с вложенными
+    секциями (processing.laser_80w.*, vignette.* и т.д.), которые Pydantic
+    должен сохранить, а не отбросить. Валидация этих полей — в пайплайне
+    через validate_config().
     """
-    brightness: Optional[float] = Field(None, ge=0.5, le=2.0,
-                                        description="Множитель яркости (0.5–2.0)")
-    glow_size: Optional[int] = Field(None, ge=5, le=100,
-                                     description="Размер glow (5–100 px)")
-    glow_opacity: Optional[int] = Field(None, ge=0, le=100,
-                                        description="Непрозрачность glow (0–100%)")
+    model_config = {"extra": "allow"}
+
     face_oval: Optional[FaceOvalParams] = Field(None,
                                                 description="Овал зоны лица (нормализованный)")
     stone_type: Optional[str] = Field(None,
@@ -37,12 +38,6 @@ class PreviewParams(BaseModel):
                                       description="Тип камня")
     step_mm: Optional[float] = Field(None, ge=0.10, le=0.50,
                                      description="Шаг ЧПУ (мм)")
-    highlight_start: Optional[int] = Field(None, ge=80, le=250,
-                                           description="Порог затухания коррекции (80–250)")
-    face_region_top: Optional[float] = Field(None, ge=0.2, le=0.8,
-                                             description="Доля высоты для зоны лица (0.2–0.8)")
-    legacy_step_order: Optional[bool] = Field(None,
-                                              description="Старый порядок шагов (rollback)")
 
 
 # ─── Запросы ──────────────────────────────────────────────────────────

@@ -57,7 +57,7 @@ class TestInnerGlow:
         assert abs(glow_opacity - 0.70) < 0.01
 
     def test_glow_brightens_edges(self):
-        """Glow делает край субъекта светлее (контурное свечение)."""
+        """Outer glow делает зону снаружи контура светлее (контурное свечение наружу)."""
         gray, mask = self._make_gray_with_mask(subject_val=80)
         laser_cfg = {
             "glow_size_min": 40, "glow_size_max": 80,
@@ -68,19 +68,19 @@ class TestInnerGlow:
             gray, mask, laser_cfg, glow_size_override=50, glow_opacity_override=35
         )
 
-        # Край маски субъекта должен быть светлее исходного (80)
+        # Outer glow: зона ВНЕ маски субъекта рядом с контуром должна быть светлее 0
         result_arr = np.array(result)
         mask_arr = np.array(mask)
 
-        # Зона вблизи края: пиксели маски субъекта рядом с фоном
-        from scipy.ndimage import binary_erosion
-        inner = binary_erosion(mask_arr > 128, iterations=20)
-        edge_zone = (mask_arr > 128) & ~inner
+        # Зона снаружи маски: пиксели фона рядом с границей субъекта
+        from scipy.ndimage import binary_dilation
+        dilated = binary_dilation(mask_arr > 128, iterations=20)
+        outer_edge = dilated & ~(mask_arr > 128)
 
-        if edge_zone.sum() > 0:
-            edge_brightness = result_arr[edge_zone].mean()
-            assert edge_brightness > 80, \
-                f"Контур должен быть светлее исходного (80), а не {edge_brightness:.0f}"
+        if outer_edge.sum() > 0:
+            edge_brightness = result_arr[outer_edge].mean()
+            assert edge_brightness > 0, \
+                f"Outer glow должен осветлить зону снаружи контура, а средняя яркость {edge_brightness:.0f}"
 
     def test_low_opacity_glow_minimal_change(self):
         """Минимальный glow (opacity=1) почти не меняет изображение."""
