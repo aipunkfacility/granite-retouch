@@ -24,7 +24,7 @@ class TestDefaults:
         laser_standard = DEFAULTS["processing"]["laser_standard"]
         assert "glow_size_min" in laser_standard
         assert "glow_size_max" in laser_standard
-        assert "brightness" in laser_standard
+        assert "stone_gamma" in laser_standard
         assert "face_brightness_target_min" in laser_standard
         assert "face_brightness_target_max" in laser_standard
         assert "face_region_top" in laser_standard
@@ -36,7 +36,7 @@ class TestDefaults:
         laser_80w = DEFAULTS["processing"]["laser_80w"]
         assert "glow_size_min" in laser_80w
         assert "glow_size_max" in laser_80w
-        assert "brightness" in laser_80w
+        assert "stone_gamma" in laser_80w
         assert "face_brightness_target_min" in laser_80w
         assert "face_brightness_target_max" in laser_80w
         assert "face_region_top" in laser_80w
@@ -92,11 +92,11 @@ class TestDeepMerge:
 
     def test_nested_merge(self):
         """Вложенные dict сливаются рекурсивно."""
-        base = {"processing": {"blue_threshold": 30, "laser_standard": {"brightness": 1.18}}}
-        override = {"processing": {"laser_standard": {"brightness": 1.30}}}
+        base = {"processing": {"blue_threshold": 30, "laser_standard": {"stone_gamma": 0.88}}}
+        override = {"processing": {"laser_standard": {"stone_gamma": 0.80}}}
         result = deep_merge(base, override)
         assert result["processing"]["blue_threshold"] == 30
-        assert result["processing"]["laser_standard"]["brightness"] == 1.30
+        assert result["processing"]["laser_standard"]["stone_gamma"] == 0.80
 
     def test_base_not_mutated(self):
         """deep_merge не мутирует base."""
@@ -123,7 +123,7 @@ class TestLoadConfig:
             "processing": {
                 "blue_threshold": 50,
                 "laser_standard": {
-                    "brightness": 1.30,
+                    "stone_gamma": 0.80,
                     "face_brightness_target": [220, 240],  # old list format
                 },
             },
@@ -134,7 +134,7 @@ class TestLoadConfig:
 
         config = load_config(str(config_file))
         assert config["processing"]["blue_threshold"] == 50
-        assert config["processing"]["laser_standard"]["brightness"] == 1.30
+        assert config["processing"]["laser_standard"]["stone_gamma"] == 0.80
         # Миграция: старый список → отдельные ключи
         assert config["processing"]["laser_standard"]["face_brightness_target_min"] == 220
         assert config["processing"]["laser_standard"]["face_brightness_target_max"] == 240
@@ -162,7 +162,7 @@ class TestLoadConfig:
         config_data = {
             "processing": {
                 "laser_standard": {
-                    "brightness": 1.50,
+                    "stone_gamma": 0.75,
                 },
             },
         }
@@ -171,10 +171,10 @@ class TestLoadConfig:
             yaml.dump(config_data, f)
 
         config = load_config(str(config_file))
-        config["processing"]["laser_standard"]["brightness"] = 999
+        config["processing"]["laser_standard"]["stone_gamma"] = 999
 
         # DEFAULTS не должен мутировать
-        assert DEFAULTS["processing"]["laser_standard"]["brightness"] == 1.0
+        assert DEFAULTS["processing"]["laser_standard"]["stone_gamma"] == 0.88
 
 
 class TestFindConfigPath:
@@ -210,9 +210,9 @@ class TestValidateConfig:
         warnings = validate_config(config)
         assert any("glow_opacity_min > glow_opacity_max" in w for w in warnings)
 
-    def test_bad_brightness_warns(self):
-        """brightness out of range produces a warning."""
-        bad_config = deep_merge(DEFAULTS, {"processing": {"laser_standard": {"brightness": 9.99}}})
+    def test_bad_stone_gamma_warns(self):
+        """stone_gamma out of range produces a warning."""
+        bad_config = deep_merge(DEFAULTS, {"processing": {"laser_standard": {"stone_gamma": 9.99}}})
         warnings = validate_config(bad_config)
         assert len(warnings) > 0
 
@@ -238,21 +238,21 @@ class TestDeepMergeAdvanced:
     def test_deep_merge_does_not_mutate_defaults(self):
         """deep_merge does not mutate DEFAULTS (A9)."""
         original = copy.deepcopy(DEFAULTS)
-        override = {"processing": {"laser_standard": {"brightness": 9.99}}}
+        override = {"processing": {"laser_standard": {"stone_gamma": 0.50}}}
         result = deep_merge(DEFAULTS, override)
 
         # DEFAULTS unchanged
-        assert DEFAULTS["processing"]["laser_standard"]["brightness"] == original["processing"]["laser_standard"]["brightness"]
+        assert DEFAULTS["processing"]["laser_standard"]["stone_gamma"] == original["processing"]["laser_standard"]["stone_gamma"]
         # Result contains override
-        assert result["processing"]["laser_standard"]["brightness"] == 9.99
+        assert result["processing"]["laser_standard"]["stone_gamma"] == 0.50
         # Other laser_standard keys preserved from DEFAULTS
         assert "glow_size_min" in result["processing"]["laser_standard"]
 
     def test_partial_yaml_merged_with_defaults(self):
         """Partial YAML is supplemented by DEFAULTS via deep_merge."""
-        partial = {"processing": {"laser_standard": {"brightness": 1.30}}}
+        partial = {"processing": {"laser_standard": {"stone_gamma": 0.80}}}
         result = deep_merge(DEFAULTS, partial)
-        assert result["processing"]["laser_standard"]["brightness"] == 1.30
+        assert result["processing"]["laser_standard"]["stone_gamma"] == 0.80
         assert "glow_size_min" in result["processing"]["laser_standard"]
         assert "vignette" in result
 
@@ -294,7 +294,7 @@ class TestPydanticModel:
         """Pydantic model is available when pydantic is installed."""
         from retouch.config import RetouchConfig
         config = RetouchConfig()
-        assert config.processing.laser_standard.brightness > 0
+        assert 0 < config.processing.laser_standard.stone_gamma <= 1.5
 
     @pytest.mark.skipif(
         not __import__("retouch.config", fromlist=["HAS_PYDANTIC"]).HAS_PYDANTIC,

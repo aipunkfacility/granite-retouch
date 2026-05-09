@@ -126,14 +126,8 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
 
     median = analytics['median_brightness']
     factor = target_pre_fb / max(median, 1)
-    factor = max(0.70, min(1.15, factor))
-
-    # Корректирующий коэффициент brightness из конфига
-    if machine_cfg:
-        brightness = machine_cfg.get("brightness", 1.0)
-        factor *= brightness
-        # После умножения на brightness — ещё раз ограничим
-        factor = max(0.50, min(1.50, factor))
+    # FIX #1: единый clamp, brightness убран (заменён на stone_gamma)
+    factor = max(0.50, min(1.50, factor))
 
     # Защита от клиппинга: не выталкиваем p90 за white_ceiling
     # Приоритет: machine_cfg > хардкод по machine_type
@@ -152,9 +146,7 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
         factor = min(factor, safe_factor)
 
     logger.info(
-        "Adaptive levels: machine=%s, median=%.1f, target=%d, brightness=%.2f, factor=%.3f",
-        machine_type, median, target_pre_fb,
-        machine_cfg.get("brightness", 1.0) if machine_cfg else 1.0,
-        factor,
+        "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",
+        machine_type, median, target_pre_fb, factor,
     )
     return factor

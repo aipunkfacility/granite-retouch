@@ -24,6 +24,7 @@ from retouch.processing.face_region import detect_face_oval, generate_face_mask
 from retouch.processing.export import export_result
 from retouch.processing.vignette import apply_vignette
 from retouch.processing.mask_utils import clamp_masked
+from retouch.processing.gamma import apply_stone_gamma_masked
 
 try:
     import numpy as np
@@ -366,6 +367,17 @@ def _run_pipeline_steps(
         arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("White ceiling clamp: %d", white_ceiling)
+
+    # FIX #8: Stone gamma correction (SOP 5.1: gamma 0.8-0.9 для компенсации
+    # визуального потемнения на камне). Применяется ПЕРЕД виньеткой,
+    # ПОСЛЕ white_ceiling clamp. Только внутри маски субъекта.
+    stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
+    if stone_gamma is not None and stone_gamma != 1.0 and HAS_NUMPY:
+        arr = np.array(img_sharpened, dtype=np.float32)
+        mask_bool = np.array(ctx.subject_mask) > 128
+        arr = apply_stone_gamma_masked(arr, mask_bool, gamma=stone_gamma)
+        img_sharpened = Image.fromarray(arr.astype(np.uint8))
+        logger.info("Stone gamma applied: %.2f", stone_gamma)
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})

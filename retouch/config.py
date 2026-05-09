@@ -39,7 +39,7 @@ DEFAULTS = {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "glow_style": "outer",  # A.5: inner | outer
-            "brightness": 1.0,
+            "stone_gamma": 0.88,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
             "target_pre_fb": 180,
             "face_brightness_target_min": 230,
             "face_brightness_target_max": 245,
@@ -51,7 +51,7 @@ DEFAULTS = {
             "glow_size_min": 15, "glow_size_max": 25,
             "glow_opacity_min": 10, "glow_opacity_max": 20,
             "glow_style": "outer",
-            "brightness": 1.0,
+            "stone_gamma": 0.85,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
             "target_pre_fb": 150,
             "face_brightness_target_min": 190,
             "face_brightness_target_max": 210,
@@ -63,7 +63,7 @@ DEFAULTS = {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "glow_style": "outer",
-            "brightness": 1.0,
+            "stone_gamma": 0.90,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
             "target_pre_fb": 160,
             "face_brightness_target_min": 200,
             "face_brightness_target_max": 225,
@@ -84,8 +84,8 @@ DEFAULTS = {
         "heterogeneity": None,  # None = auto по stone_type → STONE_PROFILES
     },
     "vignette": {
-        "vertical_offset": 0.10,
-        "vertical_diameter": 0.50,
+        "vertical_offset": 0.10,  # FIX #3: восстановлено (было 0.30)
+        "vertical_diameter": 0.55,
         "blur_radius": 60,
         "headroom": 0.6,
         "horizontal_oversize": 0.2,
@@ -133,7 +133,7 @@ if HAS_PYDANTIC:
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
         glow_style: str = Field("outer", pattern="^(inner|outer)$")
-        brightness: float = Field(1.0, ge=0.5, le=1.5)
+        stone_gamma: float = Field(0.88, ge=0.5, le=1.5)  # FIX #8: замена brightness на gamma
         target_pre_fb: int = Field(160, ge=60, le=220)
         face_brightness_target_min: int = Field(230, ge=80, le=255)
         face_brightness_target_max: int = Field(245, ge=80, le=255)
@@ -154,17 +154,17 @@ if HAS_PYDANTIC:
         legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            glow_style="outer", brightness=1.0, target_pre_fb=180,
+            glow_style="outer", stone_gamma=0.88, target_pre_fb=180,
             face_brightness_target_min=230, face_brightness_target_max=245,
             white_ceiling=250, highlight_start=200))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            glow_style="outer", brightness=1.0, target_pre_fb=150,
+            glow_style="outer", stone_gamma=0.85, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=160))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            glow_style="outer", brightness=1.0, target_pre_fb=160,
+            glow_style="outer", stone_gamma=0.90, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=160,
             shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8))
@@ -221,6 +221,7 @@ def _migrate_face_target(config: dict) -> dict:
     Старый формат (список) использовался до v3.1. Новый формат — два отдельных
     ключа для совместимости с UI-слайдерами. Вызывается автоматически в load_config().
     Также мигрирует старый ключ 'laser' → 'laser_standard'.
+    Также мигрирует 'brightness' → 'stone_gamma' (FIX #1/#8).
     """
     proc = config.get("processing", {})
 
@@ -235,6 +236,24 @@ def _migrate_face_target(config: dict) -> dict:
             if len(target) >= 2:
                 mc["face_brightness_target_min"] = target[0]
                 mc["face_brightness_target_max"] = target[1]
+
+        # FIX #1/#8: миграция brightness → stone_gamma
+        if "brightness" in mc and "stone_gamma" not in mc:
+            import logging
+            old_brightness = mc.pop("brightness")
+            # brightness < 1.0 → stone_gamma = brightness (тот же числовой диапазон,
+            # но другая семантика: gamma < 1 осветляет тени, brightness < 1 затемнял)
+            # Предупреждаем о смене семантики
+            if old_brightness != 1.0:
+                logging.getLogger(__name__).warning(
+                    "processing.%s: 'brightness=%.2f' мигрирован в 'stone_gamma=%.2f'. "
+                    "Семантика изменилась: stone_gamma < 1.0 ОСВЕТЛЯЕТ тени "
+                    "(вместо затемнения brightness). Проверьте результат.",
+                    machine, old_brightness, old_brightness,
+                )
+            mc["stone_gamma"] = old_brightness
+        elif "brightness" in mc:
+            mc.pop("brightness")  # stone_gamma уже есть — просто удаляем brightness
 
     return config
 

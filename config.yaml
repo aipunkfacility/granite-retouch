@@ -5,7 +5,7 @@ processing:
   # Для rollback без redeploy. По умолчанию false (новый порядок).
   legacy_step_order: false
   impact:
-    brightness: 1.0
+    stone_gamma: 0.90           # FIX #8: SOP 5.1 — компенсация потемнения на камне
     face_brightness_target_min: 200
     face_brightness_target_max: 225
     white_ceiling: 240
@@ -21,11 +21,11 @@ processing:
     shadow_noise_threshold: 30  # A.1: порог яркости для shadow noise
     shadow_floor: 8  # A.2: минимальная яркость для impact (предотвращает застой иглы)
   laser_80w:
-    brightness: 0.85
-    target_pre_fb: 120           # целевая медиана ПОСЛЕ Levels, ПЕРЕД Face Brightness
-    face_brightness_target_min: 140
-    face_brightness_target_max: 165
-    white_ceiling: 200
+    stone_gamma: 0.85           # FIX #8: SOP 5.1 — компенсация потемнения на камне
+    target_pre_fb: 150          # FIX #2: восстановлено (было 120)
+    face_brightness_target_min: 190  # FIX #2: восстановлено (было 140)
+    face_brightness_target_max: 210  # FIX #2: восстановлено (было 165)
+    white_ceiling: 235          # FIX #2: восстановлено (было 200)
     face_region_top: 0.45
     glow_opacity_max: 15
     glow_opacity_min: 10
@@ -34,7 +34,7 @@ processing:
     glow_style: outer
     highlight_start: 160
   laser_standard:
-    brightness: 1.0
+    stone_gamma: 0.88           # FIX #8: SOP 5.1 — компенсация потемнения на камне
     face_brightness_target_min: 230
     face_brightness_target_max: 245
     white_ceiling: 250
@@ -58,4 +58,4 @@ vignette:
   headroom: 0.6
   horizontal_oversize: 0.2
   vertical_diameter: 0.55
-  vertical_offset: 0.30
+  vertical_offset: 0.10  # FIX #3: восстановлено (было 0.30)
