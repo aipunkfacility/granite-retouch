@@ -39,7 +39,9 @@ DEFAULTS = {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
             "glow_style": "outer",  # A.5: inner | outer
-            "stone_gamma": 0.88,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
+            "stone_gamma": 0.88,  # FIX #8: SOP 5.1
+            "unsharp_threshold": 3,  # FIX #11: SOP 3.1
+            "shadow_floor": 5,  # FIX #12: SOP 5.1
             "target_pre_fb": 180,
             "face_brightness_target_min": 230,
             "face_brightness_target_max": 245,
@@ -51,7 +53,9 @@ DEFAULTS = {
             "glow_size_min": 15, "glow_size_max": 25,
             "glow_opacity_min": 10, "glow_opacity_max": 20,
             "glow_style": "outer",
-            "stone_gamma": 0.85,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
+            "stone_gamma": 0.85,  # FIX #8: SOP 5.1
+            "unsharp_threshold": 3,  # FIX #11: SOP 3.1
+            "shadow_floor": 5,  # FIX #12: SOP 5.1
             "target_pre_fb": 150,
             "face_brightness_target_min": 190,
             "face_brightness_target_max": 210,
@@ -63,7 +67,8 @@ DEFAULTS = {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
             "glow_style": "outer",
-            "stone_gamma": 0.90,  # FIX #8: SOP 5.1 — компенсация потемнения на камне
+            "stone_gamma": 0.90,  # FIX #8: SOP 5.1
+            "unsharp_threshold": 2,  # FIX #11: SOP 3.1
             "target_pre_fb": 160,
             "face_brightness_target_min": 200,
             "face_brightness_target_max": 225,
@@ -133,7 +138,8 @@ if HAS_PYDANTIC:
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
         glow_style: str = Field("outer", pattern="^(inner|outer)$")
-        stone_gamma: float = Field(0.88, ge=0.5, le=1.5)  # FIX #8: замена brightness на gamma
+        stone_gamma: float = Field(0.88, ge=0.5, le=1.5)  # FIX #8
+        unsharp_threshold: int = Field(3, ge=0, le=20)  # FIX #11: SOP 3.1
         target_pre_fb: int = Field(160, ge=60, le=220)
         face_brightness_target_min: int = Field(230, ge=80, le=255)
         face_brightness_target_max: int = Field(245, ge=80, le=255)
@@ -143,7 +149,7 @@ if HAS_PYDANTIC:
         shadow_noise_min: int = Field(0, ge=0, le=50)
         shadow_noise_max: int = Field(15, ge=0, le=50)
         shadow_noise_threshold: int = Field(30, ge=5, le=80)
-        shadow_floor: int = Field(0, ge=0, le=30)
+        shadow_floor: int = Field(5, ge=0, le=30)  # FIX #12: default 5 (SOP 5.1)
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -154,17 +160,17 @@ if HAS_PYDANTIC:
         legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            glow_style="outer", stone_gamma=0.88, target_pre_fb=180,
+            glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,
             face_brightness_target_min=230, face_brightness_target_max=245,
             white_ceiling=250, highlight_start=200))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            glow_style="outer", stone_gamma=0.85, target_pre_fb=150,
+            glow_style="outer", stone_gamma=0.85, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=160))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            glow_style="outer", stone_gamma=0.90, target_pre_fb=160,
+            glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=160,
             shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8))

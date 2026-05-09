@@ -6,6 +6,7 @@ processing:
   legacy_step_order: false
   impact:
     stone_gamma: 0.90           # FIX #8: SOP 5.1 — компенсация потемнения на камне
+    unsharp_threshold: 2         # FIX #11: SOP 3.1 — шум в тенях не усиливается
     face_brightness_target_min: 200
     face_brightness_target_max: 225
     white_ceiling: 240
@@ -22,6 +23,8 @@ processing:
     shadow_floor: 8  # A.2: минимальная яркость для impact (предотвращает застой иглы)
   laser_80w:
     stone_gamma: 0.85           # FIX #8: SOP 5.1 — компенсация потемнения на камне
+    unsharp_threshold: 3         # FIX #11: SOP 3.1 — шум в тенях не усиливается
+    shadow_floor: 5              # FIX #12: SOP 5.1 — чистый чёрный на полированном камне
     target_pre_fb: 150          # FIX #2: восстановлено (было 120)
     face_brightness_target_min: 190  # FIX #2: восстановлено (было 140)
     face_brightness_target_max: 210  # FIX #2: восстановлено (было 165)
@@ -35,6 +38,8 @@ processing:
     highlight_start: 160
   laser_standard:
     stone_gamma: 0.88           # FIX #8: SOP 5.1 — компенсация потемнения на камне
+    unsharp_threshold: 3         # FIX #11: SOP 3.1 — шум в тенях не усиливается
+    shadow_floor: 5              # FIX #12: SOP 5.1 — чистый чёрный на полированном камне
     face_brightness_target_min: 230
     face_brightness_target_max: 245
     white_ceiling: 250

@@ -318,6 +318,7 @@ def _run_pipeline_steps(
         # СТАРЫЙ порядок (до A.3): unsharp ДО face_brightness
         img_temp = apply_unsharp_mask(
             img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+            threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
         )
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
@@ -330,6 +331,7 @@ def _run_pipeline_steps(
         )
         img_sharpened = apply_unsharp_mask(
             img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+            threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
         )
 
     # Сохраняем результаты в контекст
@@ -350,15 +352,15 @@ def _run_pipeline_steps(
             shadow_threshold=shadow_threshold,
         )
 
-    # A.2: Shadow floor — отдельный шаг для impact
-    # Предотвращает уход теней в 0 (игла застревает на чистом чёрном).
+    # A.2: Shadow floor — отдельный шаг (FIX #12: теперь для всех станков)
+    # Предотвращает уход теней в 0 (игла застревает / «грязь» на камне).
     # После shadow_noise: гарантирует что шум не создал значения < floor.
     shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
-    if shadow_floor > 0 and ctx.machine_type == "impact" and HAS_NUMPY:
+    if shadow_floor > 0 and HAS_NUMPY:
         arr = np.array(img_sharpened, dtype=np.float32)
         arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor)
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
-        logger.info("Shadow floor applied: %d (impact)", shadow_floor)
+        logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
 
     # A.4: Hard clamp белой точки перед виньеткой
     white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
