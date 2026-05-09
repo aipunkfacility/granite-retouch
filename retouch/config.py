@@ -48,6 +48,7 @@ DEFAULTS = {
             "white_ceiling": 250,
             "face_region_top": 0.45,
             "highlight_start": 200,
+            "dither_method": "none",  # FIX #9: 8-bit BMP, без дизеринга
         },
         "laser_80w": {
             "glow_size_min": 15, "glow_size_max": 25,
@@ -62,6 +63,8 @@ DEFAULTS = {
             "white_ceiling": 235,
             "face_region_top": 0.45,
             "highlight_start": 160,
+            "dither_method": "jarvis",  # FIX #9: SOP 4.1
+            "dither_upsample": 2,  # FIX #10: SOP 5.2
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
@@ -79,6 +82,7 @@ DEFAULTS = {
             "shadow_noise_max": 15,
             "shadow_noise_threshold": 30,  # A.1: порог для shadow noise
             "shadow_floor": 8,  # A.2: минимальная яркость для impact
+            "dither_method": "stucki",  # FIX #9: SOP 4.1
         },
     },
     "machine": {
@@ -150,6 +154,8 @@ if HAS_PYDANTIC:
         shadow_noise_max: int = Field(15, ge=0, le=50)
         shadow_noise_threshold: int = Field(30, ge=5, le=80)
         shadow_floor: int = Field(5, ge=0, le=30)  # FIX #12: default 5 (SOP 5.1)
+        dither_method: str = Field("none", pattern="^(none|floyd_steinberg|jarvis|stucki)$")  # FIX #9
+        dither_upsample: int = Field(1, ge=1, le=4)  # FIX #10
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -162,18 +168,18 @@ if HAS_PYDANTIC:
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
             glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,
             face_brightness_target_min=230, face_brightness_target_max=245,
-            white_ceiling=250, highlight_start=200))
+            white_ceiling=250, highlight_start=200, dither_method="none"))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
             glow_style="outer", stone_gamma=0.85, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
-            white_ceiling=235, highlight_start=160))
+            white_ceiling=235, highlight_start=160, dither_method="jarvis", dither_upsample=2))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
             glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=160,
-            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8))
+            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="stucki"))
 
     class MachineGlobalConfig(BaseModel):
         step_mm: float = Field(0.300, ge=0.10, le=0.50)

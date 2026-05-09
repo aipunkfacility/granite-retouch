@@ -1,12 +1,10 @@
 processing:
   blue_threshold: 30
   fringe_radius: 3
-  # A.3: legacy_step_order — true = старый порядок (unsharp до face_brightness)
-  # Для rollback без redeploy. По умолчанию false (новый порядок).
   legacy_step_order: false
   impact:
-    stone_gamma: 0.90           # FIX #8: SOP 5.1 — компенсация потемнения на камне
-    unsharp_threshold: 2         # FIX #11: SOP 3.1 — шум в тенях не усиливается
+    stone_gamma: 0.90
+    unsharp_threshold: 2
     face_brightness_target_min: 200
     face_brightness_target_max: 225
     white_ceiling: 240
@@ -15,20 +13,21 @@ processing:
     glow_opacity_min: 60
     glow_size_max: 25
     glow_size_min: 10
-    glow_style: outer  # A.5: inner | outer
+    glow_style: outer
     highlight_start: 160
     shadow_noise_min: 5
     shadow_noise_max: 15
-    shadow_noise_threshold: 30  # A.1: порог яркости для shadow noise
-    shadow_floor: 8  # A.2: минимальная яркость для impact (предотвращает застой иглы)
+    shadow_noise_threshold: 30
+    shadow_floor: 8
+    dither_method: stucki         # FIX #9: SOP 4.1
   laser_80w:
-    stone_gamma: 0.85           # FIX #8: SOP 5.1 — компенсация потемнения на камне
-    unsharp_threshold: 3         # FIX #11: SOP 3.1 — шум в тенях не усиливается
-    shadow_floor: 5              # FIX #12: SOP 5.1 — чистый чёрный на полированном камне
-    target_pre_fb: 150          # FIX #2: восстановлено (было 120)
-    face_brightness_target_min: 190  # FIX #2: восстановлено (было 140)
-    face_brightness_target_max: 210  # FIX #2: восстановлено (было 165)
-    white_ceiling: 235          # FIX #2: восстановлено (было 200)
+    stone_gamma: 0.85
+    unsharp_threshold: 3
+    shadow_floor: 5
+    target_pre_fb: 150
+    face_brightness_target_min: 190
+    face_brightness_target_max: 210
+    white_ceiling: 235
     face_region_top: 0.45
     glow_opacity_max: 15
     glow_opacity_min: 10
@@ -36,10 +35,12 @@ processing:
     glow_size_min: 10
     glow_style: outer
     highlight_start: 160
+    dither_method: jarvis          # FIX #9: SOP 4.1
+    dither_upsample: 2              # FIX #10: SOP 5.2
   laser_standard:
-    stone_gamma: 0.88           # FIX #8: SOP 5.1 — компенсация потемнения на камне
-    unsharp_threshold: 3         # FIX #11: SOP 3.1 — шум в тенях не усиливается
-    shadow_floor: 5              # FIX #12: SOP 5.1 — чистый чёрный на полированном камне
+    stone_gamma: 0.88
+    unsharp_threshold: 3
+    shadow_floor: 5
     face_brightness_target_min: 230
     face_brightness_target_max: 245
     white_ceiling: 250
@@ -50,17 +51,17 @@ processing:
     glow_size_min: 40
     glow_style: outer
     highlight_start: 200
+    dither_method: none
   min_blue_ratio: 0.15
   min_resolution: 512
   result_min_black_ratio: 0.25
 machine:
-  step_mm: 0.300  # B.2: шаг ЧПУ для расчёта BMP resolution
+  step_mm: 0.300
 stone:
-  type: granite  # B.2: granite | marble | gabbro | basalt
-  # heterogeneity: null  # null = auto по stone_type
+  type: granite
 vignette:
   blur_radius: 60
   headroom: 0.6
   horizontal_oversize: 0.2
   vertical_diameter: 0.55
-  vertical_offset: 0.10  # FIX #3: восстановлено (было 0.30)
+  vertical_offset: 0.10
