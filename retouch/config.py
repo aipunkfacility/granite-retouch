@@ -32,8 +32,10 @@ DEFAULTS = {
         "blue_threshold": 30,
         "min_blue_ratio": 0.15,
         "min_resolution": 512,
+        "max_resolution": 4096,  # Защита от OOM: 4096×4096 × 4 байт = 64 MB
         "result_min_black_ratio": 0.25,
         "fringe_radius": 3,
+        "mask_soft_sigma": 1.5,  # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
         "legacy_step_order": False,  # A.3: rollback для нового порядка шагов
         "laser_standard": {
             "glow_size_min": 40, "glow_size_max": 80,

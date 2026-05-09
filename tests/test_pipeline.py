@@ -335,3 +335,40 @@ class TestPipelineStepsAPI:
         assert result.img_final is not None
         # Impact glow midpoint: (10 + 25) // 2 = 17
         assert result.glow_size == 17
+
+    def test_process_steps_keep_intermediates_false(self, tmp_path):
+        """process_steps(keep_intermediates=False) освобождает промежуточные."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard",
+                               config=DEFAULTS, keep_intermediates=False)
+
+        assert result.img_final is not None
+        assert result.img_chromakey is None
+        assert result.img_gray is None
+        assert result.img_glow is None
+
+    def test_process_steps_keep_intermediates_true(self, tmp_path):
+        """process_steps(keep_intermediates=True) сохраняет промежуточные."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard",
+                               config=DEFAULTS, keep_intermediates=True)
+
+        assert result.img_final is not None
+        assert result.img_chromakey is not None
+        assert result.img_gray is not None
+
+    def test_release_intermediates_idempotent(self, tmp_path):
+        """Повторный вызов release_intermediates() не падает."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
+
+        result.release_intermediates()
+        result.release_intermediates()  # Не должно быть AttributeError
+
+        assert result.img_final is not None

@@ -3,7 +3,6 @@
 Поддерживаемые форматы:
 - BMP 8-bit grayscale (256 оттенков, R=G=B палитра) — для laser_standard
 - BMP 1-bit monochrome (dithered) — для laser_80w и impact
-  - Floyd-Steinberg: быстрый, для бюджетных лазеров
   - Jarvis: плавные переходы, лучший для CO2 (SOP 4.1)
   - Stucki: чёткие линии, лучший для impact (SOP 4.1)
 - PNG — для предпросмотра (обратно совместимый)
@@ -15,6 +14,8 @@
 
 FIX #9: Добавлены Stucki и Jarvis dithering
 FIX #10: Upsampling перед дизерингом (SOP 5.2)
+PERF: Numba @njit для дизеринга — 50-200x ускорение
+BREAKING: Floyd-Steinberg удалён, floyd_steinberg редиректит на jarvis
 """
 
 import logging
@@ -28,94 +29,48 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
+try:
+    from numba import njit
+    HAS_NUMBA = True
+except ImportError:
+    HAS_NUMBA = False
+
 logger = logging.getLogger(__name__)
 
 
-def floyd_steinberg_dither(img_gray):
-    """Применить дизеринг Floyd-Steinberg к grayscale-изображению.
+# ---------------------------------------------------------------------------
+# Numba JIT-ядро дизеринга
+# ---------------------------------------------------------------------------
 
-    Преобразует 8-bit grayscale в 1-bit монохромное изображение,
-    имитируя полутона паттернами чёрных и белых точек.
-    Это стандартный алгоритм для лазерной гравировки в бинарном режиме.
+if HAS_NUMBA:
+    @njit(cache=True)
+    def _error_diffusion_dither_jit(arr_float, offsets_x, offsets_y, weights, n_weights):
+        """Numba-ускоренный алгоритм дизеринга с диффузией ошибки.
 
-    Белый пиксель = лазер включён (выжигает), чёрный = лазер выключен.
-
-    Args:
-        img_gray: PIL.Image в режиме L (grayscale)
-
-    Returns:
-        PIL.Image: 1-bit монохромное изображение (mode '1')
-    """
-    if not HAS_NUMPY:
-        # Pillow fallback: простой порог
-        logger.warning("floyd_steinberg_dither: numpy недоступен, используем пороговый дизеринг")
-        return img_gray.convert('1')
-
-    arr = np.array(img_gray, dtype=np.float64)
-    height, width = arr.shape
-    result = np.zeros((height, width), dtype=np.uint8)
-
-    for y in range(height):
-        for x in range(width):
-            old_pixel = arr[y, x]
-            new_pixel = 255.0 if old_pixel >= 128.0 else 0.0
-            result[y, x] = 255 if new_pixel == 255.0 else 0
-            error = old_pixel - new_pixel
-
-            if x + 1 < width:
-                arr[y, x + 1] += error * 7 / 16
-            if y + 1 < height:
-                if x - 1 >= 0:
-                    arr[y + 1, x - 1] += error * 3 / 16
-                arr[y + 1, x] += error * 5 / 16
-                if x + 1 < width:
-                    arr[y + 1, x + 1] += error * 1 / 16
-
-    return Image.fromarray(result).convert('1')
-
-
-def floyd_steinberg_dither_fast(img_gray):
-    """Быстрый Floyd-Steinberg дизеринг с векторизованной обработкой строк.
-
-    Аналогичен floyd_steinberg_dither(), но обрабатывает строки целиком
-    через numpy-операции, что значительно быстрее для больших изображений.
-
-    Args:
-        img_gray: PIL.Image в режиме L (grayscale)
-
-    Returns:
-        PIL.Image: 1-bit монохромное изображение (mode '1')
-    """
-    if not HAS_NUMPY:
-        return floyd_steinberg_dither(img_gray)
-
-    arr = np.array(img_gray, dtype=np.float64)
-    height, width = arr.shape
-    result = np.zeros((height, width), dtype=np.uint8)
-
-    for y in range(height):
-        for x in range(width):
-            old_pixel = arr[y, x]
-            new_pixel = 255.0 if old_pixel >= 128.0 else 0.0
-            result[y, x] = 255 if new_pixel == 255.0 else 0
-            error = old_pixel - new_pixel
-
-            # Распределение ошибки на соседние пиксели
-            if x + 1 < width:
-                arr[y, x + 1] += error * 7 / 16
-            if y + 1 < height:
-                if x - 1 >= 0:
-                    arr[y + 1, x - 1] += error * 3 / 16
-                arr[y + 1, x] += error * 5 / 16
-                if x + 1 < width:
-                    arr[y + 1, x + 1] += error * 1 / 16
-
-    # Конвертируем в 1-bit через порог 128
-    return Image.fromarray(result).convert('1')
+        Работает in-place на arr_float (float64).
+        Возвращает uint8-массив результата.
+        """
+        height, width = arr_float.shape
+        result = np.empty((height, width), dtype=np.uint8)
+        for y in range(height):
+            for x in range(width):
+                old_pixel = arr_float[y, x]
+                new_pixel = 255.0 if old_pixel >= 128.0 else 0.0
+                result[y, x] = 255 if new_pixel == 255.0 else 0
+                error = old_pixel - new_pixel
+                for i in range(n_weights):
+                    nx = x + offsets_x[i]
+                    ny = y + offsets_y[i]
+                    if 0 <= nx < width and 0 <= ny < height:
+                        arr_float[ny, nx] += error * weights[i]
+        return result
 
 
 def _error_diffusion_dither(img_gray, weights):
     """Обобщённый алгоритм дизеринга с диффузией ошибки.
+
+    При наличии Numba использует JIT-компилированную версию
+    (50-200x быстрее чистого Python). Fallback на Python при отсутствии Numba.
 
     Args:
         img_gray: PIL.Image в режиме L
@@ -128,6 +83,20 @@ def _error_diffusion_dither(img_gray, weights):
         logger.warning("error_diffusion_dither: numpy недоступен, используем пороговый дизеринг")
         return img_gray.convert('1')
 
+    if HAS_NUMBA:
+        # Numba JIT path — подготовка плоских массивов
+        arr_float = np.array(img_gray, dtype=np.float64)
+        n_weights = len(weights)
+        offsets_x = np.array([w[0] for w in weights], dtype=np.int64)
+        offsets_y = np.array([w[1] for w in weights], dtype=np.int64)
+        weights_arr = np.array([w[2] for w in weights], dtype=np.float64)
+
+        result = _error_diffusion_dither_jit(
+            arr_float, offsets_x, offsets_y, weights_arr, n_weights
+        )
+        return Image.fromarray(result).convert('1')
+
+    # Python fallback — чистый Python без Numba
     arr = np.array(img_gray, dtype=np.float64)
     height, width = arr.shape
     result = np.zeros((height, width), dtype=np.uint8)
@@ -195,22 +164,23 @@ def jarvis_dither(img_gray):
     return _error_diffusion_dither(img_gray, weights)
 
 
-def _apply_dither(img_gray, method='floyd_steinberg'):
+def _apply_dither(img_gray, method='jarvis'):
     """Применить выбранный алгоритм дизеринга.
 
     Args:
         img_gray: PIL.Image в режиме L
-        method: 'floyd_steinberg' | 'jarvis' | 'stucki'
+        method: 'jarvis' | 'stucki' | 'floyd_steinberg' (deprecated → jarvis)
 
     Returns:
         PIL.Image: 1-bit изображение
     """
     if method == 'stucki':
         return stucki_dither(img_gray)
-    elif method == 'jarvis':
-        return jarvis_dither(img_gray)
     else:
-        return floyd_steinberg_dither_fast(img_gray)
+        # jarvis — default; floyd_steinberg редиректит сюда (deprecated)
+        if method == 'floyd_steinberg':
+            logger.info("floyd_steinberg deprecated, redirecting to jarvis")
+        return jarvis_dither(img_gray)
 
 
 def dither_with_upsample(img_gray, method='jarvis', upsample=2):
@@ -292,7 +262,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
         img: PIL.Image (RGB или L)
         output_path: путь к выходному BMP-файлу
         machine_type: тип станка (для логирования)
-        dither_method: 'floyd_steinberg' | 'jarvis' | 'stucki' | None (авто)
+        dither_method: 'jarvis' | 'stucki' | None (авто)
         dither_upsample: int (1-4) — во сколько раз увеличить перед дизерингом
     """
     # Конвертируем в grayscale
@@ -306,7 +276,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
         img_gray = img
 
     # Выбираем метод дизеринга
-    method = dither_method or 'floyd_steinberg'
+    method = dither_method or 'jarvis'
 
     # FIX #10: Upsampling перед дизерингом (SOP 5.2)
     if dither_upsample and dither_upsample > 1:
@@ -327,7 +297,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
 
 
 def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
-                  dither_method=None, dither_upsample=1):
+                  dither_method=None, dither_upsample=1, save_png_preview=False):
     """Экспорт результата пайплайна в нужном формате.
 
     Логика выбора формата:
@@ -346,9 +316,10 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         output_path: путь к выходному файлу (расширение будет заменено на .bmp)
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
-        dither_method: алгоритм дизеринга ('floyd_steinberg', 'jarvis', 'stucki', 'none')
+        dither_method: алгоритм дизеринга ('jarvis', 'stucki', 'floyd_steinberg' (deprecated), 'none')
             None = авто (из конфига станка)
         dither_upsample: int — upsampling перед дизерингом (SOP 5.2)
+        save_png_preview: bool — сохранить PNG-дубликат рядом с BMP (по умолчанию False)
 
     Returns:
         str: фактический путь к сохранённому файлу
@@ -373,7 +344,7 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         save_bmp_8bit(img, bmp_path, machine_type=machine_type)
     elif fmt == "bmp_1bit":
         # Явный запрос 1-bit — дизеринг обязателен
-        method = dither_method if dither_method and dither_method != "none" else "floyd_steinberg"
+        method = dither_method if dither_method and dither_method != "none" else "jarvis"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=method, dither_upsample=dither_upsample)
     elif fmt == "bmp" and dither_method and dither_method != "none":
@@ -386,12 +357,13 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         # laser_standard
         save_bmp_8bit(img, bmp_path, machine_type=machine_type)
 
-    # Также сохраняем PNG для предпросмотра
-    png_path = str(output.with_suffix(".png"))
-    if img.mode != 'RGB':
-        img.convert('RGB').save(png_path, format='PNG')
-    else:
-        img.save(png_path, format='PNG')
-    logger.info("PNG preview saved: %s", png_path)
+    # PNG preview — только по явному запросу (save_png_preview=True)
+    if save_png_preview:
+        png_path = str(output.with_suffix(".png"))
+        if img.mode != 'RGB':
+            img.convert('RGB').save(png_path, format='PNG')
+        else:
+            img.save(png_path, format='PNG')
+        logger.info("PNG preview saved: %s", png_path)
 
     return bmp_path

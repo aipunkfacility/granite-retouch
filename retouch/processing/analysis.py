@@ -69,17 +69,20 @@ def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray) -> dict:
         logger.warning("analyze_input: нет пикселей субъекта в маске")
         return _empty_result()
 
+    # PERF: batch np.percentile — 1 вызов вместо 6
+    p10, p25, p75, p90 = np.percentile(face_pixels, [10, 25, 75, 90])
+
     result = {
         # Основные метрики (лицо)
         'median_brightness': float(np.median(face_pixels)),
         'mean_brightness': float(np.mean(face_pixels)),
 
         # Тональный диапазон (лицо)
-        'p10_brightness': float(np.percentile(face_pixels, 10)),
-        'p25_brightness': float(np.percentile(face_pixels, 25)),
-        'p75_brightness': float(np.percentile(face_pixels, 75)),
-        'p90_brightness': float(np.percentile(face_pixels, 90)),
-        'tonal_range': float(np.percentile(face_pixels, 90) - np.percentile(face_pixels, 10)),
+        'p10_brightness': float(p10),
+        'p25_brightness': float(p25),
+        'p75_brightness': float(p75),
+        'p90_brightness': float(p90),
+        'tonal_range': float(p90 - p10),
 
         # Проблемные зоны (лицо)
         'highlight_clipping_pct': float(np.sum(face_pixels >= 250) / len(face_pixels) * 100),

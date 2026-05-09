@@ -43,8 +43,6 @@ class TestValidateImageInput:
     def test_zero_min_resolution(self, small_chromakey_png, default_config):
         """С min_resolution=0 маленькое изображение проходит."""
         config = {"processing": {"min_resolution": 0}}
-        # Нужно пересохранить маленькое изображение
-        # small_chromakey_png — уже сохранён как PNG
         assert validate_image_input(small_chromakey_png, config) is True
 
     def test_non_image_file(self, tmp_path, default_config):
@@ -53,6 +51,36 @@ class TestValidateImageInput:
         bad_file.write_text("this is not an image")
         with pytest.raises(ValidationError, match="Не удалось открыть"):
             validate_image_input(str(bad_file), default_config)
+
+
+class TestMaxResolution:
+    """Защита от OOM: максимальное разрешение входного изображения."""
+
+    def test_max_resolution_in_defaults(self):
+        """DEFAULTS содержит max_resolution."""
+        from retouch.config import DEFAULTS
+        max_res = DEFAULTS["processing"].get("max_resolution")
+        assert max_res is not None, "DEFAULTS должен содержать processing.max_resolution"
+        assert max_res >= 4096
+
+    def test_oversized_image_rejected(self, tmp_path):
+        """Изображение > max_resolution отклоняется."""
+        # Создаём изображение, превышающее лимит
+        config = {"processing": {"min_resolution": 0, "max_resolution": 1024}}
+        big_img = Image.new("RGBA", (1500, 1500), (0, 0, 255, 255))
+        path = str(tmp_path / "big.png")
+        big_img.save(path)
+
+        with pytest.raises(ValidationError, match="превышает максимум|max_resolution"):
+            validate_image_input(path, config)
+
+    def test_exactly_max_resolution_accepted(self, tmp_path):
+        """Изображение = max_resolution принимается."""
+        config = {"processing": {"min_resolution": 0, "max_resolution": 1024}}
+        img = Image.new("RGBA", (1024, 1024), (0, 0, 255, 255))
+        path = str(tmp_path / "exact.png")
+        img.save(path)
+        assert validate_image_input(path, config) is True
 
 
 class TestValidateBlueChromakey:

@@ -160,9 +160,8 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
     crushed = np.sum(subject_pixels <= shadow_floor) / len(subject_pixels) * 100
     metrics["shadow_crush_pct"] = float(crushed)
 
-    # Тональный диапазон
-    p10 = float(np.percentile(subject_pixels, 10))
-    p90 = float(np.percentile(subject_pixels, 90))
+    # Тональный диапазон (batch percentile)
+    p10, p90 = np.percentile(subject_pixels, [10, 90])
     metrics["tonal_range_output"] = p90 - p10
 
     # Предупреждения
@@ -192,6 +191,7 @@ def process_steps(
     glow_opacity_override: float | None = None,
     face_oval: dict | None = None,
     no_validate: bool = False,
+    keep_intermediates: bool = True,
 ) -> PipelineResult:
     """Полный пайплайн с доступом к каждому шагу.
 
@@ -203,6 +203,17 @@ def process_steps(
 
     При legacy_step_order=True в конфиге:
         glow → levels → unsharp → face_brightness → shadow_noise → vignette
+
+    Args:
+        input_path: путь к входному изображению
+        machine_type: тип станка
+        config: конфигурация (None = загрузить из config.yaml)
+        glow_size_override: ручное переопределение glow size
+        glow_opacity_override: ручное переопределение glow opacity
+        face_oval: ручное переопределение овала лица
+        no_validate: отключить валидацию
+        keep_intermediates: True = сохранять промежуточные (по умолчанию),
+            False = освободить после сборки PipelineResult
 
     Raises:
         FileNotFoundError: input_path не существует
@@ -231,8 +242,10 @@ def process_steps(
 
     # 1. Хромакей
     fringe_radius = proc_cfg.get("fringe_radius", 3)
+    mask_soft_sigma = proc_cfg.get("mask_soft_sigma", 1.5)
     img_chromakey, subject_mask = remove_blue_background(
-        img, threshold=threshold, fringe_radius=fringe_radius
+        img, threshold=threshold, fringe_radius=fringe_radius,
+        mask_soft_sigma=mask_soft_sigma,
     )
 
     # Закрыть исходное изображение — файловый дескриптор и память больше не нужны.
@@ -276,6 +289,11 @@ def process_steps(
         no_validate=no_validate,
         blue_ratio=blue_ratio,
     )
+
+    # Авто-освобождение промежуточных при keep_intermediates=False
+    if not keep_intermediates:
+        result.release_intermediates()
+
     return result
 
 
@@ -357,36 +375,39 @@ def _run_pipeline_steps(
     # A.2: Shadow floor — отдельный шаг (FIX #12: теперь для всех станков)
     # Предотвращает уход теней в 0 (игла застревает / «грязь» на камне).
     # После shadow_noise: гарантирует что шум не создал значения < floor.
+    #
+    # PERF: Объединяем shadow_floor + stone_gamma + white_ceiling в ОДИН numpy-проход.
+    # Было 3× PIL→numpy→PIL (3 аллокации), стало 1× PIL→numpy→PIL.
     shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
-    if shadow_floor > 0 and HAS_NUMPY:
-        arr = np.array(img_sharpened, dtype=np.float32)
-        arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor)
-        img_sharpened = Image.fromarray(arr.astype(np.uint8))
-        logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
-
-    # White ceiling уже применён внутри unsharp_mask (обрезает значения
-    # выталкиваемые резкостью за потолок). Но gamma < 1.0 осветляет
-    # (235 → ~238 при gamma=0.85), поэтому нужен повторный clamp ПОСЛЕ gamma.
-
-    # FIX #8: Stone gamma correction (SOP 5.1: gamma 0.8-0.9 для компенсации
-    # визуального потемнения на камне). Применяется ПЕРЕД виньеткой,
-    # ПОСЛЕ white_ceiling clamp. Только внутри маски субъекта.
     stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
-    if stone_gamma is not None and stone_gamma != 1.0 and HAS_NUMPY:
+    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
+
+    needs_numpy = HAS_NUMPY and (
+        (shadow_floor > 0) or
+        (stone_gamma is not None and stone_gamma != 1.0) or
+        (white_ceiling is not None)
+    )
+
+    if needs_numpy:
         arr = np.array(img_sharpened, dtype=np.float32)
         mask_bool = np.array(ctx.subject_mask) > 128
-        arr = apply_stone_gamma_masked(arr, mask_bool, gamma=stone_gamma)
-        img_sharpened = Image.fromarray(arr.astype(np.uint8))
-        logger.info("Stone gamma applied: %.2f", stone_gamma)
 
-    # A.4: White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет,
-    # поэтому пиксели обрезанные до ceiling до gamma могут выйти за ceiling после.
-    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
-    if white_ceiling is not None and HAS_NUMPY:
-        arr = np.array(img_sharpened, dtype=np.float32)
-        arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
+        # Shadow floor
+        if shadow_floor > 0:
+            arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor)
+            logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
+
+        # Stone gamma (SOP 5.1)
+        if stone_gamma is not None and stone_gamma != 1.0:
+            arr = apply_stone_gamma_masked(arr, mask_bool, gamma=stone_gamma)
+            logger.info("Stone gamma applied: %.2f", stone_gamma)
+
+        # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
+        if white_ceiling is not None:
+            arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
+            logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
+
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
-        logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
@@ -593,6 +614,7 @@ def process_export(
         result.img_final, output_path,
         machine_type=machine_type, fmt=fmt,
         dither_method=dither_method, dither_upsample=dither_upsample,
+        save_png_preview=True,  # CLI/WebUI ожидают PNG рядом с BMP
     )
 
     # F.3: BMP post-save валидация
@@ -630,7 +652,9 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
                         "BMP 1-bit validation: expected mode 1, got %s", img.mode
                     )
     except Exception as e:
-        logger.error("BMP validation failed: cannot open %s: %s", output_path, e)
+        raise RuntimeError(
+            f"Пост-валидация не удалась: не удалось открыть {output_path}: {e}"
+        ) from e
 
 
 def process(input_path, output_path, machine_type="laser_standard",

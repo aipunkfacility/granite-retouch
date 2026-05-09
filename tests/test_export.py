@@ -112,6 +112,107 @@ class TestDitherUpsampling:
             "Upsampling должен давать другой результат дизеринга"
 
 
+class TestNumbaDithering:
+    """Numba-ускоренный дизеринг."""
+
+    def test_jarvis_same_result_python_vs_numba(self):
+        """Jarvis с Numba даёт тот же результат что и чистый Python."""
+        import retouch.processing.export as exp_mod
+        from retouch.processing.export import jarvis_dither, _error_diffusion_dither
+
+        img = Image.new("L", (50, 50), 128)
+
+        # Python fallback — вызываем _error_diffusion_dither напрямую
+        weights = [
+            (1, 0, 7/48), (2, 0, 5/48),
+            (-2, 1, 3/48), (-1, 1, 5/48), (0, 1, 7/48), (1, 1, 5/48), (2, 1, 3/48),
+            (-2, 2, 1/48), (-1, 2, 3/48), (0, 2, 5/48), (1, 2, 3/48), (2, 2, 1/48),
+        ]
+        was_numba = exp_mod.HAS_NUMBA
+        try:
+            exp_mod.HAS_NUMBA = False
+            result_python = _error_diffusion_dither(img, weights)
+        finally:
+            exp_mod.HAS_NUMBA = was_numba
+
+        # Через публичный API (может использовать Numba)
+        result_api = jarvis_dither(img)
+
+        arr_python = np.array(result_python.convert("L"))
+        arr_api = np.array(result_api.convert("L"))
+        assert np.array_equal(arr_python, arr_api), \
+            "Numba-результат должен совпадать с Python-реализацией"
+
+    def test_stucki_same_result_python_vs_numba(self):
+        """Stucki с Numba даёт тот же результат что и чистый Python."""
+        import retouch.processing.export as exp_mod
+        from retouch.processing.export import stucki_dither, _error_diffusion_dither
+
+        img = Image.new("L", (50, 50), 128)
+
+        weights = [
+            (1, 0, 8/42), (2, 0, 4/42),
+            (-2, 1, 2/42), (-1, 1, 4/42), (0, 1, 8/42), (1, 1, 4/42), (2, 1, 2/42),
+            (-2, 2, 1/42), (-1, 2, 2/42), (0, 2, 4/42), (1, 2, 2/42), (2, 2, 1/42),
+        ]
+        was_numba = exp_mod.HAS_NUMBA
+        try:
+            exp_mod.HAS_NUMBA = False
+            result_python = _error_diffusion_dither(img, weights)
+        finally:
+            exp_mod.HAS_NUMBA = was_numba
+
+        result_api = stucki_dither(img)
+
+        arr_python = np.array(result_python.convert("L"))
+        arr_api = np.array(result_api.convert("L"))
+        assert np.array_equal(arr_python, arr_api), \
+            "Stucki Numba-результат должен совпадать с Python-реализацией"
+
+    def test_dither_speed_with_numba(self):
+        """Numba-версия значительно быстрее."""
+        import time
+        from retouch.processing.export import stucki_dither
+        import retouch.processing.export as exp_mod
+
+        if not exp_mod.HAS_NUMBA:
+            pytest.skip("Numba not installed")
+
+        img = Image.new("L", (200, 200), 128)
+
+        # Прогрев JIT
+        stucki_dither(img)
+
+        start = time.monotonic()
+        stucki_dither(img)
+        elapsed = time.monotonic() - start
+
+        # 200×200 Python: ~2-5 сек. Numba: <0.1 сек
+        assert elapsed < 1.0, f"Numba-дизеринг слишком медленный: {elapsed:.3f}s"
+
+    def test_apply_dither_default_is_jarvis(self):
+        """_apply_dither без метода → jarvis."""
+        from retouch.processing.export import _apply_dither
+        img = Image.new("L", (50, 50), 128)
+        result = _apply_dither(img)
+        assert result.mode == "1"
+
+    def test_apply_dither_floyd_steinberg_redirects_to_jarvis(self):
+        """_apply_dither('floyd_steinberg') → jarvis (deprecated, но не падает)."""
+        from retouch.processing.export import _apply_dither, jarvis_dither
+        img = Image.new("L", (50, 50), 128)
+        result_fs = _apply_dither(img, method='floyd_steinberg')
+        result_jarvis = jarvis_dither(img)
+        assert np.array_equal(np.array(result_fs), np.array(result_jarvis)), \
+            "floyd_steinberg должен редиректить на jarvis с тем же результатом"
+
+    def test_floyd_steinberg_dither_not_in_public_api(self):
+        """floyd_steinberg_dither удалён из __all__."""
+        from retouch.processing import __all__
+        assert "floyd_steinberg_dither" not in __all__, \
+            "floyd_steinberg_dither должен быть удалён из __all__"
+
+
 class TestBMPValidation:
     """BMP post-save валидация."""
 
@@ -142,7 +243,20 @@ class TestBMPValidation:
             assert reopened.mode in ("1", "P")
 
     def test_export_creates_bmp_and_png(self, tmp_path):
-        """export_result создаёт BMP + PNG."""
+        """export_result с save_png_preview=True создаёт BMP + PNG."""
+        from retouch.processing.export import export_result
+
+        img = Image.new("RGB", (256, 256), (128, 128, 128))
+        output_path = str(tmp_path / "output.bmp")
+
+        result = export_result(img, output_path, machine_type="laser_standard",
+                               save_png_preview=True)
+
+        assert os.path.isfile(result)
+        assert os.path.isfile(str(tmp_path / "output.png"))
+
+    def test_export_bmp_no_png_by_default(self, tmp_path):
+        """export_result без save_png_preview создаёт только BMP."""
         from retouch.processing.export import export_result
 
         img = Image.new("RGB", (256, 256), (128, 128, 128))
@@ -151,17 +265,23 @@ class TestBMPValidation:
         result = export_result(img, output_path, machine_type="laser_standard")
 
         assert os.path.isfile(result)
-        assert os.path.isfile(str(tmp_path / "output.png"))
+        assert not os.path.isfile(str(tmp_path / "output.png")), \
+            "PNG-дубликат не должен создаваться по умолчанию"
 
     def test_floyd_steinberg_50_50(self):
-        """Floyd-Steinberg: grayscale 128 — примерно 50/50 white/black."""
-        from retouch.processing.export import floyd_steinberg_dither
+        """Floyd-Steinberg: grayscale 128 — примерно 50/50 white/black.
+
+        NOTE: Floyd-Steinberg удалён из production, но тест сохранён
+        для проверки что _apply_dither('floyd_steinberg') редиректит на jarvis.
+        """
+        from retouch.processing.export import _apply_dither
 
         img = Image.new("L", (200, 200), 128)
-        result = floyd_steinberg_dither(img)
+        # floyd_steinberg теперь редиректит на jarvis — не падает
+        result = _apply_dither(img, method='floyd_steinberg')
 
         arr = np.array(result.convert("L"))
         white_pct = (arr > 128).sum() / arr.size * 100
 
         assert 35 < white_pct < 65, \
-            f"При grayscale=128 Floyd-Steinberg даёт примерно 50% белого, got {white_pct:.1f}%"
+            f"При grayscale=128 редирект FS→jarvis даёт примерно 50% белого, got {white_pct:.1f}%"

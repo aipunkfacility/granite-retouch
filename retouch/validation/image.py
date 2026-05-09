@@ -15,7 +15,8 @@ def validate_image_input(input_path, config=None):
     1. Файл существует
     2. Файл — изображение (Pillow может открыть)
     3. Разрешение >= min_resolution
-    4. Формат RGBA-конвертируемый
+    4. Разрешение <= max_resolution (защита от OOM)
+    5. Формат RGBA-конвертируемый
     """
     from PIL import Image
     from retouch.config import DEFAULTS
@@ -25,6 +26,7 @@ def validate_image_input(input_path, config=None):
 
     proc = config.get("processing", DEFAULTS["processing"])
     min_res = proc.get("min_resolution", 512)
+    max_res = proc.get("max_resolution", None)
 
     if not os.path.isfile(input_path):
         raise ValidationError(f"Входной файл не найден: {input_path}")
@@ -36,12 +38,21 @@ def validate_image_input(input_path, config=None):
 
     width, height = img.size
     if width < min_res or height < min_res:
+        img.close()
         raise ValidationError(
             f"Разрешение {width}x{height} ниже минимума {min_res}x{min_res}. "
             f"Для качественной гравировки нужно изображение большего размера."
         )
 
+    if max_res and (width > max_res or height > max_res):
+        img.close()
+        raise ValidationError(
+            f"Разрешение {width}x{height} превышает максимум {max_res}x{max_res}. "
+            f"Слишком большое изображение может вызвать нехватку памяти (OOM)."
+        )
+
     if img.mode not in ("RGBA", "RGB", "P", "L"):
+        img.close()
         raise ValidationError(
             f"Неподдерживаемый режим изображения: {img.mode}. "
             f"Ожидается RGBA, RGB или палитровое изображение."

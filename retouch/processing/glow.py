@@ -75,8 +75,13 @@ def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
     # (внутри субъекта blurred ≈ 255, после вычитания → 0)
     glow_mask = ImageChops.subtract(blurred_mask, subject_mask)
 
-    # Масштабируем по opacity
-    glow_mask = glow_mask.point(lambda p: min(255, int(p * glow_opacity)))
+    # Масштабируем по opacity (numpy вместо point(lambda) — ~10x быстрее)
+    if HAS_NUMPY:
+        glow_arr = np.array(glow_mask, dtype=np.float32)
+        glow_arr = np.minimum(255.0, glow_arr * glow_opacity).astype(np.uint8)
+        glow_mask = Image.fromarray(glow_arr)
+    else:
+        glow_mask = glow_mask.point(lambda p: min(255, int(p * glow_opacity)))
 
     # Composite: белое свечение через glow_mask поверх оригинала
     img_with_glow = Image.composite(
