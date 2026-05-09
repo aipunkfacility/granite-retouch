@@ -15,7 +15,7 @@ from retouch.processing.mask_utils import apply_masked
 logger = logging.getLogger(__name__)
 
 
-def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=None, analytics=None):
+def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=None, analytics=None, white_ceiling=None):
     """Применить Unsharp Mask.
 
     Args:
@@ -27,6 +27,9 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=N
             Когда передана, резкость применяется только внутри маски (P6).
         analytics: dict от analyze_input() — если передан, включается
             адаптивный расчёт percent (P5).
+        white_ceiling: int (0-255) — жёсткий потолок яркости. Unsharp может
+            выталкивать светлые пиксели за ceiling, создавая клиппинг.
+            Если передан, значения внутри subject_mask обрезаются до ceiling.
 
     Returns:
         PIL.Image: обработанное изображение
@@ -43,6 +46,14 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0, subject_mask=N
         orig_arr = np.array(img, dtype=np.float32)
         sharp_arr = np.array(sharpened, dtype=np.float32)
         result_arr = apply_masked(orig_arr, sharp_arr, subject_mask)
+
+        # White ceiling: обрезаем значения внутри маски, чтобы unsharp
+        # не вытолкнул пиксели за потолок яркости
+        if white_ceiling is not None:
+            mask_bool = np.array(subject_mask) > 128
+            result_arr[mask_bool] = np.minimum(result_arr[mask_bool], float(white_ceiling))
+            logger.info("Unsharp white ceiling: %d", white_ceiling)
+
         return Image.fromarray(result_arr.astype(np.uint8))
 
     return sharpened

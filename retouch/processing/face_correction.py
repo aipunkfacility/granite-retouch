@@ -221,13 +221,12 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
                 float(target_max) if correction > 1.0 else None
             )
-            # FIX #4: маска коррекции = сжатая subject_mask (без glow-зоны),
-            # а НЕ face_mask (овал лица). Это исключает glow-пиксели контура
-            # без создания шва на границе овала.
-            if glow_size > 0:
-                correction_mask_arr = np.array(_shrink_mask(subject_mask, glow_size)) > 128
-            else:
-                correction_mask_arr = full_subject_mask
+            # FIX: всегда face_mask — коррекция ТОЛЬКО по зоне лица.
+            # Раньше elif-ветка использовала shrink(subject_mask),
+            # что осветляло рубашку/тело → пересвет → белые блоки в 1-bit BMP.
+            # face_mask уже вычислена выше (face_mask_arr & inner_mask_arr
+            # или face_region из верхней части субъекта).
+            correction_mask_arr = face_mask
 
             result_arr = _curves_correction(
                 arr, correction,

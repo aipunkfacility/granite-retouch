@@ -319,6 +319,7 @@ def _run_pipeline_steps(
         img_temp = apply_unsharp_mask(
             img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
+            white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
         )
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
@@ -332,6 +333,7 @@ def _run_pipeline_steps(
         img_sharpened = apply_unsharp_mask(
             img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
+            white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
         )
 
     # Сохраняем результаты в контекст
@@ -362,13 +364,9 @@ def _run_pipeline_steps(
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
 
-    # A.4: Hard clamp белой точки перед виньеткой
-    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
-    if white_ceiling is not None and HAS_NUMPY:
-        arr = np.array(img_sharpened, dtype=np.float32)
-        arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
-        img_sharpened = Image.fromarray(arr.astype(np.uint8))
-        logger.info("White ceiling clamp: %d", white_ceiling)
+    # White ceiling уже применён внутри unsharp_mask (обрезает значения
+    # выталкиваемые резкостью за потолок). Но gamma < 1.0 осветляет
+    # (235 → ~238 при gamma=0.85), поэтому нужен повторный clamp ПОСЛЕ gamma.
 
     # FIX #8: Stone gamma correction (SOP 5.1: gamma 0.8-0.9 для компенсации
     # визуального потемнения на камне). Применяется ПЕРЕД виньеткой,
@@ -380,6 +378,15 @@ def _run_pipeline_steps(
         arr = apply_stone_gamma_masked(arr, mask_bool, gamma=stone_gamma)
         img_sharpened = Image.fromarray(arr.astype(np.uint8))
         logger.info("Stone gamma applied: %.2f", stone_gamma)
+
+    # A.4: White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет,
+    # поэтому пиксели обрезанные до ceiling до gamma могут выйти за ceiling после.
+    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
+    if white_ceiling is not None and HAS_NUMPY:
+        arr = np.array(img_sharpened, dtype=np.float32)
+        arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling)
+        img_sharpened = Image.fromarray(arr.astype(np.uint8))
+        logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
