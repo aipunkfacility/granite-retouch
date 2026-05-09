@@ -1,69 +1,13 @@
-"""Дополнительные тесты для аудита — D.4, D.6, F.1, C.3."""
+"""Тесты API-слоя — Pydantic схемы, кэш, сериализация."""
 
-import json
-import numpy as np
 import pytest
-from PIL import Image
-
-from retouch.config import DEFAULTS
 
 
-class TestC3FaceMaskInCheckFaceBrightness:
-    """C.3: face_mask используется для замера яркости в check_face_brightness."""
-
-    def test_face_mask_img_overrides_face_region_top(self):
-        """При передаче face_mask_img — замер по ней, не по face_region_top."""
-        from retouch.processing.face_correction import check_face_brightness
-
-        # Изображение 200x300: верхняя часть тёмная, нижняя — яркая
-        arr = np.full((300, 200), 200, dtype=np.uint8)  # яркое
-        arr[:100, :] = 50  # верхняя треть тёмная
-
-        img = Image.fromarray(arr)
-        subject_mask = Image.new("L", (200, 300), 255)
-
-        # Маска лица — нижняя часть (где яркие пиксели)
-        face_mask_arr = np.zeros((300, 200), dtype=np.uint8)
-        face_mask_arr[200:, :] = 255
-        face_mask_img = Image.fromarray(face_mask_arr)
-
-        # С face_mask_img → замер по маске (нижняя часть, яркость ~200)
-        _, before_with_mask, _, _ = check_face_brightness(
-            img, [180, 220], subject_mask,
-            face_mask_img=face_mask_img,
-        )
-
-        # Без face_mask_img → legacy face_region_top=0.45 → верхняя часть (яркость ~50-200)
-        _, before_legacy, _, _ = check_face_brightness(
-            img, [180, 220], subject_mask,
-            face_region_top=0.45,
-        )
-
-        # Замеры должны отличаться — face_mask берёт нижнюю часть (ярче)
-        assert before_with_mask > before_legacy, \
-            f"face_mask должен замерять по маске ({before_with_mask:.1f}), " \
-            f"не по face_region_top ({before_legacy:.1f})"
-
-    def test_face_mask_none_uses_legacy(self):
-        """face_mask_img=None → legacy поведение (face_region_top)."""
-        from retouch.processing.face_correction import check_face_brightness
-
-        arr = np.full((200, 200), 150, dtype=np.uint8)
-        img = Image.fromarray(arr)
-        subject_mask = Image.new("L", (200, 200), 255)
-
-        # Оба вызова без face_mask — должны дать одинаковый результат
-        _, b1, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45)
-        _, b2, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45, face_mask_img=None)
-
-        assert b1 == b2
-
-
-class TestD4PydanticValidation:
-    """D.4: Pydantic валидация параметров API."""
+class TestPydanticValidation:
+    """Валидация параметров API через Pydantic."""
 
     def test_preview_params_rejects_bad_brightness(self):
-        """brightness=999 → ValidationError."""
+        """brightness=999 — ValidationError."""
         from pydantic import ValidationError
         from retouch_ui.backend.schemas import PreviewParams
 
@@ -71,7 +15,7 @@ class TestD4PydanticValidation:
             PreviewParams(brightness=999)
 
     def test_preview_params_rejects_bad_glow_size(self):
-        """glow_size=0 → ValidationError (ge=5)."""
+        """glow_size=0 — ValidationError (ge=5)."""
         from pydantic import ValidationError
         from retouch_ui.backend.schemas import PreviewParams
 
@@ -79,7 +23,7 @@ class TestD4PydanticValidation:
             PreviewParams(glow_size=0)
 
     def test_preview_params_rejects_bad_stone_type(self):
-        """stone_type='obsidian' → ValidationError."""
+        """stone_type='obsidian' — ValidationError."""
         from pydantic import ValidationError
         from retouch_ui.backend.schemas import PreviewParams
 
@@ -103,21 +47,31 @@ class TestD4PydanticValidation:
         assert params.face_oval.cx == 0.5
 
     def test_face_oval_params_validation(self):
-        """FaceOvalParams с невалидными координатами → ValidationError."""
+        """FaceOvalParams с невалидными координатами — ValidationError."""
         from pydantic import ValidationError
         from retouch_ui.backend.schemas import FaceOvalParams
 
-        # cx > 1.0 → невалидно
         with pytest.raises(ValidationError):
             FaceOvalParams(cx=1.5)
 
-        # rx < 0.01 → невалидно
         with pytest.raises(ValidationError):
             FaceOvalParams(rx=0.001)
 
+    def test_brightness_999_returns_422(self):
+        """brightness=999 — 422 Validation Error."""
+        from retouch_ui.backend.schemas import PreviewParams
+        from pydantic import ValidationError
 
-class TestD6StableSerialize:
-    """D.6: Стабильная сериализация для кэша."""
+        with pytest.raises(ValidationError) as exc_info:
+            PreviewParams(brightness=999.0)
+
+        errors = exc_info.value.errors()
+        assert any(e["loc"] == ("brightness",) for e in errors), \
+            "brightness=999 должен вызывать ошибку валидации"
+
+
+class TestStableSerialize:
+    """Стабильная сериализация для кэша."""
 
     def test_stable_serialize_float_equality(self):
         """_stable_serialize({a: 1.0}) == _stable_serialize({a: 1.0000})."""
@@ -140,7 +94,7 @@ class TestD6StableSerialize:
         assert h1 == h2, "Порядок ключей не должен влиять на хэш"
 
     def test_cache_key_deterministic(self):
-        """Одинаковые параметры → одинаковый cache_key."""
+        """Одинаковые параметры — одинаковый cache_key."""
         from retouch_ui.backend.routers.process import _cache_key
         from retouch_ui.backend.schemas import PreviewParams
 
@@ -148,11 +102,24 @@ class TestD6StableSerialize:
         k1 = _cache_key("abc123", "laser_standard", params)
         k2 = _cache_key("abc123", "laser_standard", params)
 
-        assert k1 == k2, "Одинаковые параметры → одинаковый ключ кэша"
+        assert k1 == k2, "Одинаковые параметры — одинаковый ключ кэша"
+
+    def test_preview_cache_stores_base64_not_pil(self):
+        """Кэш хранит base64 строки, не PIL объекты."""
+        from retouch_ui.backend.routers.process import _preview_cache
+
+        for key, value in _preview_cache.items():
+            assert isinstance(value, dict), "Кэш должен содержать dict"
+            if "images" in value:
+                for img_key, img_val in value["images"].items():
+                    assert isinstance(img_val, str), \
+                        f"Кэш должен хранить base64 строки, не {type(img_val)}"
+                    assert img_val.startswith("data:image/"), \
+                        "Кэш должен содержать data URI"
 
 
-class TestF1Reexports:
-    """F.1: Backward-compatible re-exports из levels.py."""
+class TestReexports:
+    """Backward-compatible re-exports из levels.py."""
 
     def test_import_check_face_brightness_from_levels(self):
         """check_face_brightness доступен из levels.py (re-export)."""

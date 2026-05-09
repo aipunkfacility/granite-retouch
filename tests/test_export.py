@@ -1,9 +1,6 @@
-"""Тесты Фазы 4 — Расширение экспорта (FIX #9, #10).
+"""Тесты экспорта — дизеринг, upsampling, BMP."""
 
-FIX #9: Stucki и Jarvis dithering (SOP 4.1)
-FIX #10: Upsampling перед дизерингом (SOP 5.2)
-"""
-
+import os
 import numpy as np
 import pytest
 from PIL import Image
@@ -12,7 +9,7 @@ from retouch.config import load_config
 
 
 class TestStuckiDithering:
-    """FIX #9: Stucki dithering для impact (SOP 4.1)."""
+    """Stucki dithering для impact (SOP 4.1)."""
 
     def test_stucki_produces_1bit_output(self):
         """Stucki даёт 1-bit изображение."""
@@ -22,14 +19,13 @@ class TestStuckiDithering:
         assert result.mode == "1"
 
     def test_stucki_preserves_tone(self):
-        """Средняя плотность белых точек ≈ input brightness."""
+        """Средняя плотность белых точек примерно равна input brightness."""
         from retouch.processing.export import stucki_dither
         img = Image.new("L", (200, 200), 128)
         result = stucki_dither(img)
-        # PIL mode '1': 0=black, 255=white, но np.array даёт 0 и 1
         white_ratio = np.array(result, dtype=np.float32).mean()
         assert 0.40 < white_ratio < 0.60, \
-            f"50% серый → ~50% белых точек, got {white_ratio:.2%}"
+            f"50% серый — примерно 50% белых точек, got {white_ratio:.2%}"
 
     def test_stucki_output_size_matches_input(self):
         """Размер результата = размер входа."""
@@ -40,7 +36,7 @@ class TestStuckiDithering:
 
 
 class TestJarvisDithering:
-    """FIX #9: Jarvis dithering для laser_80w (SOP 4.1)."""
+    """Jarvis dithering для laser_80w (SOP 4.1)."""
 
     def test_jarvis_produces_1bit_output(self):
         """Jarvis даёт 1-bit изображение."""
@@ -50,13 +46,13 @@ class TestJarvisDithering:
         assert result.mode == "1"
 
     def test_jarvis_preserves_tone(self):
-        """Средняя плотность белых точек ≈ input brightness."""
+        """Средняя плотность белых точек примерно равна input brightness."""
         from retouch.processing.export import jarvis_dither
         img = Image.new("L", (200, 200), 128)
         result = jarvis_dither(img)
         white_ratio = np.array(result, dtype=np.float32).mean()
         assert 0.40 < white_ratio < 0.60, \
-            f"50% серый → ~50% белых точек, got {white_ratio:.2%}"
+            f"50% серый — примерно 50% белых точек, got {white_ratio:.2%}"
 
     def test_jarvis_output_size_matches_input(self):
         """Размер результата = размер входа."""
@@ -89,7 +85,7 @@ class TestDitherMethodConfig:
 
 
 class TestDitherUpsampling:
-    """FIX #10: 2-4x upsampling перед дизерингом (SOP 5.2)."""
+    """2-4x upsampling перед дизерингом (SOP 5.2)."""
 
     def test_upsample_config_laser_80w(self):
         """Laser 80W: dither_upsample >= 2."""
@@ -110,9 +106,62 @@ class TestDitherUpsampling:
         img = Image.new("L", (100, 100), 128)
         result_no_upsample = jarvis_dither(img)
         result_with_upsample = dither_with_upsample(img, method="jarvis", upsample=2)
-        # Результаты должны отличаться (upsampling меняет структуру дизеринга)
         arr1 = np.array(result_no_upsample).flatten()
         arr2 = np.array(result_with_upsample).flatten()
-        # Хотя бы некоторые пиксели отличаются
         assert not np.array_equal(arr1, arr2), \
             "Upsampling должен давать другой результат дизеринга"
+
+
+class TestBMPValidation:
+    """BMP post-save валидация."""
+
+    def test_bmp_8bit_roundtrip(self, tmp_path):
+        """BMP 8-bit: save -> reopen -> same size, mode L or P."""
+        from retouch.processing.export import save_bmp_8bit
+
+        img = Image.new("L", (256, 256), 128)
+        output_path = str(tmp_path / "test.bmp")
+
+        save_bmp_8bit(img, output_path)
+
+        with Image.open(output_path) as reopened:
+            assert reopened.size == (256, 256)
+            assert reopened.mode in ("L", "P")
+
+    def test_bmp_1bit_roundtrip(self, tmp_path):
+        """BMP 1-bit: save -> reopen -> mode 1 or P."""
+        from retouch.processing.export import save_bmp_1bit
+
+        img = Image.new("L", (256, 256), 128)
+        output_path = str(tmp_path / "test_1bit.bmp")
+
+        save_bmp_1bit(img, output_path)
+
+        with Image.open(output_path) as reopened:
+            assert reopened.size == (256, 256)
+            assert reopened.mode in ("1", "P")
+
+    def test_export_creates_bmp_and_png(self, tmp_path):
+        """export_result создаёт BMP + PNG."""
+        from retouch.processing.export import export_result
+
+        img = Image.new("RGB", (256, 256), (128, 128, 128))
+        output_path = str(tmp_path / "output.bmp")
+
+        result = export_result(img, output_path, machine_type="laser_standard")
+
+        assert os.path.isfile(result)
+        assert os.path.isfile(str(tmp_path / "output.png"))
+
+    def test_floyd_steinberg_50_50(self):
+        """Floyd-Steinberg: grayscale 128 — примерно 50/50 white/black."""
+        from retouch.processing.export import floyd_steinberg_dither
+
+        img = Image.new("L", (200, 200), 128)
+        result = floyd_steinberg_dither(img)
+
+        arr = np.array(result.convert("L"))
+        white_pct = (arr > 128).sum() / arr.size * 100
+
+        assert 35 < white_pct < 65, \
+            f"При grayscale=128 Floyd-Steinberg даёт примерно 50% белого, got {white_pct:.1f}%"
