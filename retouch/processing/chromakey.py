@@ -1,7 +1,7 @@
 """Удаление синего хромакея + fringe removal + софт-маска.
 
 PERF: uint8 вместо float32 для основного массива — -48 MB на 2048×2048
-FIX: Софт-маска вместо бинарной — устраняет лестничный эффект на границах
+FIX: Антиалиасная маска через OpenCV contour tracing — гладкий контур без лесенки
 """
 
 from PIL import Image
@@ -12,8 +12,15 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
+try:
+    import cv2
+    HAS_CV2 = True
+except ImportError:
+    HAS_CV2 = False
 
-def remove_blue_background(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
+
+def remove_blue_background(img, threshold=30, fringe_radius=3,
+                           mask_soft_sigma=1.5, contour_smooth_epsilon=0.002):
     """Удалить синий хромакей и убрать синие рефлексы (fringe) по краям.
 
     Использует numpy для скорости (~50x быстрее Pillow для 2048x2048).
@@ -26,13 +33,74 @@ def remove_blue_background(img, threshold=30, fringe_radius=3, mask_soft_sigma=1
         mask_soft_sigma: sigma Gaussian blur для софт-краёв маски.
             0 = бинарная маска (старое поведение).
             1.0-2.0 = плавные края без ступенек (рекомендуется).
+        contour_smooth_epsilon: параметр сглаживания контура (cv2.approxPolyDP).
+            0.001 = минимальное сглаживание (ближе к оригиналу).
+            0.005 = заметное сглаживание (убирает мелкие неровности).
+            Рассчитывается как доля периметра контура. Только при наличии cv2.
 
     Returns:
         tuple: (img_without_bg, subject_mask) — оба PIL.Image
     """
     if HAS_NUMPY:
-        return _remove_blue_numpy(img, threshold, fringe_radius, mask_soft_sigma)
+        return _remove_blue_numpy(img, threshold, fringe_radius,
+                                  mask_soft_sigma, contour_smooth_epsilon)
     return _remove_blue_pillow(img, threshold, fringe_radius)
+
+
+def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
+    """Создать антиалиасную маску из бинарной через OpenCV contour tracing.
+
+    Алгоритм:
+    1. findContours — извлечь векторный контур из бинарной маски
+    2. approxPolyDP — сгладить контур (убрать пиксельный шум, сохранить форму)
+    3. drawContours(LINE_AA) — растеризовать с субпиксельным антиалиасингом
+
+    Результат: uint8 массив 0-255, где на контуре плавный градиент
+    вместо бинарного 0/255. Нет лесенки на диагоналях.
+
+    Args:
+        binary_mask: ndarray bool — бинарная маска субъекта (True = субъект)
+        smooth_epsilon: float — параметр сглаживания approxPolyDP.
+            Рассчитывается как доля периметра контура (arcLength).
+
+    Returns:
+        ndarray uint8 — маска 0-255 с антиалиасными краями
+    """
+    if not HAS_CV2:
+        # Fallback: бинарная маска без антиалиасинга
+        return binary_mask.astype(np.uint8) * 255
+
+    mask_uint8 = binary_mask.astype(np.uint8) * 255
+
+    # 1. Трассировка контура
+    contours, _ = cv2.findContours(
+        mask_uint8,
+        cv2.RETR_EXTERNAL,       # Только внешние контуры (без дыр)
+        cv2.CHAIN_APPROX_SIMPLE  # Упрощение: горизонтальные/вертикальные сегменты
+    )
+
+    if not contours:
+        return mask_uint8
+
+    # 2. Выбрать самый большой контур (по площади)
+    main_contour = max(contours, key=cv2.contourArea)
+
+    # 3. Сгладить контур
+    epsilon = smooth_epsilon * cv2.arcLength(main_contour, True)
+    smoothed = cv2.approxPolyDP(main_contour, epsilon, True)
+
+    # 4. Растеризовать с антиалиасингом
+    result = np.zeros_like(mask_uint8)
+    cv2.drawContours(
+        result,
+        [smoothed],
+        contourIdx=-1,           # Все контуры в списке (у нас один)
+        color=255,
+        thickness=cv2.FILLED,    # Заливка
+        lineType=cv2.LINE_AA,    # 8-связная линия с субпиксельным АА
+    )
+
+    return result
 
 
 def _smooth_dilate(mask, radius):
@@ -59,12 +127,18 @@ def _smooth_erode(mask, radius):
     return blurred < 0.5
 
 
-def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
-    """numpy-реализация: удаление хромакея + fringe + софт-маска.
+def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
+                       mask_soft_sigma=1.5, contour_smooth_epsilon=0.002):
+    """numpy-реализация: удаление хромакея + fringe + антиалиасная маска.
 
     Оптимизация памяти: uint8 вместо float32 для основного массива.
     float32 используется только в fringe-зоне (гораздо меньше всего изображения).
-    Все морфологические операции через GaussianBlur — изотропные, без лесенки.
+
+    Если доступен OpenCV (cv2): контур маски трассируется в векторный путь,
+    сглаживается approxPolyDP и растеризуется с LINE_AA антиалиасингом.
+    Это даёт плавный контур без лесенки на диагоналях.
+
+    Если cv2 недоступен: fallback на GaussianBlur-подход (хуже, но работает).
     """
     from scipy.ndimage import gaussian_filter
 
@@ -75,12 +149,6 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
     # Сравнение в int16 (uint8 + int может overflow)
     blue_mask = (b.astype(np.int16) > r.astype(np.int16) + threshold) & \
                 (b.astype(np.int16) > g.astype(np.int16) + threshold)
-
-    # --- Anti-alias: сглаживаем контур blue_mask через альфа-канал ---
-    # blue_mask — бинарная, на диагоналях ступеньки. Создаём мягкую маску
-    # фона: GaussianBlur(blue_mask) → плавный переход 0→1 на границе.
-    # Пиксели в переходной зоне (0 < value < 1) — субпиксельный контур.
-    bg_soft = gaussian_filter(blue_mask.astype(np.float32), sigma=1.0)
 
     # --- Fringe removal (float только в зоне ореола) ---
     if fringe_radius > 0:
@@ -99,36 +167,53 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
         b_corrected = (b_f * (1 - fringe_factor) + np.maximum(r_f, g_f) * fringe_factor).astype(np.uint8)
         arr[fringe_ys, fringe_xs, 2] = b_corrected
 
-    # Удаляем синий фон — бинарная вырезка как раньше,
-    # но альфа-канал = anti-aliased маска для гладкого контура.
-    # Чистый фон: RGB=0, alpha=0. Субъект: RGB как есть, alpha=255.
-    # Переходная зона: RGB как есть, alpha=255*(1-bg_soft).
-    # При RGBA→L конвертации Pillow считает L = RGB*alpha/255 + 0*(1-alpha/255),
-    # т.е. пиксели на контуре плавно затухают в чёрный.
-    arr[blue_mask] = [0, 0, 0, 0]
-    # Anti-aliased альфа: вне маски = 0, внутри = 255, на контуре = градиент
-    alpha_aa = np.clip((1.0 - bg_soft) * 255.0, 0, 255)
-    # Жёстко 0 для чистого фона (валидация считает <10 как чёрный)
-    alpha_aa[blue_mask] = 0.0
-    # Жёстко 255 для чистого субъекта (чтобы не было серых пикселей внутри)
-    inner_solid = _smooth_erode(~blue_mask, radius=2)
-    alpha_aa[inner_solid] = 255.0
-    arr[..., 3] = alpha_aa.astype(np.uint8)
+    subject_bool = ~blue_mask
 
-    # --- Софт-маска вместо жёсткой бинарной ---
-    if mask_soft_sigma > 0:
-        subject_mask_float = (~blue_mask).astype(np.float32) * 255.0
-        subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+    if HAS_CV2:
+        # --- OpenCV: антиалиасная маска через векторный контур ---
+        # Трассировка → сглаживание → растеризация с LINE_AA
+        aa_mask = _make_smooth_mask(subject_bool, smooth_epsilon=contour_smooth_epsilon)
 
-        # Возвращаем 255 внутри (не размываем вглубь субъекта)
-        inner = ~blue_mask
-        inner_solid = _smooth_erode(inner, radius=max(1, int(mask_soft_sigma * 2)))
-        subject_mask_float[inner_solid] = 255.0
+        # Фон = чёрный прозрачный
+        arr[blue_mask] = [0, 0, 0, 0]
 
-        subject_arr = np.clip(subject_mask_float, 0, 255).astype(np.uint8)
+        # Альфа-канал = антиалиасная маска
+        # На контуре: aa_mask содержит 1-254 (плавный градиент от LINE_AA)
+        # Внутри: 255, снаружи: 0
+        arr[..., 3] = aa_mask
+
+        # subject_mask: если mask_soft_sigma > 0 — дополнительное размытие
+        # для плавного перехода в glow/face_correction
+        if mask_soft_sigma > 0:
+            subject_mask_float = aa_mask.astype(np.float32)
+            subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            # Возвращаем 255 внутри (не размываем вглубь субъекта)
+            inner = aa_mask > 200
+            inner_solid = _smooth_erode(inner, radius=max(1, int(mask_soft_sigma * 2)))
+            subject_mask_float[inner_solid] = 255.0
+            subject_arr = np.clip(subject_mask_float, 0, 255).astype(np.uint8)
+        else:
+            subject_arr = aa_mask
+
     else:
-        # Бинарная маска (старое поведение)
-        subject_arr = (~blue_mask).astype(np.uint8) * 255
+        # --- Fallback: GaussianBlur-подход (без cv2) ---
+        bg_soft = gaussian_filter(blue_mask.astype(np.float32), sigma=1.0)
+
+        arr[blue_mask] = [0, 0, 0, 0]
+        alpha_aa = np.clip((1.0 - bg_soft) * 255.0, 0, 255)
+        alpha_aa[blue_mask] = 0.0
+        inner_solid = _smooth_erode(subject_bool, radius=2)
+        alpha_aa[inner_solid] = 255.0
+        arr[..., 3] = alpha_aa.astype(np.uint8)
+
+        if mask_soft_sigma > 0:
+            subject_mask_float = subject_bool.astype(np.float32) * 255.0
+            subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            inner_solid = _smooth_erode(subject_bool, radius=max(1, int(mask_soft_sigma * 2)))
+            subject_mask_float[inner_solid] = 255.0
+            subject_arr = np.clip(subject_mask_float, 0, 255).astype(np.uint8)
+        else:
+            subject_arr = subject_bool.astype(np.uint8) * 255
 
     return Image.fromarray(arr), Image.fromarray(subject_arr)
 

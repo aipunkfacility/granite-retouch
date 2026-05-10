@@ -57,6 +57,7 @@ processing:
   max_resolution: 4096       # Защита от OOM
   result_min_black_ratio: 0.25
   mask_soft_sigma: 1.5       # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
+  contour_smooth_epsilon: 0.002  # Сглаживание контура cv2: 0.001=мин, 0.005=агрессивное
 machine:
   step_mm: 0.300
 stone:

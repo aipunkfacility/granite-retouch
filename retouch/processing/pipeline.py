@@ -304,9 +304,11 @@ def process_steps(
     # 1. Хромакей
     fringe_radius = proc_cfg.get("fringe_radius", 3)
     mask_soft_sigma = proc_cfg.get("mask_soft_sigma", 1.5)
+    contour_smooth_epsilon = proc_cfg.get("contour_smooth_epsilon", 0.002)
     img_chromakey, subject_mask = remove_blue_background(
         img, threshold=threshold, fringe_radius=fringe_radius,
         mask_soft_sigma=mask_soft_sigma,
+        contour_smooth_epsilon=contour_smooth_epsilon,
     )
     # img — независимая копия (результат .convert()), закрытие не требуется
 
@@ -715,7 +717,8 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
 
 def process(input_path, output_path, machine_type="laser_standard",
             glow_size_override=None, glow_opacity_override=None,
-            config=None, fmt="bmp", overwrite=True, no_validate=False):
+            config=None, fmt="bmp", overwrite=True, no_validate=False,
+            face_oval=None):
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,
@@ -727,4 +730,5 @@ def process(input_path, output_path, machine_type="laser_standard",
         no_validate=no_validate,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
+        face_oval=face_oval,  # AUDIT-3.1: проброс овала лица
     )
