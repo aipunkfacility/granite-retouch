@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { saveConfig, fetchDefaults, fetchPresets, createPreset, deletePreset } from "../lib/api";
 import type { PresetItem } from "../lib/api";
+import type { ConfigTree } from "../lib/types";
 
 interface Props {
-  config: Record<string, any>;
-  onConfigReset: (defaults: Record<string, any>) => void;
-  onConfigChange: (config: Record<string, any>) => void;
+  config: ConfigTree;
+  onConfigReset: (defaults: ConfigTree) => void;
+  onConfigChange: (config: ConfigTree) => void;
 }
 
 export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) {

@@ -1,4 +1,4 @@
-import type { MachineType } from "./types";
+import type { MachineType, ConfigTree } from "./types";
 import type { FaceOvalParams } from "./face-oval-geometry";
 
 const API_BASE = "/api";
@@ -33,12 +33,12 @@ export interface PreviewParams {
 }
 
 export interface ConfigResult {
-  config: Record<string, any>;
+  config: ConfigTree;
   warnings: string[];
 }
 
 export interface DefaultsResult {
-  defaults: Record<string, any>;
+  defaults: ConfigTree;
 }
 
 export interface VignetteMaskResult {
@@ -52,7 +52,7 @@ export interface VignetteMaskResult {
 
 export interface PresetItem {
   name: string;
-  config: Record<string, any>;
+  config: ConfigTree;
 }
 
 /** Upload image — returns file_id. 120s timeout. */
@@ -94,18 +94,18 @@ export async function uploadImage(file: File): Promise<{ file_id: string }> {
 export async function fetchPreview(
   fileId: string,
   machineType: MachineType,
-  configOverride?: Record<string, any>,
+  configOverride?: ConfigTree,
   signal?: AbortSignal,
   faceOval?: FaceOvalParams | null,
   fullSteps: boolean = true,
 ): Promise<PreviewResult> {
-  const body: Record<string, any> = {
+  const body: Record<string, unknown> = {
     file_id: fileId,
     machine: machineType,
     full_steps: fullSteps,
   };
   if (configOverride || faceOval) {
-    const params: Record<string, any> = configOverride ? { ...configOverride } : {};
+    const params: Record<string, unknown> = configOverride ? { ...configOverride } : {};
     if (faceOval) {
       params.face_oval = faceOval;
     }
@@ -132,16 +132,16 @@ export async function fetchExport(
   fileId: string,
   machineType: MachineType,
   format: "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff",
-  configOverride?: Record<string, any>,
+  configOverride?: ConfigTree,
   faceOval?: FaceOvalParams | null,
 ): Promise<Blob> {
-  const body: Record<string, any> = {
+  const body: Record<string, unknown> = {
     file_id: fileId,
     machine: machineType,
     format,
   };
   if (configOverride || faceOval) {
-    const params: Record<string, any> = configOverride ? { ...configOverride } : {};
+    const params: Record<string, unknown> = configOverride ? { ...configOverride } : {};
     if (faceOval) {
       params.face_oval = faceOval;
     }
@@ -169,7 +169,7 @@ export async function fetchConfig(): Promise<ConfigResult> {
 }
 
 /** Save config */
-export async function saveConfig(config: Record<string, any>): Promise<{ saved: boolean; warnings: string[] }> {
+export async function saveConfig(config: ConfigTree): Promise<{ saved: boolean; warnings: string[] }> {
   const res = await fetch(`${API_BASE}/config`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -191,7 +191,7 @@ export async function fetchPresets(): Promise<{ presets: PresetItem[] }> {
 }
 
 /** Create preset */
-export async function createPreset(name: string, config: Record<string, any>) {
+export async function createPreset(name: string, config: ConfigTree) {
   const res = await fetch(`${API_BASE}/presets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

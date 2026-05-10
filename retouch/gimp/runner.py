@@ -1,5 +1,6 @@
 """Поиск и запуск GIMP для постобработки."""
 
+import logging
 import os
 import subprocess
 import sys
@@ -26,12 +27,58 @@ VIGNETTE_DEFAULTS = {
     "horizontal_oversize": 0.2,
 }
 
+_gimp_logger = logging.getLogger("retouch.gimp")
+
 SCM_TEMPLATE = """(begin
   (load "{scm_path}")
   (retouch-process-order "{input_path}" "{output_path}" "{machine_type}"
     {v_offset} {v_diameter} {headroom} {h_oversize} {blur_radius})
 )
 """
+
+
+# Кодировки для fallback-декодирования (в порядке приоритета).
+# CP1251 — single-byte (0x00-0xFF → символ), поэтому третий путь
+# (replace + warning) недостижим для реальных байтов, но оставлен как
+# защита от будущих расширений.
+_FALLBACK_ENCODINGS = ["utf-8", "cp1251"]
+
+
+def safe_decode(raw: bytes, encodings: list[str] | None = None) -> str:
+    """Безопасно декодировать bytes → str с fallback.
+
+    1. Первая кодировка strict (по умолчанию UTF-8)
+    2. Остальные кодировки strict (по умолчанию CP1251)
+    3. UTF-8 с заменой + предупреждение в лог
+
+    Args:
+        raw: байты для декодирования
+        encodings: список кодировок для попыток (default: _FALLBACK_ENCODINGS).
+                   Параметр для тестирования — позволяет убрать CP1251 и
+                   проверить replace-ветку.
+    """
+    if not raw:
+        return ""
+
+    if encodings is None:
+        encodings = _FALLBACK_ENCODINGS
+
+    # Попытки strict-decode каждой кодировкой
+    for enc in encodings:
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+
+    # Финальный fallback: UTF-8 с заменой + логирование
+    result = raw.decode("utf-8", errors="replace")
+    replaced = result.count("\ufffd")
+    _gimp_logger.warning(
+        "GIMP output: %d заменённых символов при декодировании UTF-8. "
+        "Исходные байты могут быть повреждены.",
+        replaced,
+    )
+    return result
 
 
 def get_vignette_params(config):
@@ -130,10 +177,10 @@ def run_gimp(input_path, output_path, machine_type="laser", config=None):
     print(f"Scheme command:\n{scm_command}")
 
     # GIMP на русской Windows пишет в UTF-8, а system default — CP1251.
-    # Используем bytes + decode с errors='replace' чтобы избежать UnicodeDecodeError.
+    # safe_decode пробует UTF-8 strict → CP1251 fallback → replace + warning.
     result = subprocess.run(cmd, capture_output=True)
-    stdout = result.stdout.decode("utf-8", errors="replace")
-    stderr = result.stderr.decode("utf-8", errors="replace")
+    stdout = safe_decode(result.stdout)
+    stderr = safe_decode(result.stderr)
 
     if stdout.strip():
         print(f"GIMP stdout:\n{stdout.strip()}")

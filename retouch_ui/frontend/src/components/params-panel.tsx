@@ -1,11 +1,11 @@
 import { CONFIG_SCHEMA, PARAM_GROUPS } from "../lib/config-schema";
 import type { ParamRange, MachineParams } from "../lib/config-schema";
-import type { MachineType } from "../lib/types";
+import type { MachineType, ConfigTree } from "../lib/types";
 import { useState } from "react";
 
 interface Props {
   machineType: MachineType;
-  config: Record<string, any>;
+  config: ConfigTree;
   onConfigChange: (path: string[], value: number) => void;
   vignetteOverlayEnabled: boolean;
   onVignetteOverlayToggle: (enabled: boolean) => void;

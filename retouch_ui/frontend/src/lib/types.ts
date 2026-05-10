@@ -11,3 +11,13 @@ export interface FaceOvalParams {
   ry: number;    // радиус Y (0–1)
   source: "heuristic" | "manual" | "auto" | "heuristic_legacy";
 }
+
+/** Recursive config tree — backend returns nested JSON with numeric leaves.
+ *
+ * Replaces Record<string, any> throughout the frontend to enable
+ * TypeScript checking on config access paths.
+ */
+export type ConfigValue = number | ConfigTree;
+export interface ConfigTree {
+  [key: string]: ConfigValue;
+}

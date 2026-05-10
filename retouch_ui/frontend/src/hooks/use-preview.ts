@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchPreview } from "../lib/api";
 import type { PreviewResult } from "../lib/api";
-import type { MachineType } from "../lib/types";
+import type { MachineType, ConfigTree } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 interface UsePreviewReturn {
@@ -11,7 +11,7 @@ interface UsePreviewReturn {
   requestPreview: (
     fileId: string,
     machineType: MachineType,
-    config?: Record<string, any>,
+    config?: ConfigTree,
     faceOval?: FaceOvalParams | null,
   ) => void;
 }
@@ -30,7 +30,7 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
     (
       fileId: string,
       machineType: MachineType,
-      config?: Record<string, any>,
+      config?: ConfigTree,
       faceOval?: FaceOvalParams | null,
     ) => {
       // Cancel previous request

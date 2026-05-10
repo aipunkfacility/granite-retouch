@@ -48,11 +48,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — локальный инструмент, один оператор
+# CORS — локальный инструмент, один оператор.
+# Явный список origins вместо "*" — корректная работа с credentials-запросами
+# (спецификация запрещает Access-Control-Allow-Credentials при origin "*").
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",    # Vite dev server
+    "http://localhost:3000",    # альтернативный dev-порт
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,     # API не использует cookies/auth
     allow_methods=["*"],
     allow_headers=["*"],
 )

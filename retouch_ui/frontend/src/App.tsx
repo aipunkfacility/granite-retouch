@@ -4,7 +4,7 @@ import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
 import { ParamsPanel } from "./components/params-panel";
 import { MachineSwitch } from "./components/machine-switch";
-import type { MachineType } from "./lib/types";
+import type { MachineType, ConfigTree } from "./lib/types";
 import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
@@ -14,7 +14,7 @@ import type { VignetteParams } from "./lib/vignette-geometry";
 import type { FaceOvalParams } from "./lib/face-oval-geometry";
 
 /** Extract vignette params from config, with defaults */
-function getVignetteParams(config: Record<string, any>): VignetteParams {
+function getVignetteParams(config: ConfigTree): VignetteParams {
   const v = config.vignette ?? {};
   return {
     vertical_offset: v.vertical_offset ?? 0.1,
@@ -80,7 +80,7 @@ export default function App() {
 
   // Helpers
   const requestPreviewWithOval = useCallback(
-    (fid: string, mt: MachineType, cfg: Record<string, any>) => {
+    (fid: string, mt: MachineType, cfg: ConfigTree) => {
       const oval = faceOvalOverlayEnabled ? faceOval : null;
       requestPreview(fid, mt, cfg, oval);
     },
@@ -111,7 +111,7 @@ export default function App() {
   const handleConfigChangeByPath = useCallback(
     (path: string[], value: number) => {
       const newConfig = JSON.parse(JSON.stringify(config));
-      let obj: Record<string, any> = newConfig;
+      let obj: ConfigTree = newConfig;
       for (let i = 0; i < path.length - 1; i++) {
         if (!obj[path[i]]) obj[path[i]] = {};
         obj = obj[path[i]];
@@ -124,7 +124,7 @@ export default function App() {
   );
 
   const handleConfigChangeFull = useCallback(
-    (newConfig: Record<string, any>) => {
+    (newConfig: ConfigTree) => {
       updateConfig(newConfig);
       if (fileId) requestPreviewWithOval(fileId, machineType, newConfig);
     },
@@ -132,7 +132,7 @@ export default function App() {
   );
 
   const handleReset = useCallback(
-    (defaults: Record<string, any>) => {
+    (defaults: ConfigTree) => {
       resetConfig(defaults);
       if (fileId) requestPreviewWithOval(fileId, machineType, defaults);
     },

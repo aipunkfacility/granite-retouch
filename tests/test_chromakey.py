@@ -223,9 +223,7 @@ class TestSoftMask:
         _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
-        # Щедрый порог: 100 MB для 500x500.
-        # Теоретический минимум uint8: ~1 MB + fringe + mask.
-        # scipy internals добавляют ~20-50 MB.
-        # Этот тест ловит регрессию если кто-то вернёт float32 на весь массив.
-        assert peak < 100_000_000, \
+        # Реалистичный потолок: ~1 MB данные + ~20-50 MB scipy internals + запас.
+        # Порог 60 MB ловит регрессию (float32 на весь массив = ~4x рост).
+        assert peak < 60_000_000, \
             f"Пиковое потребление памяти аномально высокое: {peak/1e6:.1f} MB"

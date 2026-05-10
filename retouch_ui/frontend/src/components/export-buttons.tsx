@@ -1,7 +1,7 @@
 /** BMP/PNG export by fileId — CNC stone engraving output formats */
 import { useState } from "react";
 import { fetchExport } from "../lib/api";
-import type { MachineType } from "../lib/types";
+import type { MachineType, ConfigTree } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 type ExportFormat = "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff";
@@ -9,7 +9,7 @@ type ExportFormat = "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff";
 interface Props {
   fileId: string | null;
   machineType: MachineType;
-  config: Record<string, any>;
+  config: ConfigTree;
   faceOval?: FaceOvalParams | null;
 }
 

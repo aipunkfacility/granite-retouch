@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchConfig, fetchDefaults } from "../lib/api";
 import type { ConfigResult, DefaultsResult } from "../lib/api";
+import type { ConfigTree } from "../lib/types";
 
 interface UseConfigReturn {
-  config: Record<string, any>;
+  config: ConfigTree;
   warnings: string[];
-  updateConfig: (newConfig: Record<string, any>) => void;
-  resetConfig: (defaults?: Record<string, any>) => void;
+  updateConfig: (newConfig: ConfigTree) => void;
+  resetConfig: (defaults?: ConfigTree) => void;
 }
 
 export function useConfig(): UseConfigReturn {
-  const [config, setConfig] = useState<Record<string, any>>({});
+  const [config, setConfig] = useState<ConfigTree>({});
   const [warnings, setWarnings] = useState<string[]>([]);
 
   useEffect(() => {
@@ -24,11 +25,11 @@ export function useConfig(): UseConfigReturn {
       });
   }, []);
 
-  const updateConfig = useCallback((newConfig: Record<string, any>) => {
+  const updateConfig = useCallback((newConfig: ConfigTree) => {
     setConfig(newConfig);
   }, []);
 
-  const resetConfig = useCallback(async (defaults?: Record<string, any>) => {
+  const resetConfig = useCallback(async (defaults?: ConfigTree) => {
     if (defaults) {
       setConfig(defaults);
     } else {
