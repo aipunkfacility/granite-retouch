@@ -25,12 +25,13 @@ def _shrink_mask(subject_mask, shrink_px):
         eroded = binary_erosion(arr, iterations=shrink_px)
         return Image.fromarray(eroded.astype(np.uint8) * 255)
     else:
-        # AUDIT-4.1: Pillow fallback — MinFilter = правильная эрозия
-        # MinFilter(size) берёт минимум в окне — для бинарной маски (0/255)
-        # это эквивалент эрозии: если любой пиксель в окне = 0, результат = 0.
-        from PIL import ImageFilter
-        size = shrink_px * 2 + 1
-        return subject_mask.filter(ImageFilter.MinFilter(size=size))
+        # Pillow fallback: invert → blur → threshold
+        # GaussianBlur = изотропная эрозия (гладкая на диагоналях).
+        # MinFilter давал ступеньки (квадратное ядро).
+        from PIL import ImageOps, ImageFilter
+        inv = ImageOps.invert(subject_mask)
+        blurred = inv.filter(ImageFilter.GaussianBlur(radius=shrink_px))
+        return blurred.point(lambda p: 255 if p < 128 else 0, "L")
 
 
 def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
@@ -46,9 +47,10 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
         arr: numpy array (float32), значения 0-255
         correction: множитель коррекции (1.0 = нейтрально)
         highlight_start: значение (0-255), выше которого коррекция затухает
-        mask: numpy bool array — коррекция применяется только внутри маски.
-            Пиксели вне маски остаются без изменений. Если None — коррекция
-            глобальная (старое поведение, НЕ рекомендуется).
+        mask: numpy array (bool или float 0-1) — маска зоны коррекции.
+            Если bool — бинарная маска (жёсткий край).
+            Если float 0-1 — мягкая маска (градиентный переход, без видимого
+            следа на лице). Если None — коррекция глобальная.
         target_ceiling: float (0-255) — при осветлении (correction > 1.0) пиксели
             уже выше этого значения НЕ осветляются дальше. Предотвращает засвет
             уже ярких участков кожи. Если None — потолка нет.
@@ -85,8 +87,14 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
         result = arr + proposed_delta * ceiling_scale
 
     # Ограничение коррекции только внутри маски
+    # Поддержка мягкой маски (float 0-1): альфа-блендинг вместо бинарного
+    # переключателя. Градиентный переход = без видимого следа на лице.
     if mask is not None:
-        result = np.where(mask, result, arr)
+        if mask.dtype == bool:
+            result = np.where(mask, result, arr)
+        else:
+            alpha = mask.astype(np.float32)
+            result = arr + (result - arr) * alpha
 
     return np.clip(result, 0, 255)
 
@@ -221,12 +229,16 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
                 float(target_max) if correction > 1.0 else None
             )
-            # FIX: всегда face_mask — коррекция ТОЛЬКО по зоне лица.
-            # Раньше elif-ветка использовала shrink(subject_mask),
-            # что осветляло рубашку/тело → пересвет → белые блоки в 1-bit BMP.
-            # face_mask уже вычислена выше (face_mask_arr & inner_mask_arr
-            # или face_region из верхней части субъекта).
-            correction_mask_arr = face_mask
+            # Мягкая маска коррекции: GaussianBlur по маске лица → float 0-1.
+            # Градиентный переход на краях = без видимого следа маски на лице.
+            # Бинарная маска (bool) даёт резкий скачок яркости на границе.
+            try:
+                from scipy.ndimage import gaussian_filter as _gf
+                feather_radius = max(5, glow_size // 4) if glow_size > 0 else 10
+                soft_mask = _gf(face_mask.astype(np.float32), sigma=feather_radius)
+                correction_mask_arr = np.clip(soft_mask, 0, 1)
+            except ImportError:
+                correction_mask_arr = face_mask  # bool fallback
 
             result_arr = _curves_correction(
                 arr, correction,
@@ -235,7 +247,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 target_ceiling=effective_ceiling,
             )
             if white_ceiling is not None:
-                ceiling_mask = correction_mask_arr & (result_arr > white_ceiling)
+                ceiling_mask = (correction_mask_arr > 0.5) & (result_arr > white_ceiling)
                 result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
             result = Image.fromarray(result_arr.astype(np.uint8))
         else:
