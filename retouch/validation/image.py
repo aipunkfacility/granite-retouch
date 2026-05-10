@@ -36,30 +36,29 @@ def validate_image_input(input_path, config=None):
     except Exception as e:
         raise ValidationError(f"Не удалось открыть изображение: {e}")
 
-    width, height = img.size
-    if width < min_res or height < min_res:
-        img.close()
-        raise ValidationError(
-            f"Разрешение {width}x{height} ниже минимума {min_res}x{min_res}. "
-            f"Для качественной гравировки нужно изображение большего размера."
-        )
+    try:
+        width, height = img.size
+        if width < min_res or height < min_res:
+            raise ValidationError(
+                f"Разрешение {width}x{height} ниже минимума {min_res}x{min_res}. "
+                f"Для качественной гравировки нужно изображение большего размера."
+            )
 
-    if max_res and (width > max_res or height > max_res):
-        img.close()
-        raise ValidationError(
-            f"Разрешение {width}x{height} превышает максимум {max_res}x{max_res}. "
-            f"Слишком большое изображение может вызвать нехватку памяти (OOM)."
-        )
+        if max_res and (width > max_res or height > max_res):
+            raise ValidationError(
+                f"Разрешение {width}x{height} превышает максимум {max_res}x{max_res}. "
+                f"Слишком большое изображение может вызвать нехватку памяти (OOM)."
+            )
 
-    if img.mode not in ("RGBA", "RGB", "P", "L"):
-        img.close()
-        raise ValidationError(
-            f"Неподдерживаемый режим изображения: {img.mode}. "
-            f"Ожидается RGBA, RGB или палитровое изображение."
-        )
+        if img.mode not in ("RGBA", "RGB", "P", "L"):
+            raise ValidationError(
+                f"Неподдерживаемый режим изображения: {img.mode}. "
+                f"Ожидается RGBA, RGB или палитровое изображение."
+            )
 
-    img.close()
-    return True
+        return True
+    finally:
+        img.close()
 
 
 def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):

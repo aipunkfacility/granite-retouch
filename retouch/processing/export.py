@@ -99,6 +99,14 @@ def _error_diffusion_dither(img_gray, weights):
     # Python fallback — чистый Python без Numba
     arr = np.array(img_gray, dtype=np.float64)
     height, width = arr.shape
+    pixel_count = height * width
+    if pixel_count > 500_000:
+        logger.warning(
+            "Numba не установлена, дизеринг на чистом Python. "
+            "Размер %dx%d (%d пикс.) — ожидайте 30-120 сек. "
+            "Установите: uv sync --extra fast",
+            width, height, pixel_count,
+        )
     result = np.zeros((height, width), dtype=np.uint8)
 
     for y in range(height):

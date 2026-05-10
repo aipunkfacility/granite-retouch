@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 import yaml
@@ -19,6 +20,16 @@ from ..schemas import (
 logger = logging.getLogger("retouch_ui.presets")
 
 router = APIRouter(prefix="/api", tags=["presets"])
+
+_PRESET_NAME_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+
+
+def _validate_preset_name(name: str) -> str:
+    """Whitelist-валидация: только латиница, цифры, дефис, подчёркивание."""
+    if not _PRESET_NAME_RE.match(name):
+        raise HTTPException(400,
+            "Недопустимое имя пресета. Допустимы: латиница, цифры, '-', '_'")
+    return name
 
 
 def _presets_dir() -> Path:
@@ -64,10 +75,8 @@ async def list_presets():
 @router.post("/presets", response_model=PresetInfo)
 async def create_preset(request: PresetCreateRequest):
     """Создать новый пресет."""
-    # Валидация имени — только безопасные символы
-    safe_name = request.name.replace("/", "_").replace("\\", "_").replace("..", "_")
-    if safe_name != request.name:
-        raise HTTPException(400, f"Недопустимое имя пресета. Используйте: {safe_name}")
+    # Валидация имени — whitelist
+    safe_name = _validate_preset_name(request.name)
 
     presets_dir = _ensure_presets_dir()
     preset_path = presets_dir / f"{safe_name}.yaml"
@@ -88,8 +97,8 @@ async def create_preset(request: PresetCreateRequest):
 @router.delete("/presets/{name}")
 async def delete_preset(name: str):
     """Удалить пресет по имени."""
-    # Санитизация имени
-    safe_name = name.replace("/", "_").replace("\\", "_").replace("..", "_")
+    # Валидация имени — whitelist
+    safe_name = _validate_preset_name(name)
     preset_path = _presets_dir() / f"{safe_name}.yaml"
 
     if not preset_path.exists():

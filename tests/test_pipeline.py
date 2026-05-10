@@ -322,7 +322,7 @@ class TestPipelineStepsAPI:
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         assert result.img_final is not None
-        assert result.img_final.mode == "RGB"
+        assert result.img_final.mode == "L"
 
     def test_process_preview_impact_machine(self, tmp_path):
         """process_preview() works with impact machine type."""

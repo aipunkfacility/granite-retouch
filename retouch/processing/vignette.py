@@ -49,12 +49,12 @@ def apply_vignette(img_gray, width, height, vign_cfg):
         vign_cfg: dict с параметрами виньетки из config.yaml
 
     Returns:
-        tuple: (PIL.Image RGB-изображение на чёрном фоне, PIL.Image маска виньетки L)
+        tuple: (PIL.Image L-изображение на чёрном фоне, PIL.Image маска виньетки L)
     """
     arch_mask = generate_arch_mask(width, height, vign_cfg)
 
-    # Composite over black
-    background = Image.new('RGB', (width, height), (0, 0, 0))
-    background.paste(img_gray, (0, 0), arch_mask)
+    # Composite over black, staying in L mode
+    background = Image.new('L', (width, height), 0)
+    result = Image.composite(img_gray, background, arch_mask)
 
-    return background, arch_mask
+    return result, arch_mask

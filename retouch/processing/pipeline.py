@@ -83,7 +83,7 @@ class PipelineResult:
     img_leveled: Image.Image | None         # После Levels (L)
     img_face_corrected: Image.Image | None  # После face brightness correction (L)
     img_sharpened: Image.Image | None       # После unsharp (L)
-    img_final: Image.Image                  # После виньетки (RGB) — всегда сохраняется
+    img_final: Image.Image                  # После виньетки (L) — всегда сохраняется
     arch_mask: Image.Image | None           # Маска виньетки (L)
     subject_mask: Image.Image | None        # Маска субъекта (L)
     face_mask: Image.Image | None           # Маска лица (L) — из face_region

@@ -1,7 +1,10 @@
 """Валидация order.json по schema.json."""
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class OrderValidationError(Exception):
@@ -36,8 +39,8 @@ def validate_order(order_path, schema_path=None):
         order = json.load(f)
 
     if not HAS_JSONSCHEMA:
-        print("Warning: jsonschema not installed, skipping schema validation. "
-              "Install: uv pip install jsonschema")
+        logger.warning("jsonschema not installed, skipping schema validation. "
+                       "Install: uv pip install jsonschema")
         return order
 
     if schema_path is None:
@@ -51,7 +54,7 @@ def validate_order(order_path, schema_path=None):
             project_root = project_root.parent
 
     if schema_path is None:
-        print("Warning: schema.json not found, skipping validation")
+        logger.warning("schema.json not found, skipping validation")
         return order
 
     with open(schema_path, "r", encoding="utf-8") as f:
@@ -62,5 +65,5 @@ def validate_order(order_path, schema_path=None):
     except jsonschema.ValidationError as e:
         raise OrderValidationError(f"order.json не соответствует схеме: {e.message}")
 
-    print(f"Order validated: {order_path}")
+    logger.info("Order validated: %s", order_path)
     return order

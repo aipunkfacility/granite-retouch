@@ -1,11 +1,11 @@
 {
-  "order_id": "TEST_ORDER",
+  "order_id": "ORD-2026-001",
   "crm_company_id": "",
   "client": {
     "name": "Тестовый Заказ",
     "contact": "none"
   },
-  "machine_type": "laser",
+  "machine_type": "laser_standard",
   "machine_model": "Mirtels L60120",
   "source_photo": "source.jpg",
   "status": "new",

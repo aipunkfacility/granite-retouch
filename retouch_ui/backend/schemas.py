@@ -117,17 +117,6 @@ class PreviewResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class DiagnosticsInfo(BaseModel):
-    """Диагностика обработки — face_brightness, glow, black_ratio (legacy)."""
-    face_brightness_before: Optional[float] = None
-    face_brightness_after: Optional[float] = None
-    glow_size: Optional[int] = None
-    glow_opacity: Optional[float] = None
-    black_ratio: Optional[float] = None
-    blue_ratio: Optional[float] = None
-    warnings: list[str] = Field(default_factory=list)
-
-
 class ConfigResponse(BaseModel):
     """Ответ GET /api/config."""
     config: dict

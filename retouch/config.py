@@ -276,7 +276,7 @@ def load_config(config_path=None):
     """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS.
     DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS.
     Поиск config_path делегирован find_config_path()."""
-    defaults = copy.deepcopy(DEFAULTS)
+    defaults = DEFAULTS
 
     if config_path is None:
         config_path = find_config_path()

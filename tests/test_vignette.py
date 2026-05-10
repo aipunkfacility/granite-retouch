@@ -35,7 +35,7 @@ class TestArchVignette:
             "horizontal_oversize": 0.2,
         }
         result, mask = apply_vignette(gray, 512, 512, vign_cfg)
-        assert result.mode == "RGB", f"Результат должен быть RGB, а не {result.mode}"
+        assert result.mode == "L", f"Результат должен быть L, а не {result.mode}"
 
     def test_bottom_corners_are_black(self):
         """Нижние углы — чёрные (вне арки)."""
