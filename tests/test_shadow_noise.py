@@ -202,3 +202,65 @@ class TestShadowFloorLaser:
             below_floor = (subject_pixels < 5).sum()
             assert below_floor == 0, \
                 f"Не должно быть пикселей < shadow_floor=5, found {below_floor}"
+
+
+class TestShadowFloorInteraction:
+    """REFACTOR-2: shadow_noise должен учитывать shadow_floor.
+
+    Без фикса: шум генерируется в [5, 15], но shadow_floor=8
+    перезапишет значения 5-7 до 8, стирая вариативность.
+    """
+
+    def test_noise_respects_shadow_floor(self):
+        """Шум ниже shadow_floor бесполезен — floor его перезапишет.
+        Поэтому шум должен генерироваться в диапазоне [max(noise_min, floor), noise_max]."""
+        from retouch.processing.shadow_noise import add_shadow_noise
+
+        img = Image.new('L', (100, 100), 3)
+        mask = Image.new('L', (100, 100), 255)
+        result = add_shadow_noise(img, mask, noise_min=5, noise_max=15,
+                                  shadow_threshold=30, shadow_floor=8)
+        arr = np.array(result)
+        subject_pixels = arr[np.array(mask) > 128]
+        assert subject_pixels.min() >= 8, (
+            f"Шум ниже shadow_floor: min={subject_pixels.min()}, "
+            f"floor=8 — эти значения будут перезаписаны"
+        )
+
+    def test_noise_floor_equals_noise_max_returns_unchanged(self):
+        """shadow_floor >= noise_max — шум бессмысленен, изображение не меняется."""
+        from retouch.processing.shadow_noise import add_shadow_noise
+
+        img = Image.new('L', (100, 100), 3)
+        mask = Image.new('L', (100, 100), 255)
+        result = add_shadow_noise(img, mask, noise_min=5, noise_max=8,
+                                  shadow_threshold=30, shadow_floor=15)
+        arr_result = np.array(result)
+        arr_original = np.array(img)
+        np.testing.assert_array_equal(arr_result, arr_original)
+
+    def test_noise_without_floor_works_as_before(self):
+        """Без shadow_floor (по умолчанию 0) — поведение не меняется."""
+        from retouch.processing.shadow_noise import add_shadow_noise
+
+        img = Image.new('L', (100, 100), 3)
+        mask = Image.new('L', (100, 100), 255)
+        result = add_shadow_noise(img, mask, noise_min=5, noise_max=15,
+                                  shadow_threshold=30)
+        arr = np.array(result)
+        subject_pixels = arr[np.array(mask) > 128]
+        assert subject_pixels.min() >= 5
+        assert subject_pixels.max() <= 15
+
+    def test_noise_floor_between_min_and_max(self):
+        """shadow_floor между noise_min и noise_max — нижняя граница сдвигается."""
+        from retouch.processing.shadow_noise import add_shadow_noise
+
+        img = Image.new('L', (100, 100), 3)
+        mask = Image.new('L', (100, 100), 255)
+        result = add_shadow_noise(img, mask, noise_min=3, noise_max=15,
+                                  shadow_threshold=30, shadow_floor=8)
+        arr = np.array(result)
+        subject_pixels = arr[np.array(mask) > 128]
+        assert subject_pixels.min() >= 8
+        assert subject_pixels.max() <= 15

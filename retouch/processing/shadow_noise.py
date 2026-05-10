@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15,
-                     shadow_threshold=30):
+                     shadow_threshold=30, shadow_floor=0):
     """Добавить лёгкий шум в тёмные области субъекта (внутри маски).
 
     Для ударной гравировки: чисто чёрные области внутри субъекта (тени,
@@ -32,6 +32,9 @@ def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15,
         noise_max: максимальное значение шума (по умолчанию 15)
         shadow_threshold: порог яркости — пиксели субъекта ниже этого
             значения получают шум (по умолчанию 30)
+        shadow_floor: минимальная яркость после shadow_floor в пайплайне.
+            Шум ниже этого значения будет перезаписан shadow_floor,
+            поэтому нижняя граница шума сдвигается до shadow_floor.
 
     Returns:
         PIL.Image: изображение с шумом в тёмных областях субъекта
@@ -51,16 +54,25 @@ def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15,
     if subject_dark.sum() == 0:
         return img_gray
 
-    # Генерируем шум в диапазоне [noise_min, noise_max]
+    # Генерируем шум в диапазоне [effective_min, noise_max]
+    # effective_min = max(noise_min, shadow_floor): шум ниже shadow_floor
+    # бессмысленен — shadow_floor в пайплайне перезапишет его до константы.
+    effective_min = max(noise_min, shadow_floor) if shadow_floor > 0 else noise_min
+    if effective_min >= noise_max:
+        logger.warning(
+            "Shadow noise: shadow_floor=%d >= noise_max=%d — шум не применяется",
+            shadow_floor, noise_max,
+        )
+        return img_gray
     rng = np.random.default_rng(42)  # Фиксированный seed для воспроизводимости
-    noise = rng.integers(noise_min, noise_max + 1, size=arr.shape).astype(np.float32)
+    noise = rng.integers(effective_min, noise_max + 1, size=arr.shape).astype(np.float32)
 
     # Применяем шум только к тёмным пикселям субъекта
     arr = np.where(subject_dark, noise, arr)
     arr = np.clip(arr, 0, 255)
 
     logger.info(
-        "Shadow noise: added %d-%d to %d dark subject pixels (threshold=%d)",
-        noise_min, noise_max, subject_dark.sum(), shadow_threshold,
+        "Shadow noise: added %d-%d to %d dark subject pixels (threshold=%d, floor=%d)",
+        effective_min, noise_max, subject_dark.sum(), shadow_threshold, shadow_floor,
     )
     return Image.fromarray(arr.astype(np.uint8))

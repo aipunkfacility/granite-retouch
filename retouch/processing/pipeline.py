@@ -16,9 +16,10 @@ from retouch.validation.image import (
 from retouch.processing.chromakey import remove_blue_background
 from retouch.processing.analysis import analyze_input, ImageAnalytics
 from retouch.processing.glow import apply_glow
-from retouch.processing.levels import (
-    apply_levels, apply_unsharp_mask, check_face_brightness, add_shadow_noise,
-)
+from retouch.processing.levels import apply_levels
+from retouch.processing.unsharp import apply_unsharp_mask
+from retouch.processing.face_correction import check_face_brightness
+from retouch.processing.shadow_noise import add_shadow_noise
 from retouch.processing.face_region import detect_face_oval, generate_face_mask
 from retouch.processing.export import export_result
 from retouch.processing.vignette import apply_vignette
@@ -395,11 +396,13 @@ def _run_pipeline_steps(
     shadow_noise_min = ctx.machine_cfg.get("shadow_noise_min", 0)
     shadow_noise_max = ctx.machine_cfg.get("shadow_noise_max", 0)
     shadow_threshold = ctx.machine_cfg.get("shadow_noise_threshold", 30)
+    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
     if shadow_noise_max > 0 and ctx.machine_type == "impact":
         img_sharpened = add_shadow_noise(
             img_sharpened, ctx.subject_mask,
             noise_min=shadow_noise_min, noise_max=shadow_noise_max,
             shadow_threshold=shadow_threshold,
+            shadow_floor=shadow_floor,
         )
 
     # A.2: Shadow floor — отдельный шаг (FIX #12: теперь для всех станков)
@@ -408,7 +411,6 @@ def _run_pipeline_steps(
     #
     # PERF: Объединяем shadow_floor + stone_gamma + white_ceiling в ОДИН numpy-проход.
     # Было 3× PIL→numpy→PIL (3 аллокации), стало 1× PIL→numpy→PIL.
-    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
     stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
     white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
 

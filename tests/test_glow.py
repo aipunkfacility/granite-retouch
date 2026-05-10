@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from retouch.config import DEFAULTS
+
 
 class TestGlowNumpyEquivalence:
     """numpy-реализация glow opacity эквивалентна point(lambda)."""
@@ -41,3 +43,80 @@ class TestGlowNumpyEquivalence:
         # Поэтому результат должен быть близок к оригиналу
         assert abs(float(result_arr.mean()) - 128.0) < 20, \
             "При полной маске outer glow не должен значительно менять изображение"
+
+
+class TestCalculateGlowParamsLaser80wConfig:
+    """REFACTOR-3: laser_80w glow-параметры должны читаться из конфига."""
+
+    def test_laser_80w_custom_config_overrides_hardcode(self):
+        """Кастомный конфиг laser_80w должен давать midpoint диапазона конфига,
+        а не хардкод (20, 15)."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'tonal_range': 100}
+        custom_cfg = {
+            'glow_size_min': 30, 'glow_size_max': 50,
+            'glow_opacity_min': 20, 'glow_opacity_max': 40,
+        }
+        result = _calculate_glow_params(analytics, 'laser_80w', machine_cfg=custom_cfg)
+        assert result == (40, 30), (
+            f"Ожидали midpoint конфига (40, 30), получили {result} — "
+            f"конфиг игнорируется, используется хардкод"
+        )
+
+    def test_laser_80w_default_config_matches_current_hardcode(self):
+        """При дефолтном конфиге результат = текущий хардкод (20, 15)."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'tonal_range': 100}
+        default_cfg = {
+            'glow_size_min': 15, 'glow_size_max': 25,
+            'glow_opacity_min': 10, 'glow_opacity_max': 20,
+        }
+        result = _calculate_glow_params(analytics, 'laser_80w', machine_cfg=default_cfg)
+        assert result == (20, 15)
+
+    def test_laser_80w_no_config_uses_defaults(self):
+        """Без machine_cfg — fallback на дефолтные значения."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'tonal_range': 100}
+        result = _calculate_glow_params(analytics, 'laser_80w')
+        assert result == (20, 15)
+
+    def test_laser_standard_unchanged_by_refactor(self):
+        """laser_standard не затронут — поведение сохраняется."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'tonal_range': 100}
+        result = _calculate_glow_params(analytics, 'laser_standard')
+        assert result == (50, 35)
+
+    def test_impact_unchanged_by_refactor(self):
+        """impact не затронут — поведение сохраняется."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'subject_separation': 100}
+        result = _calculate_glow_params(analytics, 'impact')
+        assert result == (14, 65)
+
+
+class TestGlowDeterminism:
+    """D.1: glow должен быть детерминированным при одинаковых входах."""
+
+    def test_same_analytics_same_result(self):
+        """Одинаковые входы → одинаковый glow для всех machine_type."""
+        from retouch.processing.glow import _calculate_glow_params
+        for machine_type in ('laser_standard', 'laser_80w', 'impact'):
+            analytics = {'tonal_range': 100, 'subject_separation': 100}
+            r1 = _calculate_glow_params(analytics, machine_type)
+            r2 = _calculate_glow_params(analytics, machine_type)
+            assert r1 == r2, f"{machine_type}: не детерминирован"
+
+    def test_preview_export_consistency(self):
+        """D.1: preview и export получают одинаковый glow при одинаковых входах."""
+        from retouch.processing.glow import apply_glow
+        img = Image.new('L', (200, 200), 128)
+        mask = Image.new('L', (200, 200), 255)
+        analytics = {'tonal_range': 100, 'subject_separation': 100}
+        machine_cfg = DEFAULTS["processing"]["laser_80w"]
+
+        r1 = apply_glow(img, mask, machine_cfg, analytics=analytics, machine_type='laser_80w')
+        r2 = apply_glow(img, mask, machine_cfg, analytics=analytics, machine_type='laser_80w')
+        assert r1[1] == r2[1], "glow_size не детерминирован"
+        assert r1[2] == r2[2], "glow_opacity не детерминирован"

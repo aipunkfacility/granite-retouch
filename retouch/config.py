@@ -252,20 +252,22 @@ def _migrate_face_target(config: dict) -> dict:
                 mc["face_brightness_target_max"] = target[1]
 
         # FIX #1/#8: миграция brightness → stone_gamma
+        # brightness > 1.0 осветлял → stone_gamma = 1/brightness < 1.0 (тоже осветляет)
+        # brightness < 1.0 затемнял → stone_gamma = 1/brightness > 1.0 (тоже затемняет)
         if "brightness" in mc and "stone_gamma" not in mc:
             import logging
             old_brightness = mc.pop("brightness")
-            # brightness < 1.0 → stone_gamma = brightness (тот же числовой диапазон,
-            # но другая семантика: gamma < 1 осветляет тени, brightness < 1 затемнял)
-            # Предупреждаем о смене семантики
             if old_brightness != 1.0:
+                new_gamma = round(1.0 / max(old_brightness, 0.01), 2)
                 logging.getLogger(__name__).warning(
                     "processing.%s: 'brightness=%.2f' мигрирован в 'stone_gamma=%.2f'. "
-                    "Семантика изменилась: stone_gamma < 1.0 ОСВЕТЛЯЕТ тени "
-                    "(вместо затемнения brightness). Проверьте результат.",
-                    machine, old_brightness, old_brightness,
+                    "Семантика: stone_gamma < 1.0 осветляет, > 1.0 затемняет. "
+                    "Проверьте результат гравировки.",
+                    machine, old_brightness, new_gamma,
                 )
-            mc["stone_gamma"] = old_brightness
+                mc["stone_gamma"] = new_gamma
+            else:
+                mc["stone_gamma"] = 1.0
         elif "brightness" in mc:
             mc.pop("brightness")  # stone_gamma уже есть — просто удаляем brightness
 

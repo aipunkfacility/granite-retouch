@@ -9,7 +9,8 @@ except ImportError:
     HAS_NUMPY = False
 
 
-def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
+def _calculate_glow_params(analytics: dict, machine_type: str,
+                           machine_cfg: dict | None = None) -> tuple:
     """D.1: Рассчитать детерминированные параметры glow на основе аналитики.
 
     Рандомизация убрана — glow всегда одинаковый при одинаковых входных
@@ -18,12 +19,20 @@ def _calculate_glow_params(analytics: dict, machine_type: str) -> tuple:
     Args:
         analytics: dict с метриками от analyze_input()
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
+        machine_cfg: dict — параметры станка из config.yaml. Для laser_80w
+            glow_size_min/max и glow_opacity_min/max читаются из конфига
+            вместо захардкоженных значений.
 
     Returns:
         tuple: (glow_size, glow_opacity_percent) — размер и непрозрачность в %%
     """
     if machine_type == 'laser_80w':
-        return (20, 15)
+        cfg = machine_cfg or {}
+        glow_min = cfg.get('glow_size_min', 15)
+        glow_max = cfg.get('glow_size_max', 25)
+        opacity_min = cfg.get('glow_opacity_min', 10)
+        opacity_max = cfg.get('glow_opacity_max', 20)
+        return ((glow_min + glow_max) // 2, (opacity_min + opacity_max) // 2)
 
     if machine_type == 'impact':
         separation = analytics.get('subject_separation', 150)
@@ -181,7 +190,7 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
     if (analytics is not None and machine_type is not None
             and glow_size_override is None and glow_opacity_override is None):
         # P3: Адаптивные параметры из аналитики
-        glow_size, glow_opacity_pct = _calculate_glow_params(analytics, machine_type)
+        glow_size, glow_opacity_pct = _calculate_glow_params(analytics, machine_type, machine_cfg)
         glow_opacity = glow_opacity_pct / 100
     else:
         # D.1: Детерминированный fallback — midpoint диапазона из конфига

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from retouch.config import DEFAULTS, load_config, deep_merge, find_config_path, validate_config, MACHINE_TYPES
+from retouch.config import DEFAULTS, load_config, deep_merge, find_config_path, validate_config, MACHINE_TYPES, _migrate_face_target
 
 
 class TestDefaults:
@@ -344,3 +344,74 @@ class TestConfigMachineTypes:
                 f"{mtype}: glow_size_min ({mc['glow_size_min']}) >= glow_size_max ({mc['glow_size_max']})"
             assert mc["glow_opacity_min"] < mc["glow_opacity_max"], \
                 f"{mtype}: glow_opacity_min ({mc['glow_opacity_min']}) >= glow_opacity_max ({mc['glow_opacity_max']})"
+
+
+class TestBrightnessToStoneGammaMigration:
+    """REFACTOR-1: миграция brightness → stone_gamma должна сохранять семантику.
+
+    brightness > 1.0 осветлял → stone_gamma < 1.0 тоже осветляет.
+    brightness < 1.0 затемнял → stone_gamma > 1.0 тоже затемняет.
+    Текущий код инвертирует семантику: mc["stone_gamma"] = old_brightness.
+    """
+
+    def test_brightness_above_one_produces_gamma_below_one(self):
+        """brightness > 1.0 (осветление) → stone_gamma < 1.0 (осветление)."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 1.18
+        config["processing"]["laser_standard"].pop("stone_gamma", None)
+        result = _migrate_face_target(config)
+        gamma = result["processing"]["laser_standard"]["stone_gamma"]
+        assert gamma < 1.0, (
+            f"brightness=1.18 (осветление) → stone_gamma={gamma}, "
+            f"должен быть < 1.0 (осветление), а не > 1.0 (затемнение)"
+        )
+
+    def test_brightness_below_one_produces_gamma_above_one(self):
+        """brightness < 1.0 (затемнение) → stone_gamma > 1.0 (затемнение)."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 0.85
+        config["processing"]["laser_standard"].pop("stone_gamma", None)
+        result = _migrate_face_target(config)
+        gamma = result["processing"]["laser_standard"]["stone_gamma"]
+        assert gamma > 1.0, (
+            f"brightness=0.85 (затемнение) → stone_gamma={gamma}, "
+            f"должен быть > 1.0 (затемнение)"
+        )
+
+    def test_brightness_equal_one_neutral(self):
+        """brightness=1.0 (нейтрально) → stone_gamma=1.0 (нейтрально)."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 1.0
+        config["processing"]["laser_standard"].pop("stone_gamma", None)
+        result = _migrate_face_target(config)
+        assert result["processing"]["laser_standard"]["stone_gamma"] == 1.0
+
+    def test_migration_formula_inverse(self):
+        """Формула: stone_gamma = 1.0 / brightness (приближённо)."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 1.18
+        config["processing"]["laser_standard"].pop("stone_gamma", None)
+        result = _migrate_face_target(config)
+        gamma = result["processing"]["laser_standard"]["stone_gamma"]
+        expected = round(1.0 / 1.18, 2)
+        assert abs(gamma - expected) < 0.02, (
+            f"1/1.18 ≈ {expected}, получили {gamma}"
+        )
+
+    def test_stone_gamma_already_set_no_overwrite(self):
+        """Если stone_gamma уже задан — brightness просто удаляется, gamma не трогается."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 1.18
+        config["processing"]["laser_standard"]["stone_gamma"] = 0.88
+        result = _migrate_face_target(config)
+        assert result["processing"]["laser_standard"]["stone_gamma"] == 0.88
+        assert "brightness" not in result["processing"]["laser_standard"]
+
+    def test_migration_preserves_other_keys(self):
+        """Миграция не трогает другие ключи machine-секции."""
+        config = copy.deepcopy(DEFAULTS)
+        config["processing"]["laser_standard"]["brightness"] = 1.10
+        config["processing"]["laser_standard"].pop("stone_gamma", None)
+        original_glow_min = config["processing"]["laser_standard"]["glow_size_min"]
+        result = _migrate_face_target(config)
+        assert result["processing"]["laser_standard"]["glow_size_min"] == original_glow_min

@@ -3,9 +3,15 @@
 F.1: Функции unsharp, face_correction, shadow_noise вынесены в отдельные
 модули. Этот файл сохраняет backward-compatible re-exports для
 существующего импорта: from retouch.processing.levels import check_face_brightness
+
+REFACTOR-4: re-exports устарели. Используйте прямые импорты:
+  from retouch.processing.unsharp import apply_unsharp_mask
+  from retouch.processing.face_correction import check_face_brightness
+  from retouch.processing.shadow_noise import add_shadow_noise
 """
 
 import logging
+import warnings
 
 from PIL import Image, ImageEnhance
 
@@ -19,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 # ─── Backward-compatible re-exports (F.1) ──────────────────────────────
+# DEPRECATED: используйте прямые импорты из source-модулей.
+# Эти re-exports будут удалены в следующем релизе.
 
 from retouch.processing.unsharp import apply_unsharp_mask, _adaptive_unsharp_percent
 from retouch.processing.face_correction import (
@@ -28,6 +36,16 @@ from retouch.processing.face_correction import (
 )
 from retouch.processing.shadow_noise import add_shadow_noise
 from retouch.processing.mask_utils import apply_masked
+
+warnings.warn(
+    "Импорт из retouch.processing.levels (кроме apply_levels) устарел. "
+    "Используйте прямые импорты: "
+    "from retouch.processing.unsharp import apply_unsharp_mask, "
+    "from retouch.processing.face_correction import check_face_brightness, "
+    "from retouch.processing.shadow_noise import add_shadow_noise",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 # ─── Levels — основная функция ────────────────────────────────────────
