@@ -31,6 +31,7 @@ python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|lase
 | `--config` | `-c` | Нет | Путь к config.yaml (default: автопоиск) |
 | `--no-validate` | — | Нет | Пропустить валидацию входа и результата |
 | `--overwrite` | — | Нет | Перезаписать выходной файл без подтверждения. Без флага — exit(1) если файл существует |
+| `--face-oval` | — | Нет | Ручное задание овала лица: `CX,CY,RX,RY` (нормализованные 0–1). Переопределяет авто-детекцию. Передаётся из Web UI в export для preview-export consistency |
 
 ### Примеры
 

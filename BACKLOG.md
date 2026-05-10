@@ -274,7 +274,7 @@ GIMP-пайплайн не удаляется, но помечен как экс
 
 ### BACKLOG-009: Рефакторинг _shrink_mask — убрать scipy-зависимость
 
-**Статус**: Open
+**Статус**: ✅ Done — `_shrink_mask()` в `face_correction.py` заменён на GaussianBlur-based эрозию (изотропная, без лесенки). Для контура хромакея добавлен OpenCV (`_make_smooth_mask()` в `chromakey.py` с `cv2.LINE_AA`). scipy `binary_erosion/binary_dilation` больше не используются для морфологии маски.
 **Создано**: 2026-05-04
 
 **Проблема**:

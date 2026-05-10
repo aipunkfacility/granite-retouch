@@ -26,14 +26,18 @@
 img = Image.open(input_path).convert("RGBA")
 ```
 
-### 3. Удаление синего хромакея + fringe removal
+### 3. Удаление синего хромакея + fringe removal + антиалиасный контур
 
 **Модуль:** `retouch/processing/chromakey.py`
 
 - Определяет синие пиксели: `B > R + threshold` и `B > G + threshold`
 - Заменяет синие пиксели на прозрачные `[0, 0, 0, 0]`
-- Fringe removal: расширяет маску на `fringe_radius` пикселей (scipy binary_dilation) и плавно гасит синий канал в переходной зоне
-- Выход: изображение RGBA (без фона) + маска субъекта L (255 = субъект)
+- Fringe removal: расширяет маску на `fringe_radius` пикселей и плавно гасит синий канал в переходной зоне
+- **Векторная трассировка контура** (OpenCV): `findContours(RETR_EXTERNAL)` → `approxPolyDP(epsilon)` → `drawContours(LINE_AA)` — антиалиасная маска с плавными переходами 0→255 на контуре (1-2px). Нет лесенки на диагоналях
+- Параметр `contour_smooth_epsilon` управляет степенью сглаживания (0.001 = минимальное, 0.005 = агрессивное)
+- Если OpenCV недоступен — fallback на GaussianBlur поверх бинарной маски (хуже, но работает)
+- Софт-маска субъекта: `GaussianBlur(aa_mask, sigma=mask_soft_sigma)` для плавных краёв в последующих шагах (glow, face_correction)
+- Выход: изображение RGBA (без фона, антиалиасный альфа-канал) + маска субъекта L (255 = субъект, промежуточные значения на контуре)
 
 ### 4. Конвертация в Grayscale
 
@@ -217,7 +221,7 @@ Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. По
 - `face_brightness_before`, `face_brightness_after`, `correction_factor` — диагностические метрики
 - `img_chromakey` — промежуточное RGBA-изображение после хромакея (отклонение от плана: сохранено для preview и диагностики)
 
-`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`) и метод `release_intermediates()` для освобождения памяти.
+`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`), параметры овала лица (`face_oval` — для передачи preview → export без повторной детекции) и метод `release_intermediates()` для освобождения памяти.
 
 ---
 

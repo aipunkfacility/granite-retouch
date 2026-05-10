@@ -2,6 +2,39 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [5.0.0-dev] - 2026-05-11
+
+### ✨ Новые возможности
+
+- **Антиалиасный контур хромакея**: векторная трассировка через OpenCV (`findContours` → `approxPolyDP` → `drawContours(LINE_AA)`) вместо GaussianBlur поверх бинарной маски. Настоящий субпиксельный антиалиасинг — нет лесенки на диагоналях
+- **Зависимость `opencv-python>=4.8.0`**: для векторной трассировки контура. Без cv2 — fallback на старый GaussianBlur-подход
+- **Параметр `contour_smooth_epsilon`** в config.yaml (0.001–0.01, дефолт 0.002): степень сглаживания контура. 0.001 = минимальное, 0.005 = агрессивное (сглаживает пряди волос)
+- **Параметр `mask_soft_sigma`** в config.yaml (0–5.0, дефолт 1.5): ширина размытия краёв subject_mask
+- **`PipelineResult.face_oval`** (AUDIT-3.1): параметры овала лица передаются из preview в export без повторной детекции
+- **CLI `--face-oval`**: ручное задание овала лица `CX,CY,RX,RY` (нормализованные 0–1)
+
+### 🐛 Исправления
+
+- **Лесенка на контуре портрета**: `scipy.binary_dilation/erosion` с крестовым ядром → OpenCV LINE_AA с субпиксельным антиалиасингом. Старый GaussianBlur-подход давал alpha=1-2 вместо значимых 50-200
+- **Утечка файлового дескриптора** (AUDIT-2.2): `Image.open()` в контекстном менеджере — файл освобождается даже при исключении
+- **laser_80w: glow_size рассинхрон** (AUDIT-9.1): `config.yaml` приведён к DEFAULTS (`glow_size_min=15, glow_size_max=25`)
+- **Face correction: след маски на лице**: мягкая маска (float 0-1) вместо бинарной (bool) — градиентный переход без видимого скачка яркости
+- **`no_validate` не пробрасывался** (AUDIT-2.1): CLI флаг `--no-validate` теперь доходит до `process_steps()`
+
+### 🔧 Изменения
+
+- **Web UI: Windows-фикс**: запуск через `python -m uvicorn` вместо `uv run uvicorn` (Windows теряет venv в child process)
+- **Numba JIT warmup**: прогрев при старте backend (FastAPI lifespan) и CLI — первый экспорт с дизерингом без задержки
+- **Deprecated reexports** (AUDIT-3.4): `_reexport_cache` заменён на `globals()` + `__getattr__` с `_DEPRECATED_REEXPORTS` dict
+- **`apply_inner_glow` deprecated** (AUDIT-5.5): alias выдаёт DeprecationWarning, рекомендует `apply_glow`
+- **Тесты перераспределены по модулям**: вместо `test_audit_fixes.py` — `test_pipeline.py`, `test_cli_integration.py`, `test_face_correction.py`, `test_glow.py`, `test_config.py`, `test_api.py`
+
+### 🧪 Тестирование
+
+- **365+ автотестов** (было 266+) + 31 backend API тест
+- Новые тесты chromakey: `TestSmoothMask` (5 тестов), `test_mask_significant_intermediate_values`, `test_no_staircase_on_diagonal`
+- Проверка реального антиалиасинга: промежуточные значения >10 на контуре (не только 1-2)
+
 ## [5.0.0] - 2026-05-08
 
 ### 💥 Breaking Changes

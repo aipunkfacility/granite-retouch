@@ -10,15 +10,19 @@ granite-retouch/
 │   ├── cli.py                   # CLI: process, validate, gimp, order
 │   ├── config.py                # Загрузка config.yaml + defaults
 │   ├── processing/
-│   │   ├── chromakey.py         # Удаление синего фона + fringe removal
+│   │   ├── chromakey.py         # Удаление синего фона + fringe removal + антиалиасный контур (OpenCV) + антиалиасный контур (OpenCV)
 │   │   ├── analysis.py          # Преданализ: 13 метрик + ImageAnalytics dataclass
 │   │   ├── glow.py              # Glow: inner (A.5) + outer + адаптивные параметры (D.1 детерминировано)
 │   │   ├── levels.py            # Levels (адаптивный) + _adaptive_levels_factor
-│   │   ├── face_correction.py   # check_face_brightness() + _curves_correction()
+│   │   ├── face_correction.py   # check_face_brightness() + _curves_correction() + софт-маска + софт-маска
 │   │   ├── face_region.py       # Детекция лица (C.1) + генерация масок (C.2)
 │   │   ├── unsharp.py           # apply_unsharp_mask() + _adaptive_unsharp_percent()
 │   │   ├── shadow_noise.py      # add_shadow_noise() — шум в тенях для impact
+│   │   ├── mask_utils.py        # clamp_masked() — масочная защита
+│   │   ├── gamma.py             # apply_stone_gamma_masked() — гамма-коррекция
 │   │   ├── export.py            # BMP/PNG экспорт + Jarvis/Stucki дизеринг
+│   │   ├── mask_utils.py        # clamp_masked() — масочная защита
+│   │   ├── gamma.py             # apply_stone_gamma_masked() — гамма-коррекция
 │   │   ├── vignette.py          # Арховая виньетка
 │   │   └── pipeline.py          # Полный пайплайн + PipelineContext + PipelineResult
 │   ├── gimp/
@@ -53,9 +57,9 @@ granite-retouch/
 │       │   └── vignette-overlay.tsx  # Виньетка с drag (D.8)
 │       └── dist/                # Production-сборка (gitignore)
 ├── presets/                     # YAML-пресеты (laser-default, impact-soft, ...)
-├── tests/                       # Автотесты (266+ тестов)
+├── tests/                       # Автотесты (365+ тестов)
 │   ├── conftest.py              # Фикстуры + sample_pipeline_context (C.4)
-│   ├── test_chromakey.py        # 7 тестов
+│   ├── test_chromakey.py        # 20 тестов (антиалиасный контур, OpenCV, софт-маска)
 │   ├── test_glow.py             # 9 тестов (добавлен test_deterministic_glow_midpoint)
 │   ├── test_levels.py           # 28 тестов
 │   ├── test_face_region.py      # 12 тестов — C.1 детекция, C.2 маски
@@ -69,7 +73,7 @@ granite-retouch/
 │   ├── test_cli_integration.py  # 1 тест
 │   ├── test_bugfixes_a.py       # 15 тестов — A.1–A.5 регрессия
 │   ├── test_architecture_b.py   # 14 тестов — B.1–B.3 архитектура
-│   ├── test_audit_fixes.py      # 7 тестов — D.4, D.6, F.1
+│   ├── test_api.py              # 7 тестов — D.4, D.6, F.1 (было test_audit_fixes.py)
 │   ├── test_quality_f.py        # 8 тестов — F.2 метрики, F.3 BMP валидация
 │   └── test_regression_g.py     # 16 тестов — G.1 P0, G.2 P1, G.3 интеграция
 ├── docs/                        # Документация
@@ -109,7 +113,7 @@ source.jpg ──→ [retouch-analyzer] ──→ order.json (analyzer_output)
 
 | Модуль | Файл | Вход | Выход | Зависимости |
 |--------|------|------|-------|-------------|
-| Chromakey | `chromakey.py` | RGBA | RGBA + mask (L) | numpy, scipy |
+| Chromakey | `chromakey.py` | RGBA | RGBA + mask (L) | numpy, scipy, opencv-python (optional) |
 | Analytics | `analysis.py` | L + mask | ImageAnalytics (dataclass) | numpy |
 | **Face Detection** | **`face_region.py`** | **L + mask** | **FaceOval (dict)** | **numpy** |
 | **Face Mask** | **`face_region.py`** | **FaceOval + mask** | **L** | **Pillow** |
@@ -148,7 +152,7 @@ UI params (сессия) > order.json (заказ) > config.yaml (базовый
 
 ## Тестирование
 
-266+ автотестов + 31 backend API тест покрывают все модули обработки и Web UI API. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
+365+ автотестов + 31 backend API тест покрывают все модули обработки и Web UI API. Тесты используют синтетические изображения (не требуют реальных фото или GIMP).
 
 ```bash
 # Запуск всех тестов
@@ -160,7 +164,7 @@ python -m pytest retouch_ui/backend/tests/ -v
 
 | Модуль | Файл | Тестов | Что проверяет |
 |--------|------|--------|---------------|
-| Chromakey | `test_chromakey.py` | 7 | Удаление синего фона, сохранение субъекта, fringe removal, тёмно-синяя одежда |
+| Chromakey | `test_chromakey.py` | 20 | Удаление синего фона, антиалиасный контур, софт-маска, fringe removal, тёмно-синяя одежда |
 | Glow | `test_glow.py` | 9 | Laser/impact glow, детерминированный midpoint, яркость контура, opacity, адаптивные параметры |
 | Levels | `test_levels.py` | 28 | Brightness, unsharp mask, curves, mask shrink, face brightness, адаптивные Levels/Unsharp, масочная защита |
 | **Face Region** | **`test_face_region.py`** | **12** | **Детекция лица (C.1), маска лица (C.2), маска волос, профиль ширины, fallback** |
@@ -174,7 +178,7 @@ python -m pytest retouch_ui/backend/tests/ -v
 | CLI Integration | `test_cli_integration.py` | 1 | CLI: запуск process через subprocess |
 | **Bugfixes A** | **`test_bugfixes_a.py`** | **15** | **A.1 shadow noise в субъекте, A.2 shadow floor, A.3 порядок шагов, A.4 white clamp, A.5 glow rename** |
 | **Architecture B** | **`test_architecture_b.py`** | **14** | **B.1 PipelineContext, B.2 трёхуровневый конфиг, B.3 ImageAnalytics dataclass** |
-| **Audit Fixes** | **`test_audit_fixes.py`** | **7** | **D.4 Pydantic валидация, D.6 LRU кэш, F.1 расщепление levels** |
+| **API Tests** | **`test_api.py`** | **7** | **D.4 Pydantic валидация, D.6 LRU кэш, F.1 расщепление levels** |
 | **Quality F** | **`test_quality_f.py`** | **8** | **F.2 метрики качества, F.3 BMP post-save валидация** |
 | **Regression G** | **`test_regression_g.py`** | **16** | **G.1 P0 регрессия, G.2 P1 функциональные, G.3 интеграционный** |
 | Process API | `test_process_api.py` | 13 | Upload, preview, export, параметры, ошибки |
