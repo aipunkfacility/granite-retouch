@@ -35,11 +35,37 @@ def remove_blue_background(img, threshold=30, fringe_radius=3, mask_soft_sigma=1
     return _remove_blue_pillow(img, threshold, fringe_radius)
 
 
+def _smooth_dilate(mask, radius):
+    """Изотропная дилатация через GaussianBlur — без лесенки на диагоналях.
+
+    binary_dilation с дефолтным structuring element (крест) даёт
+    ступеньки на диагональных краях. GaussianBlur + threshold
+    эквивалентен дилатации с круглым ядром.
+    """
+    from scipy.ndimage import gaussian_filter
+    # dilation = размыть фон наружу, взять порог
+    blurred = gaussian_filter(mask.astype(np.float32), sigma=radius)
+    return blurred > 0.5
+
+
+def _smooth_erode(mask, radius):
+    """Изотропная эрозия через GaussianBlur — без лесенки на диагоналях.
+
+    binary_erosion с дефолтным structuring element (крест) даёт
+    ступеньки. Эрозия = инвертировать → размыть → порог → инвертировать.
+    """
+    from scipy.ndimage import gaussian_filter
+    inv = (~mask).astype(np.float32)
+    blurred = gaussian_filter(inv, sigma=radius)
+    return blurred < 0.5
+
+
 def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
     """numpy-реализация: удаление хромакея + fringe + софт-маска.
 
     Оптимизация памяти: uint8 вместо float32 для основного массива.
     float32 используется только в fringe-зоне (гораздо меньше всего изображения).
+    Все морфологические операции через GaussianBlur — изотропные, без лесенки.
     """
     # uint8 — основная работа (4 байт/пиксель вместо 16 при float32)
     arr = np.array(img)  # uint8 RGBA
@@ -51,8 +77,7 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
 
     # --- Fringe removal (float только в зоне ореола) ---
     if fringe_radius > 0:
-        from scipy.ndimage import binary_dilation
-        expanded_mask = binary_dilation(blue_mask, iterations=fringe_radius)
+        expanded_mask = _smooth_dilate(blue_mask, radius=fringe_radius)
     else:
         expanded_mask = blue_mask
 
@@ -68,20 +93,26 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
         b_corrected = (b_f * (1 - fringe_factor) + np.maximum(r_f, g_f) * fringe_factor).astype(np.uint8)
         arr[fringe_ys, fringe_xs, 2] = b_corrected
 
-    # Удаляем синий фон
-    arr[blue_mask] = [0, 0, 0, 0]
+    # Удаляем синий фон — мягкий переход через альфу вместо бинарной вырезки.
+    # Бинарная вырезка arr[blue_mask]=[0,0,0,0] даёт лесенку на диагоналях.
+    # Вместо этого: плавный переход alpha от 0 (фон) до 255 (субъект).
+    from scipy.ndimage import gaussian_filter
+    alpha_hard = (~blue_mask).astype(np.float32) * 255.0
+    # Небольшой blur по альфе — сгладить лесенку blue_mask на диагоналях
+    alpha_blur_sigma = max(1.0, mask_soft_sigma * 0.5)
+    alpha_smooth = gaussian_filter(alpha_hard, sigma=alpha_blur_sigma)
+    arr[..., 3] = np.clip(alpha_smooth, 0, 255).astype(np.uint8)
+    # Гарантируем что чистый фон = полностью прозрачный
+    arr[blue_mask, 3] = 0
 
     # --- Софт-маска вместо жёсткой бинарной ---
     if mask_soft_sigma > 0:
         subject_mask_float = (~blue_mask).astype(np.float32) * 255.0
-
-        from scipy.ndimage import gaussian_filter
         subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
 
         # Возвращаем 255 внутри (не размываем вглубь субъекта)
-        from scipy.ndimage import binary_erosion
         inner = ~blue_mask
-        inner_solid = binary_erosion(inner, iterations=max(1, int(mask_soft_sigma * 2)))
+        inner_solid = _smooth_erode(inner, radius=max(1, int(mask_soft_sigma * 2)))
         subject_mask_float[inner_solid] = 255.0
 
         subject_arr = np.clip(subject_mask_float, 0, 255).astype(np.uint8)

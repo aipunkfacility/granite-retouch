@@ -131,13 +131,15 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
             result = Image.blend(img_gray, result, glow_opacity)
         return result
 
-    from scipy.ndimage import binary_erosion
-
     mask_arr = np.array(subject_mask) > 128
 
     # Сжимаем маску — внутренний край = разница
+    # GaussianBlur вместо binary_erosion — изотропная, без лесенки
+    from scipy.ndimage import gaussian_filter
     iterations = max(1, glow_size // 2)
-    shrunk = binary_erosion(mask_arr, iterations=iterations)
+    inv = 1.0 - mask_arr.astype(np.float32)
+    blurred = gaussian_filter(inv, sigma=iterations)
+    shrunk = blurred < 0.5
 
     # Edge = внутренний край (контур внутри маски)
     edge = mask_arr & ~shrunk

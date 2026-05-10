@@ -20,9 +20,14 @@ def _shrink_mask(subject_mask, shrink_px):
     Glow-пиксели (255) на контуре завышают среднее.
     """
     if HAS_NUMPY:
-        from scipy.ndimage import binary_erosion
-        arr = np.array(subject_mask) > 128
-        eroded = binary_erosion(arr, iterations=shrink_px)
+        # GaussianBlur вместо binary_erosion — изотропная эрозия без лесенки.
+        # binary_erosion с крестовым ядром даёт ступеньки на диагоналях.
+        from scipy.ndimage import gaussian_filter
+        arr_float = (np.array(subject_mask) > 128).astype(np.float32)
+        # Эрозия = инвертировать → blur → порог → инвертировать
+        inv = 1.0 - arr_float
+        blurred = gaussian_filter(inv, sigma=shrink_px)
+        eroded = blurred < 0.5
         return Image.fromarray(eroded.astype(np.uint8) * 255)
     else:
         # Pillow fallback: invert → blur → threshold
