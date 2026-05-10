@@ -15,6 +15,8 @@ export interface PreviewResult {
     blue_ratio: number;
     width: number;
     height: number;
+    // AUDIT-3.1: face_oval из preview для передачи в export
+    face_oval?: FaceOvalParams | null;
   };
   warnings: string[];
 }

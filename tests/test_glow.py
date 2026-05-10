@@ -120,3 +120,28 @@ class TestGlowDeterminism:
         r2 = apply_glow(img, mask, machine_cfg, analytics=analytics, machine_type='laser_80w')
         assert r1[1] == r2[1], "glow_size не детерминирован"
         assert r1[2] == r2[2], "glow_opacity не детерминирован"
+
+
+class TestApplyInnerGlowDeprecated:
+    """AUDIT-5.5: доступ к apply_inner_glow выдаёт DeprecationWarning."""
+
+    def test_apply_inner_glow_deprecated(self):
+        """apply_inner_glow из retouch.processing.glow выдаёт DeprecationWarning."""
+        import warnings
+
+        import retouch.processing.glow as glow_mod
+        # Очищаем закешированный атрибут чтобы __getattr__ сработал снова
+        glow_mod.__dict__.pop("apply_inner_glow", None)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            func = glow_mod.apply_inner_glow
+            deprecation = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation) > 0, (
+                "Доступ к apply_inner_glow должен выдавать DeprecationWarning"
+            )
+
+        from retouch.processing.glow import apply_glow
+        assert func is apply_glow, (
+            "apply_inner_glow должен быть alias для apply_glow"
+        )

@@ -49,6 +49,15 @@ export default function App() {
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
 
+  // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state.
+  // Когда overlay выключен, preview детектирует овал автоматически.
+  // Нужно сохранить его в state, чтобы export получил тот же овал.
+  useEffect(() => {
+    if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled) {
+      setFaceOval(previewResult.diagnostics.face_oval);
+    }
+  }, [previewResult, faceOvalOverlayEnabled]);
+
   // Vignette params derived from config
   const vignetteParams = getVignetteParams(config);
 
@@ -166,7 +175,8 @@ export default function App() {
         </h1>
         <div className="flex gap-4 items-center">
           <MachineSwitch value={machineType} onChange={handleMachineChange} />
-          <ExportButtons fileId={fileId} machineType={machineType} config={config} faceOval={faceOvalOverlayEnabled ? faceOval : null} />
+          {/* AUDIT-3.1: faceOval всегда передаётся в export — либо пользовательский, либо авто-детектированный */}
+          <ExportButtons fileId={fileId} machineType={machineType} config={config} faceOval={faceOval} />
         </div>
       </header>
 

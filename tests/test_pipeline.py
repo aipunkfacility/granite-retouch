@@ -169,6 +169,109 @@ class TestPipelineIntegration:
         assert os.path.isfile(output_bmp)
 
 
+class TestProcessExportNoValidate:
+    """AUDIT-2.1: process_export(..., no_validate=True) с изображением без
+    хромакея НЕ должен выбрасывать ValidationError."""
+
+    def test_process_export_no_validate(self, tmp_path):
+        """no_validate=True пропускает валидацию хромакея на не-синем изображении."""
+        from retouch.processing.pipeline import process_export
+        from retouch.validation.image import ValidationError
+
+        arr = np.full((512, 512, 4), [120, 100, 80, 255], dtype=np.uint8)
+        img = Image.fromarray(arr)
+        input_path = str(tmp_path / "no_chroma.png")
+        img.save(input_path, "PNG")
+        output_bmp = str(tmp_path / "output.bmp")
+
+        result = process_export(
+            input_path, output_bmp,
+            machine_type="laser_standard",
+            config=DEFAULTS,
+            no_validate=True,
+        )
+
+        assert result.img_final is not None
+        assert os.path.isfile(output_bmp)
+
+    def test_process_export_with_validate_raises(self, tmp_path):
+        """no_validate=False на изображении без хромакея выбрасывает ValidationError."""
+        from retouch.processing.pipeline import process_export
+        from retouch.validation.image import ValidationError
+
+        arr = np.full((512, 512, 4), [120, 100, 80, 255], dtype=np.uint8)
+        img = Image.fromarray(arr)
+        input_path = str(tmp_path / "no_chroma.png")
+        img.save(input_path, "PNG")
+        output_bmp = str(tmp_path / "output.bmp")
+
+        with pytest.raises(ValidationError):
+            process_export(
+                input_path, output_bmp,
+                machine_type="laser_standard",
+                config=DEFAULTS,
+                no_validate=False,
+            )
+
+
+class TestFaceOvalInPipelineResult:
+    """AUDIT-3.1: PipelineResult.face_oval заполняется после process_steps()."""
+
+    def _save_chromakey_png(self, tmp_path, width=512, height=512):
+        """Создать и сохранить синтетический PNG с хромакеем."""
+        arr = np.zeros((height, width, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = width // 2, height // 2
+        rx, ry = int(width * 0.25), int(height * 0.30)
+        y_c, x_c = np.ogrid[:height, :width]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 180
+        arr[ellipse, 1] = 140
+        arr[ellipse, 2] = 120
+        arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "input.png")
+        img.save(path, "PNG")
+        return path
+
+    def test_face_oval_in_pipeline_result(self, tmp_path):
+        """face_oval не None в PipelineResult после process_steps()."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+        )
+
+        assert result.face_oval is not None, (
+            "PipelineResult.face_oval should be populated after process_steps()"
+        )
+        for key in ("cx", "cy", "rx", "ry"):
+            assert key in result.face_oval, (
+                f"face_oval missing key '{key}': {result.face_oval}"
+            )
+
+    def test_face_oval_manual_passed_through(self, tmp_path):
+        """Явный face_oval передаётся через process_steps() и возвращается."""
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        manual_oval = {
+            "cx": 0.5, "cy": 0.25, "rx": 0.15, "ry": 0.20,
+            "source": "manual",
+        }
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+            face_oval=manual_oval,
+        )
+
+        assert result.face_oval is not None
+        assert result.face_oval["cx"] == 0.5
+        assert result.face_oval["cy"] == 0.25
+        assert result.face_oval["source"] == "manual"
+
+
 class TestPipelineStepsAPI:
     """Тесты нового API: process_steps, process_preview, process_export."""
 

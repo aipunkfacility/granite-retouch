@@ -170,3 +170,55 @@ class TestFaceMaskInCheckFaceBrightness:
         _, b2, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45, face_mask_img=None)
 
         assert b1 == b2
+
+
+# ─── AUDIT-4.1: _shrink_mask Pillow fallback (MinFilter) ──────────────
+
+class TestShrinkMaskPillowFallback:
+    """_shrink_mask() с Pillow fallback (MinFilter) сужает маску, а не расширяет."""
+
+    def test_shrink_mask_pillow_fallback_shrinks(self):
+        """_shrink_mask с Pillow fallback (MinFilter) уменьшает белую область."""
+        mask = Image.new("L", (200, 200), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle([50, 50, 149, 149], fill=255)
+
+        original_white = (np.array(mask) > 128).sum()
+
+        shrunk = _shrink_mask(mask, shrink_px=5)
+        shrunk_white = (np.array(shrunk) > 128).sum()
+
+        assert shrunk_white < original_white, (
+            f"Сжатая маска ({shrunk_white} белых) должна быть меньше "
+            f"оригинала ({original_white} белых)"
+        )
+        assert shrunk_white > 0, "Сжатая маска не должна быть пустой"
+
+    def test_shrink_mask_not_expand(self):
+        """_shrink_mask должна СЖИМАТЬ, не расширять — 1 пиксель исчезает."""
+        mask = Image.new("L", (100, 100), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle([50, 50, 50, 50], fill=255)  # 1 белый пиксель
+
+        shrunk = _shrink_mask(mask, shrink_px=1)
+        shrunk_white = (np.array(shrunk) > 128).sum()
+
+        assert shrunk_white == 0, (
+            f"1-пиксельная маска должна стать пустой после сжатия, "
+            f"получили {shrunk_white} белых"
+        )
+
+    def test_shrink_mask_symmetric(self):
+        """_shrink_mask сжимает симметрично со всех сторон."""
+        mask = Image.new("L", (200, 200), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle([40, 40, 159, 159], fill=255)
+
+        shrunk = _shrink_mask(mask, shrink_px=10)
+        arr = np.array(shrunk)
+
+        assert arr[45, 100] == 0, "Верхний край должен быть сжат"
+        assert arr[155, 100] == 0, "Нижний край должен быть сжат"
+        assert arr[100, 45] == 0, "Левый край должен быть сжат"
+        assert arr[100, 155] == 0, "Правый край должен быть сжат"
+        assert arr[100, 100] == 255, "Центр должен оставаться белым"

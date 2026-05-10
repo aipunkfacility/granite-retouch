@@ -415,3 +415,28 @@ class TestBrightnessToStoneGammaMigration:
         original_glow_min = config["processing"]["laser_standard"]["glow_size_min"]
         result = _migrate_face_target(config)
         assert result["processing"]["laser_standard"]["glow_size_min"] == original_glow_min
+
+
+class TestConfigYamlLaser80wGlowMatchesDefaults:
+    """AUDIT-9.1: config.yaml laser_80w glow_size_min/max совпадают с DEFAULTS."""
+
+    def test_config_yaml_laser_80w_glow_matches_defaults(self):
+        """config.yaml laser_80w glow-параметры совпадают с DEFAULTS."""
+        config_path = find_config_path()
+        if config_path is None:
+            pytest.skip("config.yaml не найден — пропуск YAML сравнения")
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            yaml_config = yaml.safe_load(f)
+
+        yaml_laser_80w = yaml_config.get("processing", {}).get("laser_80w", {})
+        defaults_laser_80w = DEFAULTS["processing"]["laser_80w"]
+
+        for key in ("glow_size_min", "glow_size_max",
+                     "glow_opacity_min", "glow_opacity_max"):
+            yaml_val = yaml_laser_80w.get(key)
+            defaults_val = defaults_laser_80w.get(key)
+            assert yaml_val == defaults_val, (
+                f"config.yaml laser_80w.{key}={yaml_val} != "
+                f"DEFAULTS laser_80w.{key}={defaults_val}"
+            )

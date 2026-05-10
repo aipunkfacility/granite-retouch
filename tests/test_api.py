@@ -163,3 +163,18 @@ class TestReexports:
         from retouch.processing.face_correction import check_face_brightness as from_direct
 
         assert from_levels is from_direct, "Re-export должен быть той же функцией"
+
+
+class TestNumbaJitWarmup:
+    """AUDIT-8.4: _warmup_numba_jit() в backend вызывается без ошибок."""
+
+    def test_numba_jit_warmup_function(self):
+        """_warmup_numba_jit() выполняется без исключений."""
+        from retouch_ui.backend.main import _warmup_numba_jit
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(_warmup_numba_jit())
+        finally:
+            loop.close()
