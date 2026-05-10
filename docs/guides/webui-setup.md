@@ -33,7 +33,7 @@ npm install
 Из корня проекта:
 
 ```bash
-uv run uvicorn retouch_ui.backend.main:app --port 8000 --reload
+uv run python -m uvicorn retouch_ui.backend.main:app --port 8000 --reload
 ```
 
 Должен быть вывод:
@@ -77,7 +77,7 @@ Vite автоматически проксирует запросы `/api/*` н�
 cd retouch_ui/frontend
 npm run build                    # собирает dist/
 cd ../..
-uv run uvicorn retouch_ui.backend.main:app --port 8000
+uv run python -m uvicorn retouch_ui.backend.main:app --port 8000
 ```
 
 FastAPI сам раздаёт статику из `retouch_ui/frontend/dist/`.
@@ -89,7 +89,7 @@ FastAPI сам раздаёт статику из `retouch_ui/frontend/dist/`.
 |--------|---------|---------|
 | `No module named 'retouch'` | Пакет не установлен | `uv sync --extra webui` |
 | `No module named 'fastapi'` | Не установлена группа webui | `uv sync --extra webui` |
-| `No module named 'scipy'` | uvicorn запущен без `uv run` (системный Python) | Запускай через `uv run uvicorn ...`, не голый `uvicorn` |
+| `No module named 'scipy'` | uvicorn запущен через `uv run uvicorn` (Windows: дочерний процесс теряет venv) | Запускай через `uv run python -m uvicorn ...` |
 | `'vite' is not recognized` | Нет node_modules | `cd retouch_ui/frontend && npm install` |
 | `ECONNRESET` на `/api/*` | Backend не запущен | Запусти uvicorn (терминал 1) |
 | «Загрузка превышена (30 сек)» | Vite proxy указывает на неправильный порт | Проверь `vite.config.ts`: target должен быть `http://localhost:8000` |
