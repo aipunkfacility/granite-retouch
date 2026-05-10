@@ -492,3 +492,73 @@ class TestPipelineStepsAPI:
             assert mock_open.call_count == 1, (
                 f"Image.open вызван {mock_open.call_count} раз, ожидается 1"
             )
+
+
+class TestDeprecationWarnings:
+    """FIX-A1: Deprecated alias должен выдавать DeprecationWarning."""
+
+    def _save_chromakey_png(self, tmp_path, width=512, height=512):
+        """Создать и сохранить синтетический PNG с хромакеем."""
+        arr = np.zeros((height, width, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = width // 2, height // 2
+        rx, ry = int(width * 0.25), int(height * 0.30)
+        y_c, x_c = np.ogrid[:height, :width]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 180
+        arr[ellipse, 1] = 140
+        arr[ellipse, 2] = 120
+        arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "input.png")
+        img.save(path, "PNG")
+        return path
+
+    def test_img_sharpened_getter_warns(self, tmp_path):
+        """img_sharpened getter выдает DeprecationWarning."""
+        import warnings
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ = result.img_sharpened
+            deprecation = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation) > 0, (
+                "img_sharpened getter должен выдавать DeprecationWarning"
+            )
+
+    def test_img_sharpened_setter_warns(self, tmp_path):
+        """img_sharpened setter выдает DeprecationWarning."""
+        import warnings
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result.img_sharpened = None
+            deprecation = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation) > 0, (
+                "img_sharpened setter должен выдавать DeprecationWarning"
+            )
+
+    def test_img_postproc_no_warning(self, tmp_path):
+        """img_postproc НЕ выдает DeprecationWarning."""
+        import warnings
+        from retouch.processing.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ = result.img_postproc
+            deprecation = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation) == 0, (
+                "img_postproc НЕ должен выдавать DeprecationWarning"
+            )

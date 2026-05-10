@@ -1,6 +1,7 @@
 """Полный пайплайн обработки портрета для гравировки."""
 
 import logging
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -139,10 +140,20 @@ class PipelineResult:
         Историческое имя — после unsharp+shadow_noise+gamma 'sharpened' неточно.
         Будет удалено в следующем релизе.
         """
+        warnings.warn(
+            "img_sharpened is deprecated, use img_postproc",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.img_postproc
 
     @img_sharpened.setter
     def img_sharpened(self, value):
+        warnings.warn(
+            "img_sharpened is deprecated, use img_postproc",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.img_postproc = value
 
 

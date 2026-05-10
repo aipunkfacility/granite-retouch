@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from retouch.config import (
     DEFAULTS,
+    _migrate_face_target,
     deep_merge,
     find_config_path,
     load_config,
@@ -50,6 +51,9 @@ async def update_config(request: ConfigUpdateRequest):
     """
     # deep_merge с DEFAULTS — не теряем ключи, которых нет в запросе
     full_config = deep_merge(DEFAULTS, request.config)
+
+    # Миграция устаревших ключей (brightness → stone_gamma, и т.д.)
+    full_config = _migrate_face_target(full_config)
 
     # Валидация объединённого конфига
     warnings = validate_config(full_config)

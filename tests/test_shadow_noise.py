@@ -118,10 +118,10 @@ class TestShadowFloorImpact:
 
         result = process_steps(input_path, machine_type="impact", config=config)
 
-        if result.subject_mask is not None and result.img_sharpened is not None:
-            sharpened_arr = np.array(result.img_sharpened)
+        if result.subject_mask is not None and result.img_postproc is not None:
+            postproc_arr = np.array(result.img_postproc)
             mask_bool = np.array(result.subject_mask) > 128
-            subject_pixels = sharpened_arr[mask_bool]
+            subject_pixels = postproc_arr[mask_bool]
             below_floor = (subject_pixels < 8).sum()
             assert below_floor == 0, \
                 f"Не должно быть пикселей < shadow_floor=8, found {below_floor}"
@@ -195,10 +195,10 @@ class TestShadowFloorLaser:
 
         result = process_steps(input_path, machine_type="laser_80w", config=config)
 
-        if result.subject_mask is not None and result.img_sharpened is not None:
-            sharpened_arr = np.array(result.img_sharpened)
+        if result.subject_mask is not None and result.img_postproc is not None:
+            postproc_arr = np.array(result.img_postproc)
             mask_bool = np.array(result.subject_mask) > 128
-            subject_pixels = sharpened_arr[mask_bool]
+            subject_pixels = postproc_arr[mask_bool]
             below_floor = (subject_pixels < 5).sum()
             assert below_floor == 0, \
                 f"Не должно быть пикселей < shadow_floor=5, found {below_floor}"

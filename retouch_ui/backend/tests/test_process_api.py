@@ -115,7 +115,7 @@ def test_preview_with_custom_params(client, uploaded_file_id):
         json={
             "file_id": uploaded_file_id,
             "machine": "laser_standard",
-            "params": {"processing": {"laser_standard": {"brightness": 1.40}}},
+            "params": {"processing": {"laser_standard": {"stone_gamma": 0.88}}},
         },
     )
     assert res.status_code == 200
@@ -199,7 +199,7 @@ def test_export_with_params(client, uploaded_file_id):
             "file_id": uploaded_file_id,
             "machine": "laser_standard",
             "format": "png",
-            "params": {"processing": {"laser_standard": {"brightness": 1.30}}},
+            "params": {"processing": {"laser_standard": {"stone_gamma": 0.85}}},
         },
     )
     assert res.status_code == 200

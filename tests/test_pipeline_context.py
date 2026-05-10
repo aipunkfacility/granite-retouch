@@ -118,7 +118,7 @@ class TestStepOrder:
 
         result = process_steps(input_path, machine_type="laser_standard", config=config)
         assert result.img_final is not None
-        assert result.img_sharpened is not result.img_face_corrected
+        assert result.img_postproc is not result.img_face_corrected
 
     def test_legacy_step_order_rollback(self, tmp_path):
         """legacy_step_order=True возвращает старый порядок."""
@@ -284,8 +284,8 @@ class TestPipelineResultNewFields:
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
         assert result.face_mask is not None
 
-    def test_img_sharpened_in_result(self, tmp_path):
-        """PipelineResult содержит img_sharpened."""
+    def test_img_postproc_in_result(self, tmp_path):
+        """PipelineResult содержит img_postproc."""
         from retouch.processing.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
@@ -303,10 +303,10 @@ class TestPipelineResultNewFields:
         img.save(input_path, "PNG")
 
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
-        assert result.img_sharpened is not None
+        assert result.img_postproc is not None
 
     def test_release_clears_new_fields(self, tmp_path):
-        """release_intermediates очищает face_mask и img_sharpened."""
+        """release_intermediates очищает face_mask и img_postproc."""
         from retouch.processing.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
@@ -326,12 +326,12 @@ class TestPipelineResultNewFields:
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
 
         assert result.face_mask is not None
-        assert result.img_sharpened is not None
+        assert result.img_postproc is not None
 
         result.release_intermediates()
 
         assert result.face_mask is None
-        assert result.img_sharpened is None
+        assert result.img_postproc is None
         assert result.img_final is not None
 
 
