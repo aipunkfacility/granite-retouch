@@ -243,7 +243,7 @@ GIMP-пайплайн не удаляется, но помечен как экс
 3. Пресет мержится с config.yaml (пресет приоритетнее)
 
 **Критерии приёмки**:
-- [ ] `retouch process -i in.png -o out.tiff --preset impact-soft` работает
+- [ ] `retouch process -i in.png -o out.bmp --preset impact-soft` работает
 - [ ] Пресеты загружаются из `presets/*.yaml`
 - [ ] Документация по доступным пресетам
 

@@ -18,7 +18,7 @@ granite-retouch/
 │   │   ├── face_region.py       # Детекция лица (C.1) + генерация масок (C.2)
 │   │   ├── unsharp.py           # apply_unsharp_mask() + _adaptive_unsharp_percent()
 │   │   ├── shadow_noise.py      # add_shadow_noise() — шум в тенях для impact
-│   │   ├── export.py            # BMP/PNG экспорт + Floyd-Steinberg дизеринг
+│   │   ├── export.py            # BMP/PNG экспорт + Jarvis/Stucki дизеринг
 │   │   ├── vignette.py          # Арховая виньетка
 │   │   └── pipeline.py          # Полный пайплайн + PipelineContext + PipelineResult
 │   ├── gimp/
@@ -182,4 +182,4 @@ python -m pytest retouch_ui/backend/tests/ -v
 | Presets API | `test_presets_api.py` | 7 | CRUD пресетов, загрузка YAML |
 | Health API | `test_health.py` | 2 | /health endpoint |
 
-Dev-зависимости: `pytest>=7.0`, `jsonschema>=4.0`, `httpx>=0.28.1`. Установка: `uv pip install -e ".[dev]"`.
+Dev-зависимости: `pytest>=7.0`, `jsonschema>=4.0`, `httpx>=0.28.1`. Установка: `uv sync --extra dev`.

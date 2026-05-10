@@ -1,10 +1,12 @@
 # Справочник CLI
 
-Все команды granite-retouch запускаются через `python -m retouch` или `retouch` (если пакет установлен).
+Все команды granite-retouch запускаются через `uv run python -m retouch` или `retouch` (если пакет установлен).
 
 ```
-python -m retouch <command> [options]
+uv run python -m retouch <command> [options]
 ```
+
+> Если пакет установлен в системный Python — можно опустить `uv run` и запускать `python -m retouch` напрямую.
 
 ---
 
@@ -36,7 +38,7 @@ python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|lase
 # Стандартная обработка — лазерный станок 20-40W (BMP 8-bit grayscale)
 python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
-# Мощный лазер 60-80W+ — BMP 1-bit с Floyd-Steinberg дизерингом
+# Мощный лазер 60-80W+ — BMP 1-bit с Jarvis дизерингом
 python -m retouch process -i ai.png -o final.bmp -m laser_80w
 
 # Ударный станок — BMP 8-bit grayscale
@@ -68,15 +70,16 @@ python -m retouch process -i ai.png -o final.bmp --overwrite
 
 По умолчанию (формат `bmp`) создаёт два файла:
 - `{output}.bmp` — производственный файл для станка
-  - **laser_standard / impact**: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
-  - **laser_80w**: 1-bit монохромный BMP с Floyd-Steinberg дизерингом
+  - **laser_standard**: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
+  - **laser_80w**: 1-bit монохромный BMP с Jarvis дизерингом
+  - **impact**: 1-bit монохромный BMP с Stucki дизерингом
 - `{output}.png` — превью для визуальной проверки
 
 Формат `--format` позволяет явно выбрать:
 - `bmp` — автоматически: 8-bit для laser_standard/impact, 1-bit для laser_80w
 - `bmp_8bit` — принудительно 8-bit grayscale BMP
-- `bmp_1bit` — принудительно 1-bit BMP с Floyd-Steinberg дизерингом
-- `png` — PNG (RGB)
+- `bmp_1bit` — принудительно 1-bit BMP с Jarvis/Stucki дизерингом
+- `png` — PNG (grayscale/RGB)
 - `tiff` — TIFF с LZW-сжатием (legacy)
 
 ---
@@ -222,7 +225,7 @@ python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 cd granite-retouch
 uv venv --python python
 source .venv/Scripts/activate   # Git Bash на Windows
-uv pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 После установки доступна команда `retouch` (без `python -m`).

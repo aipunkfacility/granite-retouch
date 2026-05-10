@@ -33,7 +33,7 @@
 - **[architecture/overview.md](architecture/overview.md)** — структура проекта, модули, потоки данных, тестирование
 - **[architecture/pipeline.md](architecture/pipeline.md)** — пайплайн обработки: chromakey → analytics → face detection → glow → levels → face brightness → unsharp → shadow noise/floor → vignette → export
 - **Face Pipeline** — детекция лица (C.1) → маска лица/волос (C.2) → интеграция в пайплайн (C.3). См. [architecture/pipeline.md](architecture/pipeline.md#4b-детекция-зоны-лица-c1)
-- **Export Reference** — BMP 8-bit/1-bit, Floyd-Steinberg дизеринг, post-validation (F.3). См. [architecture/pipeline.md](architecture/pipeline.md#11-сохранение-bmppng)
+- **Export Reference** — BMP 8-bit/1-bit, Jarvis/Stucki дизеринг, post-validation (F.3). См. [architecture/pipeline.md](architecture/pipeline.md#11-сохранение-bmppng)
 
 ## Тестирование
 

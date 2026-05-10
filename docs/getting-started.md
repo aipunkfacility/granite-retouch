@@ -2,6 +2,8 @@
 
 Полный цикл от заказа до готового файла за 5 шагов.
 
+> **Примечание:** Все команды ниже предполагают `uv run`. Если пакет установлен в системный Python — можно опустить `uv run` и запускать `python -m retouch` напрямую.
+
 ---
 
 ## 1. Создать заказ
@@ -67,7 +69,7 @@ python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
     -o orders/active/ORD-2026-042/generated/final.bmp -m laser_80w
 ```
 
-Результат: `final.bmp` (8-bit grayscale для станка) + `final.png` (превью). Для laser_80w: `final.bmp` (1-bit монохром с дизерингом Floyd-Steinberg).
+Результат: `final.bmp` (8-bit grayscale для станка) + `final.png` (превью). Для laser_80w: `final.bmp` (1-bit монохром с дизерингом Jarvis). Для impact: `final.bmp` (1-bit монохром с дизерингом Stucki).
 
 ### 5c. Проверка результата
 

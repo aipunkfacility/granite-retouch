@@ -109,7 +109,7 @@ new → analyzing → prompting → generating → postprocessing → done
   },
   "final_prompt": "Professional retouched portrait...",
   "generated_image": "generated/ai.png",
-  "final_file": "generated/final.tiff",
+  "final_file": "generated/final.bmp",
   "created_at": "2026-05-01T10:00:00+07:00",
   "notes": "Военный, нужен контурный свет 60px"
 }
@@ -124,6 +124,6 @@ orders/active/ORD-2026-001/
 ├── source.jpg           # Исходное фото клиента
 └── generated/
     ├── ai.png           # Нейро-ретушь (синий фон)
-    ├── final.tiff       # Готовый файл (чёрный фон)
+    ├── final.bmp       # Готовый файл (чёрный фон)
     └── final.png        # Превью
 ```

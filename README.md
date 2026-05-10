@@ -7,7 +7,7 @@
 ## Тестирование
 
 ```bash
-uv pip install -e ".[dev]"   # pytest + jsonschema
+uv sync --extra dev   # pytest + jsonschema
 make test                     # 266+ тестов + 31 backend API тест
 ```
 

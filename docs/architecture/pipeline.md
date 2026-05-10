@@ -190,8 +190,9 @@ Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. По
 **Модуль:** `retouch/processing/export.py`
 
 - **BMP** — основной формат для ЧПУ станков:
-  - laser_standard / impact: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
-  - laser_80w: 1-bit монохромный BMP с Floyd-Steinberg дизерингом
+  - laser_standard: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
+  - laser_80w: 1-bit монохромный BMP с Jarvis дизерингом
+  - impact: 1-bit монохромный BMP с Stucki дизерингом
 - **PNG** — автоматически для визуальной проверки (превью)
 - TIFF доступен через `--format tiff` (legacy)
 

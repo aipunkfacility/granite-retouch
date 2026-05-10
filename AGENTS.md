@@ -15,7 +15,7 @@ granite-retouch — система автоматизации подготовк
 - `retouch/processing/face_correction.py` — check_face_brightness + curves
 - `retouch/processing/unsharp.py` — unsharp mask
 - `retouch/processing/shadow_noise.py` — shadow noise для impact
-- `retouch/processing/export.py` — BMP/PNG экспорт + Floyd-Steinberg дизеринг
+- `retouch/processing/export.py` — BMP/PNG экспорт + Jarvis/Stucki дизеринг
 - `retouch/processing/vignette.py` — арховая виньетка
 - `retouch/processing/pipeline.py` — полный пайплайн + PipelineContext + PipelineResult
 
@@ -77,7 +77,7 @@ orders/active/ORD-2026-001/
 └── generated/
     ├── source.jpg       # Исходное фото
     ├── ai.png           # Нейро-ретушь (синий фон)
-    ├── final.tiff       # Готовый файл (чёрный фон)
+    ├── final.bmp       # Готовый файл (чёрный фон)
     └── final.png        # Превью
 ```
 

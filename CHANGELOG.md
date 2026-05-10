@@ -212,7 +212,7 @@
   - `retouch/gimp/runner.py` — поиск и запуск GIMP
   - `retouch/validation/image.py` — валидация изображения и хромакея
   - `retouch/validation/order.py` — валидация order.json по schema.json
-- **CLI:** `python -m retouch process -i ... -o ... -m laser`
+- **CLI:** `python -m retouch process -i ... -o ... -m laser` (устаревшее значение `"laser"`, используйте `"laser_standard"`)
 - **pyproject.toml:** `retouch` CLI entry point, `packages = ["retouch"]`
 - **Обратная совместимость:** `prepare_vignette.py` и `run_gimp.py` в корне по-прежнему работают
 
