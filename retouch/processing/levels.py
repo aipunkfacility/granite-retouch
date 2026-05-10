@@ -23,29 +23,44 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Внутренний импорт — apply_masked используется в apply_levels().
+# Не реэкспортируется — внешние пользователи должны импортировать напрямую.
+from retouch.processing.mask_utils import apply_masked as _apply_masked
+
 
 # ─── Backward-compatible re-exports (F.1) ──────────────────────────────
 # DEPRECATED: используйте прямые импорты из source-модулей.
 # Эти re-exports будут удалены в следующем релизе.
+#
+# Реэкспорт через __getattr__ — DeprecationWarning срабатывает ТОЛЬКО
+# при фактическом доступе к устаревшим именам, а не при обычном
+# импорте apply_levels.
 
-from retouch.processing.unsharp import apply_unsharp_mask, _adaptive_unsharp_percent
-from retouch.processing.face_correction import (
-    check_face_brightness,
-    _curves_correction,
-    _shrink_mask,
-)
-from retouch.processing.shadow_noise import add_shadow_noise
-from retouch.processing.mask_utils import apply_masked
+_DEPRECATED_REEXPORTS = {
+    "apply_unsharp_mask": "retouch.processing.unsharp",
+    "_adaptive_unsharp_percent": "retouch.processing.unsharp",
+    "check_face_brightness": "retouch.processing.face_correction",
+    "_curves_correction": "retouch.processing.face_correction",
+    "_shrink_mask": "retouch.processing.face_correction",
+    "add_shadow_noise": "retouch.processing.shadow_noise",
+    "apply_masked": "retouch.processing.mask_utils",
+}
 
-warnings.warn(
-    "Импорт из retouch.processing.levels (кроме apply_levels) устарел. "
-    "Используйте прямые импорты: "
-    "from retouch.processing.unsharp import apply_unsharp_mask, "
-    "from retouch.processing.face_correction import check_face_brightness, "
-    "from retouch.processing.shadow_noise import add_shadow_noise",
-    DeprecationWarning,
-    stacklevel=2,
-)
+
+def __getattr__(name):
+    if name in _DEPRECATED_REEXPORTS:
+        module_path = _DEPRECATED_REEXPORTS[name]
+        import importlib
+        mod = importlib.import_module(module_path)
+        obj = getattr(mod, name)
+        warnings.warn(
+            f"Импорт '{name}' из retouch.processing.levels устарел. "
+            f"Используйте: from {module_path} import {name}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return obj
+    raise AttributeError(f"module 'retouch.processing.levels' has no attribute {name!r}")
 
 
 # ─── Levels — основная функция ────────────────────────────────────────
@@ -93,7 +108,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         arr = np.array(img_gray, dtype=np.float32)
         corrected = arr * factor
         corrected = np.clip(corrected, 0, 255)
-        result_arr = apply_masked(arr, corrected, subject_mask)
+        result_arr = _apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))
     elif subject_mask is not None and not HAS_NUMPY:
         # Pillow fallback БЕЗ numpy — коррекция глобальная, но маска не применяется.
