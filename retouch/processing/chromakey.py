@@ -43,7 +43,6 @@ def _smooth_dilate(mask, radius):
     эквивалентен дилатации с круглым ядром.
     """
     from scipy.ndimage import gaussian_filter
-    # dilation = размыть фон наружу, взять порог
     blurred = gaussian_filter(mask.astype(np.float32), sigma=radius)
     return blurred > 0.5
 
@@ -67,6 +66,8 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
     float32 используется только в fringe-зоне (гораздо меньше всего изображения).
     Все морфологические операции через GaussianBlur — изотропные, без лесенки.
     """
+    from scipy.ndimage import gaussian_filter
+
     # uint8 — основная работа (4 байт/пиксель вместо 16 при float32)
     arr = np.array(img)  # uint8 RGBA
     r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
@@ -74,6 +75,12 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
     # Сравнение в int16 (uint8 + int может overflow)
     blue_mask = (b.astype(np.int16) > r.astype(np.int16) + threshold) & \
                 (b.astype(np.int16) > g.astype(np.int16) + threshold)
+
+    # --- Anti-alias: сглаживаем контур blue_mask через альфа-канал ---
+    # blue_mask — бинарная, на диагоналях ступеньки. Создаём мягкую маску
+    # фона: GaussianBlur(blue_mask) → плавный переход 0→1 на границе.
+    # Пиксели в переходной зоне (0 < value < 1) — субпиксельный контур.
+    bg_soft = gaussian_filter(blue_mask.astype(np.float32), sigma=1.0)
 
     # --- Fringe removal (float только в зоне ореола) ---
     if fringe_radius > 0:
@@ -83,27 +90,30 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3, mask_soft_sigma=1.5):
 
     fringe_zone = expanded_mask & ~blue_mask
     if np.any(fringe_zone):
-        # Float-вычисления ТОЛЬКО для пикселей fringe-зоны
         fringe_ys, fringe_xs = np.where(fringe_zone)
         b_f = b[fringe_ys, fringe_xs].astype(np.float32)
         r_f = r[fringe_ys, fringe_xs].astype(np.float32)
         g_f = g[fringe_ys, fringe_xs].astype(np.float32)
         blue_strength = np.clip((b_f - np.maximum(r_f, g_f)) / (threshold * 2), 0, 1)
-        fringe_factor = blue_strength  # fringe_zone already filtered
+        fringe_factor = blue_strength
         b_corrected = (b_f * (1 - fringe_factor) + np.maximum(r_f, g_f) * fringe_factor).astype(np.uint8)
         arr[fringe_ys, fringe_xs, 2] = b_corrected
 
-    # Удаляем синий фон — мягкий переход через альфу вместо бинарной вырезки.
-    # Бинарная вырезка arr[blue_mask]=[0,0,0,0] даёт лесенку на диагоналях.
-    # Вместо этого: плавный переход alpha от 0 (фон) до 255 (субъект).
-    from scipy.ndimage import gaussian_filter
-    alpha_hard = (~blue_mask).astype(np.float32) * 255.0
-    # Небольшой blur по альфе — сгладить лесенку blue_mask на диагоналях
-    alpha_blur_sigma = max(1.0, mask_soft_sigma * 0.5)
-    alpha_smooth = gaussian_filter(alpha_hard, sigma=alpha_blur_sigma)
-    arr[..., 3] = np.clip(alpha_smooth, 0, 255).astype(np.uint8)
-    # Гарантируем что чистый фон = полностью прозрачный
-    arr[blue_mask, 3] = 0
+    # Удаляем синий фон — бинарная вырезка как раньше,
+    # но альфа-канал = anti-aliased маска для гладкого контура.
+    # Чистый фон: RGB=0, alpha=0. Субъект: RGB как есть, alpha=255.
+    # Переходная зона: RGB как есть, alpha=255*(1-bg_soft).
+    # При RGBA→L конвертации Pillow считает L = RGB*alpha/255 + 0*(1-alpha/255),
+    # т.е. пиксели на контуре плавно затухают в чёрный.
+    arr[blue_mask] = [0, 0, 0, 0]
+    # Anti-aliased альфа: вне маски = 0, внутри = 255, на контуре = градиент
+    alpha_aa = np.clip((1.0 - bg_soft) * 255.0, 0, 255)
+    # Жёстко 0 для чистого фона (валидация считает <10 как чёрный)
+    alpha_aa[blue_mask] = 0.0
+    # Жёстко 255 для чистого субъекта (чтобы не было серых пикселей внутри)
+    inner_solid = _smooth_erode(~blue_mask, radius=2)
+    alpha_aa[inner_solid] = 255.0
+    arr[..., 3] = alpha_aa.astype(np.uint8)
 
     # --- Софт-маска вместо жёсткой бинарной ---
     if mask_soft_sigma > 0:
