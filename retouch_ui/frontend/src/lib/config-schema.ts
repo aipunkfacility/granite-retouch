@@ -13,7 +13,7 @@ export interface MachineParams {
   glow_size_max: ParamRange;
   glow_opacity_min: ParamRange;
   glow_opacity_max: ParamRange;
-  brightness: ParamRange;
+  stone_gamma: ParamRange;  // FIX-11: заменён brightness → stone_gamma (SOP 5.1)
   face_brightness_target_min: ParamRange;
   face_brightness_target_max: ParamRange;
   face_region_top: ParamRange;
@@ -73,7 +73,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
       glow_opacity_min: { min: 10, max: 100, step: 1, label: "Glow: мин. непрозрачность", unit: "%" },
       glow_opacity_max: { min: 10, max: 100, step: 1, label: "Glow: макс. непрозрачность", unit: "%" },
-      brightness: { min: 0.5, max: 1.5, step: 0.01, label: "Яркость", unit: "x" },
+      stone_gamma: { min: 0.5, max: 1.5, step: 0.01, label: "Гамма камня", unit: "" },
       face_brightness_target_min: { min: 100, max: 255, step: 1, label: "Цель яркости лица: мин", unit: "" },
       face_brightness_target_max: { min: 100, max: 255, step: 1, label: "Цель яркости лица: макс", unit: "" },
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
@@ -86,7 +86,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
       glow_opacity_min: { min: 10, max: 100, step: 1, label: "Glow: мин. непрозрачность", unit: "%" },
       glow_opacity_max: { min: 10, max: 100, step: 1, label: "Glow: макс. непрозрачность", unit: "%" },
-      brightness: { min: 0.5, max: 1.5, step: 0.01, label: "Яркость", unit: "x" },
+      stone_gamma: { min: 0.5, max: 1.5, step: 0.01, label: "Гамма камня", unit: "" },
       face_brightness_target_min: { min: 100, max: 255, step: 1, label: "Цель яркости лица: мин", unit: "" },
       face_brightness_target_max: { min: 100, max: 255, step: 1, label: "Цель яркости лица: макс", unit: "" },
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
@@ -99,7 +99,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
       glow_opacity_min: { min: 10, max: 100, step: 1, label: "Glow: мин. непрозрачность", unit: "%" },
       glow_opacity_max: { min: 10, max: 100, step: 1, label: "Glow: макс. непрозрачность", unit: "%" },
-      brightness: { min: 0.5, max: 1.5, step: 0.01, label: "Яркость", unit: "x" },
+      stone_gamma: { min: 0.5, max: 1.5, step: 0.01, label: "Гамма камня", unit: "" },
       face_brightness_target_min: { min: 100, max: 255, step: 1, label: "Цель яркости лица: мин", unit: "" },
       face_brightness_target_max: { min: 100, max: 255, step: 1, label: "Цель яркости лица: макс", unit: "" },
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },

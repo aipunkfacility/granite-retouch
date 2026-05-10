@@ -47,19 +47,24 @@ _DEPRECATED_REEXPORTS = {
 }
 
 
+_reexport_cache: dict = {}
+
+
 def __getattr__(name):
     if name in _DEPRECATED_REEXPORTS:
-        module_path = _DEPRECATED_REEXPORTS[name]
-        import importlib
-        mod = importlib.import_module(module_path)
-        obj = getattr(mod, name)
-        warnings.warn(
-            f"Импорт '{name}' из retouch.processing.levels устарел. "
-            f"Используйте: from {module_path} import {name}",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return obj
+        if name not in _reexport_cache:
+            module_path = _DEPRECATED_REEXPORTS[name]
+            import importlib
+            mod = importlib.import_module(module_path)
+            obj = getattr(mod, name)
+            warnings.warn(
+                f"Импорт '{name}' из retouch.processing.levels устарел. "
+                f"Используйте: from {module_path} import {name}",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _reexport_cache[name] = obj
+        return _reexport_cache[name]
     raise AttributeError(f"module 'retouch.processing.levels' has no attribute {name!r}")
 
 
@@ -125,6 +130,19 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         return enhancer.enhance(factor)
 
 
+def _get_default_for_machine(key: str, machine_type: str | None, fallback=160) -> int | float:
+    """FIX-5: Получить значение по ключу из DEFAULTS для данного machine_type.
+
+    Единственный источник правды — DEFAULTS в config.py.
+    Если machine_type=None или ключ отсутствует — возвращается fallback.
+    """
+    if machine_type is None:
+        return fallback
+    from retouch.config import DEFAULTS as _DEFAULTS
+    mc = _DEFAULTS.get("processing", {}).get(machine_type, {})
+    return mc.get(key, fallback)
+
+
 def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_cfg: dict | None = None) -> float:
     """P2: Рассчитать адаптивный фактор яркости на основе аналитики.
 
@@ -137,6 +155,8 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
     - white_ceiling читается из конфига вместо хардкода
     - target_pre_fb может быть переопределён через конфиг (ключ target_pre_fb)
 
+    FIX-5: Хардкод-словари удалены. Значения берутся из DEFAULTS (config.py).
+
     Args:
         analytics: dict с метриками от analyze_input()
         machine_type: тип станка
@@ -146,16 +166,11 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
         float: множитель яркости
     """
     # target_pre_fb — целевая МЕДИАНА grayscale ПОСЛЕ Levels, ПЕРЕД Face Brightness.
-    # Приоритет: machine_cfg > хардкод по machine_type
-    hardcoded_pre_fb = {
-        'laser_standard': 180,
-        'laser_80w': 150,
-        'impact': 160,
-    }.get(machine_type, 160)
-
-    target_pre_fb = hardcoded_pre_fb
+    # FIX-5: Приоритет: machine_cfg > DEFAULTS > fallback
+    default_pre_fb = _get_default_for_machine("target_pre_fb", machine_type, fallback=160)
+    target_pre_fb = default_pre_fb
     if machine_cfg:
-        target_pre_fb = machine_cfg.get("target_pre_fb", hardcoded_pre_fb)
+        target_pre_fb = machine_cfg.get("target_pre_fb", default_pre_fb)
 
     median = analytics['median_brightness']
     factor = target_pre_fb / max(median, 1)
@@ -163,16 +178,11 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
     factor = max(0.50, min(1.50, factor))
 
     # Защита от клиппинга: не выталкиваем p90 за white_ceiling
-    # Приоритет: machine_cfg > хардкод по machine_type
-    hardcoded_ceiling = {
-        'laser_standard': 250,
-        'laser_80w': 235,
-        'impact': 240,
-    }.get(machine_type, 248)
-
-    white_ceiling = hardcoded_ceiling
+    # FIX-5: Приоритет: machine_cfg > DEFAULTS > fallback
+    default_ceiling = _get_default_for_machine("white_ceiling", machine_type, fallback=248)
+    white_ceiling = default_ceiling
     if machine_cfg:
-        white_ceiling = machine_cfg.get("white_ceiling", hardcoded_ceiling)
+        white_ceiling = machine_cfg.get("white_ceiling", default_ceiling)
 
     if analytics['p90_brightness'] * factor > white_ceiling:
         safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)

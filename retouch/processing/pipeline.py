@@ -83,7 +83,7 @@ class PipelineResult:
     img_glow: Image.Image | None            # После Glow (L)
     img_leveled: Image.Image | None         # После Levels (L)
     img_face_corrected: Image.Image | None  # После face brightness correction (L)
-    img_sharpened: Image.Image | None       # После unsharp (L)
+    img_postproc: Image.Image | None        # После unsharp + shadow_noise + gamma (L)
     img_final: Image.Image                  # После виньетки (L) — всегда сохраняется
     arch_mask: Image.Image | None           # Маска виньетки (L)
     subject_mask: Image.Image | None        # Маска субъекта (L)
@@ -111,7 +111,7 @@ class PipelineResult:
         """Освободить память от промежуточных изображений.
 
         После вызова доступ к img_chromakey, img_gray, img_glow, img_leveled,
-        img_face_corrected, img_sharpened, arch_mask, subject_mask, face_mask
+        img_face_corrected, img_postproc, arch_mask, subject_mask, face_mask
         вернёт None. img_final остаётся доступным — он нужен для сохранения.
         """
         self.img_chromakey = None
@@ -119,7 +119,7 @@ class PipelineResult:
         self.img_glow = None
         self.img_leveled = None
         self.img_face_corrected = None
-        self.img_sharpened = None
+        self.img_postproc = None
         self.arch_mask = None
         self.subject_mask = None
         self.face_mask = None
@@ -131,6 +131,19 @@ class PipelineResult:
     def __exit__(self, *exc):
         """Освободить промежуточные при выходе из with-блока."""
         self.release_intermediates()
+
+    @property
+    def img_sharpened(self) -> Image.Image | None:
+        """FIX-10: Deprecated alias для img_postproc.
+
+        Историческое имя — после unsharp+shadow_noise+gamma 'sharpened' неточно.
+        Будет удалено в следующем релизе.
+        """
+        return self.img_postproc
+
+    @img_sharpened.setter
+    def img_sharpened(self, value):
+        self.img_postproc = value
 
 
 def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
@@ -373,13 +386,13 @@ def _run_pipeline_steps(
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
-        img_sharpened = img_face_corrected  # В legacy-порядке unsharp уже применён
+        img_postproc = img_face_corrected  # В legacy-порядке unsharp уже применён
     else:
         # НОВЫЙ порядок (A.3): face_brightness ПЕРЕД unsharp
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
-        img_sharpened = apply_unsharp_mask(
+        img_postproc = apply_unsharp_mask(
             img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
             white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
@@ -398,8 +411,8 @@ def _run_pipeline_steps(
     shadow_threshold = ctx.machine_cfg.get("shadow_noise_threshold", 30)
     shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
     if shadow_noise_max > 0 and ctx.machine_type == "impact":
-        img_sharpened = add_shadow_noise(
-            img_sharpened, ctx.subject_mask,
+        img_postproc = add_shadow_noise(
+            img_postproc, ctx.subject_mask,
             noise_min=shadow_noise_min, noise_max=shadow_noise_max,
             shadow_threshold=shadow_threshold,
             shadow_floor=shadow_floor,
@@ -421,7 +434,7 @@ def _run_pipeline_steps(
     )
 
     if needs_numpy:
-        arr = np.array(img_sharpened, dtype=np.float32)
+        arr = np.array(img_postproc, dtype=np.float32)
         mask_bool = np.array(ctx.subject_mask) > 128
 
         # Shadow floor
@@ -439,11 +452,11 @@ def _run_pipeline_steps(
             arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling, mask_bool=mask_bool)
             logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
 
-        img_sharpened = Image.fromarray(arr.astype(np.uint8))
+        img_postproc = Image.fromarray(arr.astype(np.uint8))
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
-    img_final, arch_mask = apply_vignette(img_sharpened, width, height, vign_cfg)
+    img_final, arch_mask = apply_vignette(img_postproc, width, height, vign_cfg)
 
     # 7. Валидация результата
     black_ratio = 0.0
@@ -465,7 +478,7 @@ def _run_pipeline_steps(
         img_glow=img_glow,
         img_leveled=img_leveled,
         img_face_corrected=img_face_corrected,
-        img_sharpened=img_sharpened,
+        img_postproc=img_postproc,
         img_final=img_final,
         arch_mask=arch_mask,
         subject_mask=ctx.subject_mask,
@@ -548,22 +561,27 @@ def process_preview(
 
     # Открываем изображение ОДИН раз
     img = Image.open(input_path)
-    needs_resize = max(img.size) > max_size
+    orig_w, orig_h = img.size
+    needs_resize = max(orig_w, orig_h) > max_size
 
     if needs_resize:
-        img.thumbnail((max_size, max_size), Image.LANCZOS)
+        # FIX-4: Рассчитываем финальный размер ЗАРАНЕЕ — без повторного Image.open()
+        # Стандартный thumbnail: уменьшаем по длинной стороне
+        scale = max_size / max(orig_w, orig_h)
+        target_w = int(orig_w * scale)
+        target_h = int(orig_h * scale)
 
         # D.2: Минимальная высота >= 200 для широких кадров
-        if img.height < 200:
-            ratio = 200 / img.height
-            new_w = min(int(img.width * ratio), max_size * 3)
-            # Перезагружаем и делаем правильный ресайз
-            img.close()
-            img = Image.open(input_path)
-            img.thumbnail((new_w, 200), Image.LANCZOS)
+        if target_h < 200:
+            ratio = 200 / orig_h
+            target_w = min(int(orig_w * ratio), max_size * 3)
+            target_h = 200
+
+        img.thumbnail((target_w, target_h), Image.LANCZOS)
 
     # Конвертируем в RGBA и передаём напрямую — БЕЗ disk I/O
     img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img.copy()
+    img_rgba.load()  # FIX-1: материализовать пиксели до закрытия файла (OSError на lazy .copy())
     img.close()
 
     return process_steps(

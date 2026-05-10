@@ -61,11 +61,12 @@ class TestLevelsReExportsDeprecated:
 
     def test_import_check_face_brightness_from_levels_warns(self):
         import warnings
-        # Пересоздаём импорт — levels модуль уже загружен, но __getattr__
-        # вызывается при каждом доступе к устаревшему имени
+        # Инвалидируем кеш re-export, чтобы гарантировать DeprecationWarning
+        import retouch.processing.levels as levels_mod
+        levels_mod._reexport_cache.pop("check_face_brightness", None)
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            import retouch.processing.levels as levels_mod
             # Обращаемся к устаревшему имени — это вызовет __getattr__
             _ = levels_mod.check_face_brightness
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]

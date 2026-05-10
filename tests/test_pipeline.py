@@ -445,3 +445,50 @@ class TestPipelineStepsAPI:
             process_preview(input_path, machine_type="laser_standard",
                             config=DEFAULTS, max_size=768)
             mock_tmp.assert_not_called()
+
+    def test_preview_wide_frame_min_height_200(self, tmp_path):
+        """FIX-4: Широкий кадр (panorama) — высота >= 200 после thumbnail.
+
+        Было: thumbnail → height<200 → повторный Image.open().
+        Стало: рассчитываем финальный размер заранее — один Image.open().
+        """
+        from retouch.processing.pipeline import process_preview
+
+        # Панорамное изображение 4000x500 (широкое)
+        # При max_size=768: thumbnail → 768x96 (height<200) → пересчёт
+        arr = np.zeros((500, 4000, 4), dtype=np.uint8)
+        arr[..., 2] = 255; arr[..., 3] = 255  # синий фон
+        # Субъект в центре
+        arr[100:400, 1500:2500] = [180, 140, 120, 255]
+        img = Image.fromarray(arr)
+        input_path = str(tmp_path / "panorama.png")
+        img.save(input_path)
+
+        result = process_preview(input_path, machine_type="laser_standard",
+                                  config=DEFAULTS, max_size=768)
+
+        # D.2: высота должна быть >= 200
+        assert result.height >= 200, f"Height {result.height} < 200 (D.2 violation)"
+        assert result.img_final is not None
+
+    def test_preview_single_file_open(self, tmp_path):
+        """FIX-4: process_preview открывает файл ровно ОДИН раз."""
+        from retouch.processing.pipeline import process_preview
+        import unittest.mock
+
+        # Панорамное изображение — триггерит D.2 ветку
+        arr = np.zeros((500, 4000, 4), dtype=np.uint8)
+        arr[..., 2] = 255; arr[..., 3] = 255
+        arr[100:400, 1500:2500] = [180, 140, 120, 255]
+        img = Image.fromarray(arr)
+        input_path = str(tmp_path / "panorama.png")
+        img.save(input_path)
+
+        with unittest.mock.patch("retouch.processing.pipeline.Image.open",
+                                  wraps=Image.open) as mock_open:
+            process_preview(input_path, machine_type="laser_standard",
+                            config=DEFAULTS, max_size=768)
+            # Ровно один вызов Image.open — не два
+            assert mock_open.call_count == 1, (
+                f"Image.open вызван {mock_open.call_count} раз, ожидается 1"
+            )

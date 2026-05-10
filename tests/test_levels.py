@@ -516,3 +516,58 @@ class TestAdaptiveUnsharp:
         analytics = {'tonal_range': 100, 'input_class': 'bright'}
         percent = _adaptive_unsharp_percent(analytics, 120)
         assert percent == 120
+
+
+class TestFIX5DefaultsSourceOfTruth:
+    """FIX-5: _adaptive_levels_factor берёт значения из DEFAULTS, не из хардкода."""
+
+    def test_target_pre_fb_from_defaults(self):
+        """target_pre_fb для laser_standard = 180 (из DEFAULTS, не хардкод)."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0}
+        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=None)
+        # target_pre_fb=180 (из DEFAULTS) → factor = 180/100 = 1.80 → clamped to 1.50
+        assert factor == 1.50, f"factor={factor}, ожидается 1.50 (clamped от 180/100)"
+
+    def test_target_pre_fb_laser_80w_from_defaults(self):
+        """target_pre_fb для laser_80w = 150 (из DEFAULTS)."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0}
+        factor = _adaptive_levels_factor(analytics, 'laser_80w', machine_cfg=None)
+        # target_pre_fb=150 → factor = 150/100 = 1.50
+        assert factor == 1.50, f"factor={factor}, ожидается 1.50"
+
+    def test_target_pre_fb_impact_from_defaults(self):
+        """target_pre_fb для impact = 160 (из DEFAULTS)."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0}
+        factor = _adaptive_levels_factor(analytics, 'impact', machine_cfg=None)
+        # target_pre_fb=160 → factor = 160/100 = 1.60 → clamped to 1.50
+        assert factor == 1.50, f"factor={factor}, ожидается 1.50 (clamped от 160/100)"
+
+    def test_machine_cfg_overrides_defaults(self):
+        """machine_cfg.target_pre_fb переопределяет DEFAULTS."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0}
+        # machine_cfg с кастомным target_pre_fb
+        machine_cfg = {"target_pre_fb": 100, "white_ceiling": 200}
+        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=machine_cfg)
+        # target_pre_fb=100 → factor = 100/100 = 1.0
+        assert abs(factor - 1.0) < 0.01, f"factor={factor}, ожидается ~1.0"
+
+    def test_unknown_machine_type_uses_fallback(self):
+        """Неизвестный machine_type использует fallback=160."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0}
+        factor = _adaptive_levels_factor(analytics, 'unknown_machine', machine_cfg=None)
+        # fallback target_pre_fb=160 → factor = 160/100 = 1.60 → clamped to 1.50
+        assert factor == 1.50
+
+    def test_white_ceiling_from_defaults(self):
+        """white_ceiling для laser_standard = 250 (из DEFAULTS)."""
+        from retouch.processing.levels import _adaptive_levels_factor
+        # p90=240, median=180 → factor=180/180=1.0, но p90*factor=240 < 250 → нет снижения
+        analytics = {'median_brightness': 180.0, 'p90_brightness': 249.0}
+        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=None)
+        # white_ceiling=250 (из DEFAULTS), p90*factor=249 < 250 → factor не снижается
+        assert factor > 0.99, f"factor={factor}, но white_ceiling должен быть 250 из DEFAULTS"

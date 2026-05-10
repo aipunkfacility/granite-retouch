@@ -232,3 +232,63 @@ class TestGenerateHairMask:
 
         # Большой gap = меньше пикселей в маске волос
         assert np.array(hair_large).sum() <= np.array(hair_small).sum()
+
+
+class TestFIX7ResolutionInvariantFaceDetection:
+    """FIX-7: Детекция лица даёт одинаковый результат при разном разрешении."""
+
+    def _make_portrait_mask(self, width=512, height=512):
+        """Создать маску с головой и плечами."""
+        mask = np.zeros((height, width), dtype=np.uint8)
+        y, x = np.ogrid[:height, :width]
+        cx = width // 2
+        cy_head = int(height * 0.28)
+        rx_head = int(width * 0.16)
+        ry_head = int(height * 0.13)
+        head = ((x - cx) / rx_head) ** 2 + ((y - cy_head) / ry_head) ** 2 <= 1.0
+        cy_shoulders = int(height * 0.62)
+        rx_shoulders = int(width * 0.30)
+        ry_shoulders = int(height * 0.22)
+        shoulders = ((x - cx) / rx_shoulders) ** 2 + ((y - cy_shoulders) / ry_shoulders) ** 2 <= 1.0
+        neck_w = int(width * 0.07)
+        neck_top = cy_head + ry_head
+        neck_bottom = cy_shoulders - ry_shoulders // 2
+        neck = ((x >= cx - neck_w) & (x <= cx + neck_w) &
+                (y >= neck_top) & (y <= neck_bottom))
+        subject = head | neck | shoulders
+        mask[subject] = 255
+        return Image.fromarray(mask)
+
+    def test_preview_and_export_same_face_position(self):
+        """FIX-7: Позиция лица совпадает при 768px и 3000px."""
+        mask_768 = self._make_portrait_mask(768, 768)
+        result_768 = _detect_face_by_width_profile(mask_768, 768, 768)
+
+        mask_3000 = self._make_portrait_mask(3000, 3000)
+        result_3000 = _detect_face_by_width_profile(mask_3000, 3000, 3000)
+
+        assert result_768 is not None, "768px: лицо не найдено"
+        assert result_3000 is not None, "3000px: лицо не найдено"
+
+        # cy должен совпадать с точностью 5% (нормализованные координаты)
+        cy_diff = abs(result_768["cy"] - result_3000["cy"])
+        assert cy_diff < 0.05, (
+            f"cy отличается на {cy_diff:.3f} между 768px и 3000px. "
+            f"768: cy={result_768['cy']:.3f}, 3000: cy={result_3000['cy']:.3f}"
+        )
+
+    def test_small_and_large_image_consistent(self):
+        """FIX-7: 512px и 2048px дают одинаковый результат (в пределах 5%)."""
+        mask_512 = self._make_portrait_mask(512, 512)
+        result_512 = _detect_face_by_width_profile(mask_512, 512, 512)
+
+        mask_2048 = self._make_portrait_mask(2048, 2048)
+        result_2048 = _detect_face_by_width_profile(mask_2048, 2048, 2048)
+
+        assert result_512 is not None
+        assert result_2048 is not None
+
+        cy_diff = abs(result_512["cy"] - result_2048["cy"])
+        assert cy_diff < 0.05, (
+            f"cy отличается на {cy_diff:.3f} между 512px и 2048px"
+        )

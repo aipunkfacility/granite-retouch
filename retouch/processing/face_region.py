@@ -20,6 +20,10 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     Первый локальный максимум ширины сверху = уровень скул.
     Лицо ≈ от макушки до скул с запасом вниз.
 
+    FIX-7: Профиль нормализуется к CANONICAL_HEIGHT (768) через интерполяцию.
+    Это гарантирует одинаковый результат face detection при любом разрешении,
+    устраняя расхождение preview (768px) vs export (3000px).
+
     Args:
         subject_mask: PIL.Image в режиме L (маска субъекта)
         img_height: высота изображения
@@ -28,6 +32,10 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     Returns:
         dict | None: {cx, cy, rx, ry, source} или None (если профиль нечитаем)
     """
+    # FIX-7: Нормализуем профиль к канонической высоте
+    CANONICAL_HEIGHT = 768  # = preview max_size — canonical reference
+    CANONICAL_KERNEL = max(3, CANONICAL_HEIGHT // 50)  # = 15
+
     mask_arr = np.array(subject_mask) > 128
     widths = mask_arr.sum(axis=1)  # ширина по каждой строке
 
@@ -35,16 +43,21 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     if widths.max() == 0:
         return None
 
-    # Скользящее среднее (сгладить шум маски)
-    kernel_size = max(1, img_height // 50)  # адаптивный kernel
-    kernel = np.ones(kernel_size) / kernel_size
+    # FIX-7: Интерполируем профиль к CANONICAL_HEIGHT
+    if len(widths) != CANONICAL_HEIGHT:
+        x_src = np.linspace(0, 1, len(widths))
+        x_dst = np.linspace(0, 1, CANONICAL_HEIGHT)
+        widths = np.interp(x_dst, x_src, widths)
+
+    # Скользящее среднее — ФИКСИРОВАННЫЙ kernel (не зависит от img_height)
+    kernel = np.ones(CANONICAL_KERNEL) / CANONICAL_KERNEL
     smooth = np.convolve(widths, kernel, mode='same')
 
     # FIX #6: комбинированная стратегия вместо простого argmax
     # Наибольший пик в верхней половине часто = макушка/причёска (шире лица).
     # Локальный максимум ПОСЛЕ начального спада = скулы.
     top_half = len(smooth) // 2
-    search = smooth[kernel_size:top_half]
+    search = smooth[CANONICAL_KERNEL:top_half]
     if search.size == 0 or search.max() == 0:
         return None  # профиль нечитаем → fallback
 
@@ -61,27 +74,33 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
         mid_idx = len(candidates) // 2
         # Берём медианного кандидата (не первый=макушка, не последний=плечи)
         best_candidate = candidates[mid_idx]
-        face_row = int(best_candidate) + kernel_size
+        face_row = int(best_candidate) + CANONICAL_KERNEL
         method = "local_max"
     elif len(local_maxima) == 1:
         # Один локальный максимум — используем его
-        face_row = int(local_maxima[0]) + kernel_size
+        face_row = int(local_maxima[0]) + CANONICAL_KERNEL
         method = "local_max_single"
     else:
         # Fallback: наибольший пик (старое поведение)
-        face_row = int(np.argmax(search)) + kernel_size
+        face_row = int(np.argmax(search)) + CANONICAL_KERNEL
         method = "argmax_fallback"
 
     # Лицо ≈ от макушки до скул с запасом вниз
     # Высота лица ≈ ширина в точке скул (лицо ~овальное)
+    #
+    # FIX-7: Все координаты вычисляются в нормализованном (0-1) пространстве,
+    # независимом от разрешения. face_row — индекс в CANONICAL_HEIGHT,
+    # face_width_px — ширина маски в оригинальных пикселях.
     face_width_px = smooth[face_row]
-    face_height_px = int(face_width_px * 1.2)  # с запасом
+    face_width_norm = face_width_px / img_width  # доля ширины изображения
+    face_height_norm = face_width_norm * 1.2  # с запасом, в долях ширины
 
-    # Центр овала
+    # Центр овала (в нормализованных координатах 0-1)
+    # face_row в CANONICAL_HEIGHT → нормализуем к 0-1
     cx_norm = 0.5  # по горизонтали — центр
-    cy_norm = (face_row - face_height_px // 2) / img_height
-    rx_norm = (face_width_px / 2) / img_width
-    ry_norm = (face_height_px / 2) / img_height
+    cy_norm = (face_row / CANONICAL_HEIGHT) - face_height_norm / 2
+    rx_norm = face_width_norm / 2
+    ry_norm = face_height_norm / 2
 
     # Sanity check: координаты в пределах (0, 1)
     cx_norm = max(0.1, min(0.9, cx_norm))
