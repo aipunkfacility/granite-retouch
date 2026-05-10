@@ -32,6 +32,11 @@ async def lifespan(app: FastAPI):
     # Startup: запустить TTL-очистку загруженных файлов
     cleanup_task = asyncio.create_task(process._ttl_cleanup())
     logger.info("granite-retouch backend v%s запущен", __version__)
+
+    # AUDIT-8.4: Прогрев Numba JIT — первый экспорт с дизерингом
+    # не будет зависать 2-10 сек на компиляции
+    await _warmup_numba_jit()
+
     yield
     # Shutdown: отменить фоновые задачи
     cleanup_task.cancel()
@@ -40,6 +45,28 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     logger.info("granite-retouch backend остановлен")
+
+
+async def _warmup_numba_jit():
+    """AUDIT-8.4: Прогрев Numba JIT-компиляции для дизеринга.
+
+    Первый вызов _error_diffusion_dither_jit компилируется 2-10 сек.
+    Прогрев на крошечном изображении (8x8) — компиляция та же, но
+    выполнение мгновенное. Последующие вызовы используют кеш.
+    """
+    try:
+        from retouch.processing.export import _error_diffusion_dither
+        from PIL import Image
+
+        tiny_img = Image.new("L", (8, 8), 128)
+
+        def _warmup():
+            _error_diffusion_dither(tiny_img, [(1, 0, 7/48), (2, 0, 5/48)])
+
+        await asyncio.to_thread(_warmup)
+        logger.info("Numba JIT warmup complete")
+    except Exception as exc:
+        logger.warning("Numba JIT warmup failed (non-critical): %s", exc)
 
 
 app = FastAPI(

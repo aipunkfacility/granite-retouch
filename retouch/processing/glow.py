@@ -1,5 +1,7 @@
 """Glow (Contour Light) — контурное свечение: inner и outer."""
 
+import warnings
+
 from PIL import Image, ImageFilter, ImageOps, ImageChops
 
 try:
@@ -222,5 +224,19 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
     return result, glow_size, glow_opacity
 
 
-# A.5: Backward-compatible alias — старое имя было обманчивым
-apply_inner_glow = apply_glow
+# A.5: Backward-compatible alias — устаревшее обманчивое имя.
+# apply_glow() — диспетчер (inner/outer), а не только inner glow.
+# AUDIT-5.5: alias удалён, доступ через __getattr__ с DeprecationWarning.
+
+
+def __getattr__(name):
+    """AUDIT-5.5: Ленивый deprecated alias для apply_inner_glow."""
+    if name == "apply_inner_glow":
+        warnings.warn(
+            "apply_inner_glow устарел — это alias для apply_glow (диспетчер). "
+            "Используйте: from retouch.processing.glow import apply_glow",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return apply_glow
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -105,6 +105,8 @@ class PreviewDiagnostics(BaseModel):
     blue_ratio: float = 0.0
     width: int = 0
     height: int = 0
+    # AUDIT-3.1: face_oval для передачи из preview в export
+    face_oval: Optional[dict] = None
 
 
 class PreviewResponse(BaseModel):

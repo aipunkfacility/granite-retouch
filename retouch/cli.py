@@ -36,18 +36,6 @@ def cmd_process(args):
 
     config = load_config(args.config)
 
-    if args.no_validate:
-        if not os.path.isfile(args.input):
-            print(f"Error: входной файл не найден: {args.input}", file=sys.stderr)
-            sys.exit(1)
-        config_noval = dict(config)
-        proc_noval = dict(config.get("processing", {}))
-        proc_noval["min_blue_ratio"] = 0.0
-        proc_noval["min_resolution"] = 0
-        proc_noval["result_min_black_ratio"] = 0.0
-        config_noval["processing"] = proc_noval
-        config = config_noval
-
     try:
         process(
             args.input, args.output,
@@ -57,6 +45,7 @@ def cmd_process(args):
             config=config,
             fmt=getattr(args, 'format', 'bmp'),
             overwrite=args.overwrite,
+            no_validate=args.no_validate,  # AUDIT-2.1: теперь пробрасывается напрямую
         )
     except ValidationError as e:
         print(f"VALIDATION ERROR: {e}", file=sys.stderr)
@@ -236,6 +225,21 @@ def cmd_order_create(args):
     print(f"  Next: copy source photo to {target_dir}/source.jpg")
 
 
+def _warmup_numba_if_needed(args):
+    """AUDIT-8.4: Прогрев Numba JIT перед обработкой, если нужен дизеринг."""
+    if args.command != "process":
+        return
+    machine = getattr(args, "machine", "laser_standard")
+    if machine in ("laser_80w", "impact"):
+        try:
+            from retouch.processing.export import _error_diffusion_dither
+            from PIL import Image
+            tiny = Image.new("L", (8, 8), 128)
+            _error_diffusion_dither(tiny, [(1, 0, 7/48), (2, 0, 5/48)])
+        except Exception:
+            pass  # Non-critical
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -298,6 +302,7 @@ def main():
     p_ocreate.set_defaults(func=cmd_order_create)
 
     args = parser.parse_args()
+    _warmup_numba_if_needed(args)  # AUDIT-8.4: прогрев Numba JIT
     args.func(args)
 
 

@@ -107,6 +107,8 @@ class PipelineResult:
     shadow_crush_pct: float = 0.0
     tonal_range_output: float = 0.0
     quality_warnings: list[str] = field(default_factory=list)
+    # AUDIT-3.1: Параметры овала лица для передачи preview → export
+    face_oval: dict | None = None
 
     def release_intermediates(self):
         """Освободить память от промежуточных изображений.
@@ -282,8 +284,12 @@ def process_steps(
     else:
         if input_path is None:
             raise ValueError("Нужен либо input_path, либо input_image")
-        validate_image_input(input_path, config)
-        img = Image.open(input_path).convert("RGBA")
+        if not no_validate:
+            validate_image_input(input_path, config)
+        # AUDIT-2.2: контекстный менеджер — файловый дескриптор освобождается
+        # даже при исключении между Image.open() и img.close()
+        with Image.open(input_path) as img_file:
+            img = img_file.convert("RGBA")
 
     width, height = img.size
 
@@ -302,9 +308,7 @@ def process_steps(
         img, threshold=threshold, fringe_radius=fringe_radius,
         mask_soft_sigma=mask_soft_sigma,
     )
-
-    # Закрыть исходное изображение — файловый дескриптор и память больше не нужны.
-    img.close()
+    # img — независимая копия (результат .convert()), закрытие не требуется
 
     # 2. Grayscale
     img_gray = img_chromakey.convert("L")
@@ -509,6 +513,7 @@ def _run_pipeline_steps(
         shadow_crush_pct=quality["shadow_crush_pct"],
         tonal_range_output=quality["tonal_range_output"],
         quality_warnings=quality["quality_warnings"],
+        face_oval=ctx.face_oval,
     )
 
 
@@ -613,6 +618,7 @@ def process_export(
     config: dict | None = None,
     fmt: str = "bmp",
     overwrite: bool = True,
+    no_validate: bool = False,
     **kwargs,
 ) -> PipelineResult:
     """Полная обработка + сохранение BMP/PNG.
@@ -632,6 +638,7 @@ def process_export(
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
         overwrite: D.7 — если False и файл существует, выбрасывает FileExistsError.
             CLI использует --overwrite флаг для управления.
+        no_validate: AUDIT-2.1 — отключить валидацию (пробрасывается в process_steps)
     """
     # D.7: Проверка перезаписи — согласовано с CLI --overwrite
     output = Path(output_path)
@@ -647,6 +654,7 @@ def process_export(
         input_path=input_path,
         machine_type=machine_type,
         config=config,
+        no_validate=no_validate,
         **kwargs,
     )
 
@@ -707,7 +715,7 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
 
 def process(input_path, output_path, machine_type="laser_standard",
             glow_size_override=None, glow_opacity_override=None,
-            config=None, fmt="bmp", overwrite=True):
+            config=None, fmt="bmp", overwrite=True, no_validate=False):
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,
@@ -716,6 +724,7 @@ def process(input_path, output_path, machine_type="laser_standard",
         config=config,
         fmt=fmt,
         overwrite=overwrite,
+        no_validate=no_validate,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
     )

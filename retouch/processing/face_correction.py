@@ -25,12 +25,12 @@ def _shrink_mask(subject_mask, shrink_px):
         eroded = binary_erosion(arr, iterations=shrink_px)
         return Image.fromarray(eroded.astype(np.uint8) * 255)
     else:
-        # Pillow fallback: invert → blur → threshold
-        from PIL import ImageOps
-        inv = ImageOps.invert(subject_mask)
-        blurred = inv.filter(ImageFilter.GaussianBlur(radius=shrink_px))
-        # Threshold at 128 — pixels near edge become 0 in mask
-        return blurred.point(lambda p: 255 if p < 128 else 0, "L")
+        # AUDIT-4.1: Pillow fallback — MinFilter = правильная эрозия
+        # MinFilter(size) берёт минимум в окне — для бинарной маски (0/255)
+        # это эквивалент эрозии: если любой пиксель в окне = 0, результат = 0.
+        from PIL import ImageFilter
+        size = shrink_px * 2 + 1
+        return subject_mask.filter(ImageFilter.MinFilter(size=size))
 
 
 def _curves_correction(arr, correction, highlight_start=200.0, mask=None,

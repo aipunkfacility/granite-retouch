@@ -47,24 +47,28 @@ _DEPRECATED_REEXPORTS = {
 }
 
 
-_reexport_cache: dict = {}
+_reexport_warned: set = set()  # Имена, для которых уже выдан DeprecationWarning
 
 
 def __getattr__(name):
     if name in _DEPRECATED_REEXPORTS:
-        if name not in _reexport_cache:
-            module_path = _DEPRECATED_REEXPORTS[name]
-            import importlib
-            mod = importlib.import_module(module_path)
-            obj = getattr(mod, name)
+        module_path = _DEPRECATED_REEXPORTS[name]
+        import importlib
+        mod = importlib.import_module(module_path)
+        obj = getattr(mod, name)
+        # AUDIT-3.4: Предупреждение только при первом обращении
+        if name not in _reexport_warned:
+            _reexport_warned.add(name)
             warnings.warn(
                 f"Импорт '{name}' из retouch.processing.levels устарел. "
                 f"Используйте: from {module_path} import {name}",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            _reexport_cache[name] = obj
-        return _reexport_cache[name]
+        # Кеширование через globals() — последующие обращения идут
+        # через обычный словарь модуля, __getattr__ не вызывается повторно
+        globals()[name] = obj
+        return obj
     raise AttributeError(f"module 'retouch.processing.levels' has no attribute {name!r}")
 
 

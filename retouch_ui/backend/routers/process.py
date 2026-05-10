@@ -348,6 +348,8 @@ async def preview_image(
         blue_ratio=result.blue_ratio,
         width=result.width,
         height=result.height,
+        # AUDIT-3.1: передать face_oval из preview для использования в export
+        face_oval=result.face_oval,
     )
 
     response_data = {

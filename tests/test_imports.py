@@ -61,9 +61,11 @@ class TestLevelsReExportsDeprecated:
 
     def test_import_check_face_brightness_from_levels_warns(self):
         import warnings
-        # Инвалидируем кеш re-export, чтобы гарантировать DeprecationWarning
+        # AUDIT-3.4: Инвалидируем кешированный атрибут в globals модуля,
+        # чтобы гарантировать DeprecationWarning при следующем обращении
         import retouch.processing.levels as levels_mod
-        levels_mod._reexport_cache.pop("check_face_brightness", None)
+        levels_mod.__dict__.pop("check_face_brightness", None)
+        levels_mod._reexport_warned.discard("check_face_brightness")
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

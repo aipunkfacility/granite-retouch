@@ -29,10 +29,10 @@ processing:
     face_brightness_target_max: 210   # default / документация: 210
     white_ceiling: 235                # default / документация: 235
     face_region_top: 0.45
-    glow_opacity_max: 15
+    glow_opacity_max: 20                  # AUDIT-9.1: приведено к DEFAULTS
     glow_opacity_min: 10
-    glow_size_max: 18
-    glow_size_min: 10
+    glow_size_max: 25                      # AUDIT-9.1: приведено к DEFAULTS
+    glow_size_min: 15
     glow_style: outer
     highlight_start: 160
     dither_method: jarvis          # FIX #9: SOP 4.1
