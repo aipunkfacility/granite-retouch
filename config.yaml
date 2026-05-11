@@ -19,7 +19,7 @@ processing:
     shadow_noise_max: 15
     shadow_noise_threshold: 30
     shadow_floor: 8
-    dither_method: stucki         # FIX #9: SOP 4.1
+    dither_method: none           # 8-bit grayscale для ударных станков (256 уровней силы удара)
   laser_80w:
     stone_gamma: 0.85                 # FIX #8: SOP 5.1
     unsharp_threshold: 3

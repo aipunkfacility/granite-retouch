@@ -107,6 +107,8 @@ class PreviewDiagnostics(BaseModel):
     height: int = 0
     # AUDIT-3.1: face_oval для передачи из preview в export
     face_oval: Optional[dict] = None
+    # Numba availability — False = дизеринг на чистом Python (30-120 сек)
+    numba_available: bool = True
 
 
 class PreviewResponse(BaseModel):

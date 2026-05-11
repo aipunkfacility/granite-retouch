@@ -178,3 +178,37 @@ class TestNumbaJitWarmup:
             loop.run_until_complete(_warmup_numba_jit())
         finally:
             loop.close()
+
+
+class TestNumbaAvailableInDiagnostics:
+    """numba_available в PreviewDiagnostics — предупреждение о медленном дизеринге."""
+
+    def test_preview_diagnostics_has_numba_available_field(self):
+        """PreviewDiagnostics содержит поле numba_available (bool)."""
+        from retouch_ui.backend.schemas import PreviewDiagnostics
+
+        d = PreviewDiagnostics(
+            glow_size=40,
+            glow_opacity=0.35,
+            face_brightness_before=150.0,
+            face_brightness_after=210.0,
+            face_correction_factor=1.15,
+            black_ratio=0.35,
+            blue_ratio=0.5,
+            width=800,
+            height=600,
+            numba_available=True,
+        )
+        assert d.numba_available is True
+
+    def test_numba_available_default_is_true(self):
+        """numba_available по умолчанию True (backward compatible)."""
+        from retouch_ui.backend.schemas import PreviewDiagnostics
+
+        d = PreviewDiagnostics()
+        assert d.numba_available is True
+
+    def test_export_module_exposes_has_numba(self):
+        """export.py экспортирует HAS_NUMBA для использования в backend."""
+        from retouch.processing.export import HAS_NUMBA
+        assert isinstance(HAS_NUMBA, bool)

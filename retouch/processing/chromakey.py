@@ -4,6 +4,8 @@ PERF: uint8 вместо float32 для основного массива — -4
 FIX: Антиалиасная маска через OpenCV contour tracing — гладкий контур без лесенки
 """
 
+import logging
+
 from PIL import Image
 
 try:
@@ -17,6 +19,8 @@ try:
     HAS_CV2 = True
 except ImportError:
     HAS_CV2 = False
+
+logger = logging.getLogger(__name__)
 
 
 def remove_blue_background(img, threshold=30, fringe_radius=3,
@@ -68,6 +72,11 @@ def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
     """
     if not HAS_CV2:
         # Fallback: бинарная маска без антиалиасинга
+        logger.warning(
+            "opencv-python not available, falling back to binary mask — "
+            "contour may have staircase artifacts on diagonals. "
+            "Install: uv sync"
+        )
         return binary_mask.astype(np.uint8) * 255
 
     mask_uint8 = binary_mask.astype(np.uint8) * 255
@@ -90,6 +99,10 @@ def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
     smoothed = cv2.approxPolyDP(main_contour, epsilon, True)
 
     # 4. Растеризовать с антиалиасингом
+    logger.info(
+        "OpenCV: anti-aliased mask created (contours=%d, epsilon=%.4f)",
+        len(contours), smooth_epsilon,
+    )
     result = np.zeros_like(mask_uint8)
     cv2.drawContours(
         result,

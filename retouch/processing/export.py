@@ -2,15 +2,14 @@
 
 Поддерживаемые форматы:
 - BMP 8-bit grayscale (256 оттенков, R=G=B палитра) — для laser_standard
-- BMP 1-bit monochrome (dithered) — для laser_80w и impact
+- BMP 1-bit monochrome (dithered) — для laser_80w
   - Jarvis: плавные переходы, лучший для CO2 (SOP 4.1)
-  - Stucki: чёткие линии, лучший для impact (SOP 4.1)
 - PNG — для предпросмотра (обратно совместимый)
 
 Формат BMP выбирается по dither_method из конфига станка:
   - laser_standard: dither_method='none' → 8-bit grayscale
   - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-  - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
+  - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
 
 FIX #9: Добавлены Stucki и Jarvis dithering
 FIX #10: Upsampling перед дизерингом (SOP 5.2)
@@ -317,7 +316,7 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
     Машины по умолчанию:
     - laser_standard: dither_method='none' → 8-bit grayscale
     - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-    - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
+    - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
 
     Args:
         img: PIL.Image (RGB или L) — финальное изображение от пайплайна

@@ -112,6 +112,15 @@ _preview_cache: OrderedDict[str, dict] = OrderedDict()  # D.6: LRU-кэш — ca
 _PREVIEW_CACHE_MAX = 30  # Максимум записей в кэше
 
 
+def _get_numba_available() -> bool:
+    """Проверить доступность Numba для дизеринга (кешируется)."""
+    try:
+        from retouch.processing.export import HAS_NUMBA
+        return HAS_NUMBA
+    except ImportError:
+        return False
+
+
 def _stable_serialize(params: dict) -> str:
     """D.6: Стабильная сериализация параметров для хэша.
 
@@ -350,6 +359,8 @@ async def preview_image(
         height=result.height,
         # AUDIT-3.1: передать face_oval из preview для использования в export
         face_oval=result.face_oval,
+        # Numba availability — False = дизеринг на чистом Python (медленно)
+        numba_available=_get_numba_available(),
     )
 
     response_data = {

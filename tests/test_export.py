@@ -65,11 +65,17 @@ class TestJarvisDithering:
 class TestDitherMethodConfig:
     """Выбор алгоритма дизеринга из конфига."""
 
-    def test_impact_has_dither_method(self):
-        """Impact: dither_method = stucki."""
+    def test_impact_dither_method_is_none(self):
+        """Impact: dither_method=none → 8-bit grayscale (256 уровней силы удара).
+
+        Ударные станки требуют BMP 8-bit grayscale. dither_method=stucki
+        давал 1-bit файл — все полутона лица терялись при дизеринге.
+        """
         config = load_config()
         method = config["processing"]["impact"].get("dither_method", "")
-        assert method == "stucki", f"impact dither_method должен быть stucki, got {method}"
+        assert method == "none", (
+            f"impact.dither_method='{method}', ожидается 'none' (8-bit grayscale для ударных станков)"
+        )
 
     def test_laser_80w_has_dither_method(self):
         """Laser 80W: dither_method = jarvis."""
@@ -82,6 +88,48 @@ class TestDitherMethodConfig:
         config = load_config()
         method = config["processing"]["laser_standard"].get("dither_method", "none")
         assert method == "none", f"laser_standard не должен иметь dither, got {method}"
+
+
+class TestExportFormatByMachine:
+    """Проверка формата BMP по machine_type — impact=8bit, laser_80w=1bit, laser_standard=8bit."""
+
+    def test_impact_produces_8bit_not_1bit(self, tmp_path):
+        """impact + dither_method=none → BMP 8-bit grayscale, не 1-bit."""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 180)
+        out = str(tmp_path / "impact.bmp")
+        export_result(img, out, machine_type="impact", fmt="bmp", dither_method="none")
+        with Image.open(out) as bmp:
+            assert bmp.mode != "1", f"Impact даёт 1-bit! mode={bmp.mode} — нужен 8-bit grayscale"
+            assert bmp.mode in ("L", "P"), f"Ожидался L/P, получили {bmp.mode}"
+
+    def test_impact_stucki_produces_1bit(self, tmp_path):
+        """impact + dither_method=stucki → 1-bit (подтверждение что баг был)."""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 180)
+        out = str(tmp_path / "impact_stucki.bmp")
+        export_result(img, out, machine_type="impact", fmt="bmp", dither_method="stucki")
+        with Image.open(out) as bmp:
+            assert bmp.mode == "1", f"Stucki должен давать 1-bit, got {bmp.mode}"
+
+    def test_laser_80w_produces_1bit(self, tmp_path):
+        """laser_80w + dither_method=jarvis → 1-bit BMP."""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 180)
+        out = str(tmp_path / "laser80w.bmp")
+        export_result(img, out, machine_type="laser_80w", fmt="bmp",
+                      dither_method="jarvis", dither_upsample=1)
+        with Image.open(out) as bmp:
+            assert bmp.mode == "1"
+
+    def test_laser_standard_produces_8bit(self, tmp_path):
+        """laser_standard + dither_method=none → 8-bit BMP."""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 200)
+        out = str(tmp_path / "laser_std.bmp")
+        export_result(img, out, machine_type="laser_standard", fmt="bmp", dither_method="none")
+        with Image.open(out) as bmp:
+            assert bmp.mode in ("L", "P")
 
 
 class TestDitherUpsampling:

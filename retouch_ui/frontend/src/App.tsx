@@ -191,6 +191,14 @@ export default function App() {
         </div>
       )}
 
+      {/* Numba not available banner */}
+      {previewResult?.diagnostics && !previewResult.diagnostics.numba_available && (
+        <div className="bg-yellow-500/10 text-yellow-700 px-6 py-2 text-sm border-b border-yellow-500/20 flex items-center gap-2">
+          <i className="ri-speed-line" />
+          Дизеринг без Numba — медленно (30–120 сек). Установите: <code className="bg-yellow-500/20 px-1 rounded">uv sync --extra fast</code>
+        </div>
+      )}
+
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar: parameters */}

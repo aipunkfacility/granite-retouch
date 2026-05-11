@@ -1,5 +1,7 @@
 """Тесты модуля chromakey — удаление синего фона + fringe removal + софт-маска."""
 
+import logging
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -381,3 +383,17 @@ class TestSmoothMask:
         # Снаружи — 0
         assert result_min[5, 5] == 0
         assert result_max[5, 5] == 0
+
+    def test_cv2_fallback_logs_warning(self, monkeypatch, caplog):
+        """При отсутствии cv2 _make_smooth_mask логирует warning о лесенке на контуре."""
+        import retouch.processing.chromakey as ck
+        monkeypatch.setattr(ck, "HAS_CV2", False)
+        mask = np.zeros((50, 50), dtype=bool)
+        mask[10:40, 10:40] = True
+        with caplog.at_level(logging.WARNING, logger="retouch.processing.chromakey"):
+            result = ck._make_smooth_mask(mask, smooth_epsilon=0.002)
+        assert result.dtype == np.uint8
+        assert any(
+            "opencv" in r.message.lower() or "cv2" in r.message.lower() or "fallback" in r.message.lower()
+            for r in caplog.records
+        ), f"Ожидался warning о fallback cv2, записи: {[r.message for r in caplog.records]}"

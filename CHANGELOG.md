@@ -12,6 +12,7 @@
 - **Параметр `mask_soft_sigma`** в config.yaml (0–5.0, дефолт 1.5): ширина размытия краёв subject_mask
 - **`PipelineResult.face_oval`** (AUDIT-3.1): параметры овала лица передаются из preview в export без повторной детекции
 - **CLI `--face-oval`**: ручное задание овала лица `CX,CY,RX,RY` (нормализованные 0–1)
+- **`numba_available` в Web UI**: `PreviewDiagnostics` содержит флаг доступности Numba — при False показывается баннер «Дизеринг медленно, установите uv sync --extra fast»
 
 ### 🐛 Исправления
 
@@ -20,6 +21,8 @@
 - **laser_80w: glow_size рассинхрон** (AUDIT-9.1): `config.yaml` приведён к DEFAULTS (`glow_size_min=15, glow_size_max=25`)
 - **Face correction: след маски на лице**: мягкая маска (float 0-1) вместо бинарной (bool) — градиентный переход без видимого скачка яркости
 - **`no_validate` не пробрасывался** (AUDIT-2.1): CLI флаг `--no-validate` теперь доходит до `process_steps()`
+- **impact dither_method: stucki → none**: ударные станки требуют 8-bit grayscale (256 уровней силы удара), а stucki давал 1-bit — все полутона лица терялись при дизеринге
+- **cv2 fallback warning**: если opencv-python не установлен, `_make_smooth_mask()` теперь логирует warning о возможной лесенке на контуре
 
 ### 🔧 Изменения
 

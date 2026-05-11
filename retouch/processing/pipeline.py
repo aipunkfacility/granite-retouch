@@ -629,7 +629,7 @@ def process_export(
     Формат BMP зависит от dither_method в конфиге станка:
     - laser_standard: dither_method='none' → 8-bit grayscale
     - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-    - impact: dither_method='stucki' → 1-bit BMP с Stucki dithering
+    - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
     Промежуточные изображения освобождаются для экономии памяти.
 
     Args:
