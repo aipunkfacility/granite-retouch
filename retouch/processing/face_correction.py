@@ -27,7 +27,8 @@ def _shrink_mask(subject_mask, shrink_px):
         # Эрозия = инвертировать → blur → порог → инвертировать
         inv = 1.0 - arr_float
         blurred = gaussian_filter(inv, sigma=shrink_px)
-        eroded = blurred < 0.5
+        # Порог erfc(1/√2)/2 ≈ 0.159: при sigma=shrink_px эрозия ровно на shrink_px пикселей
+        eroded = blurred < 0.1587
         return Image.fromarray(eroded.astype(np.uint8) * 255)
     else:
         # Pillow fallback: invert → blur → threshold
@@ -36,7 +37,8 @@ def _shrink_mask(subject_mask, shrink_px):
         from PIL import ImageOps, ImageFilter
         inv = ImageOps.invert(subject_mask)
         blurred = inv.filter(ImageFilter.GaussianBlur(radius=shrink_px))
-        return blurred.point(lambda p: 255 if p < 128 else 0, "L")
+        # Порог ≈40 (0.1587 * 255): при sigma=shrink_px эрозия ровно на shrink_px пикселей
+        return blurred.point(lambda p, _t=40: 255 if p < _t else 0, "L")
 
 
 def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
@@ -242,6 +244,8 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 feather_radius = max(5, glow_size // 4) if glow_size > 0 else 10
                 soft_mask = _gf(face_mask.astype(np.float32), sigma=feather_radius)
                 correction_mask_arr = np.clip(soft_mask, 0, 1)
+                # Не позволяем мягкой маске «затекать» за границы субъекта
+                correction_mask_arr = correction_mask_arr * full_subject_mask.astype(np.float32)
             except ImportError:
                 correction_mask_arr = face_mask  # bool fallback
 
