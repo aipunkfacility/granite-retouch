@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def test_cli_process_creates_bmp_output():
         img.save(input_path)
 
         result = subprocess.run(
-            ["python", "-m", "retouch", "process",
+            [sys.executable, "-m", "retouch", "process",
              "-i", str(input_path), "-o", str(output_path), "-m", "laser_standard"],
             capture_output=True, text=True, timeout=30,
         )
@@ -46,7 +47,7 @@ def test_cli_process_bmp_1bit_for_laser_80w():
         img.save(input_path)
 
         result = subprocess.run(
-            ["python", "-m", "retouch", "process",
+            [sys.executable, "-m", "retouch", "process",
              "-i", str(input_path), "-o", str(output_path), "-m", "laser_80w"],
             capture_output=True, text=True, timeout=30,
         )
@@ -69,7 +70,7 @@ def test_cli_process_png_format():
         img.save(input_path)
 
         result = subprocess.run(
-            ["python", "-m", "retouch", "process",
+            [sys.executable, "-m", "retouch", "process",
              "-i", str(input_path), "-o", str(output_path),
              "-m", "laser_standard", "-f", "png"],
             capture_output=True, text=True, timeout=30,

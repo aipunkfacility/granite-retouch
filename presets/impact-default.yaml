@@ -1,13 +1,26 @@
+# Канонический пресет для ударной гравировки (impact)
+# Явно дублирует DEFAULTS — для прозрачности и защиты от случайных изменений DEFAULTS
+description: "Стандартные параметры для ударного станка (Sauno, Zubr, Mirtels). \
+  Пиксель-точка — игла бьёт с силой пропорционально яркости (256 уровней)."
+
 processing:
   impact:
-    brightness: 1.00
+    stone_gamma: 0.90
+    face_brightness_target_min: 200
+    face_brightness_target_max: 225
+    white_ceiling: 240
+    highlight_start: 200
+    shadow_floor: 8
+    shadow_noise_min: 5
+    shadow_noise_max: 15
+    shadow_noise_threshold: 30
+    dither_method: none      # 8-bit grayscale: 256 уровней силы удара
     glow_size_min: 10
     glow_size_max: 25
     glow_opacity_min: 60
     glow_opacity_max: 80
-    face_brightness_target_min: 120
-    face_brightness_target_max: 145
-    highlight_start: 160
+    glow_style: outer
+
 vignette:
   vertical_offset: 0.10
   vertical_diameter: 0.50

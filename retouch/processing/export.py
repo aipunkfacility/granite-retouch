@@ -356,7 +356,7 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
                       dither_method=method, dither_upsample=dither_upsample)
     elif fmt == "bmp" and dither_method and dither_method != "none":
         # Конфиг станка требует дизеринг → 1-bit BMP
-        # laser_80w (jarvis), impact (stucki)
+        # laser_80w (jarvis dithering)
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=dither_method, dither_upsample=dither_upsample)
     else:

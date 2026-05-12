@@ -14,7 +14,7 @@ processing:
     glow_size_max: 25
     glow_size_min: 10
     glow_style: outer
-    highlight_start: 160
+    highlight_start: 200
     shadow_noise_min: 5
     shadow_noise_max: 15
     shadow_noise_threshold: 30
@@ -34,7 +34,7 @@ processing:
     glow_size_max: 25                      # AUDIT-9.1: приведено к DEFAULTS
     glow_size_min: 15
     glow_style: outer
-    highlight_start: 160
+    highlight_start: 195
     dither_method: jarvis          # FIX #9: SOP 4.1
     dither_upsample: 2              # FIX #10: SOP 5.2
   laser_standard:

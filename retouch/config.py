@@ -64,7 +64,7 @@ DEFAULTS = {
             "face_brightness_target_max": 210,
             "white_ceiling": 235,
             "face_region_top": 0.45,
-            "highlight_start": 160,
+            "highlight_start": 195,
             "dither_method": "jarvis",  # FIX #9: SOP 4.1
             "dither_upsample": 2,  # FIX #10: SOP 5.2
         },
@@ -79,12 +79,12 @@ DEFAULTS = {
             "face_brightness_target_max": 225,
             "white_ceiling": 240,
             "face_region_top": 0.45,
-            "highlight_start": 160,
+            "highlight_start": 200,
             "shadow_noise_min": 5,
             "shadow_noise_max": 15,
             "shadow_noise_threshold": 30,  # A.1: порог для shadow noise
             "shadow_floor": 8,  # A.2: минимальная яркость для impact
-            "dither_method": "stucki",  # FIX #9: SOP 4.1
+            "dither_method": "none",  # FIX #9: 8-bit BMP, без дизеринга
         },
     },
     "machine": {
@@ -175,13 +175,13 @@ if HAS_PYDANTIC:
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
             glow_style="outer", stone_gamma=0.85, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
-            white_ceiling=235, highlight_start=160, dither_method="jarvis", dither_upsample=2))
+            white_ceiling=235, highlight_start=195, dither_method="jarvis", dither_upsample=2))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
             glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
-            white_ceiling=240, highlight_start=160,
-            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="stucki"))
+            white_ceiling=240, highlight_start=200,
+            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="none"))
 
     class MachineGlobalConfig(BaseModel):
         step_mm: float = Field(0.300, ge=0.10, le=0.50)

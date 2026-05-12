@@ -2,7 +2,7 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
-## [5.0.0-dev] - 2026-05-11
+## [5.0.0] - 2026-05-12
 
 ### ✨ Новые возможности
 
@@ -16,16 +16,19 @@
 
 ### 🐛 Исправления
 
+- **impact dither_method: stucki → none** (FIX-1): ударные станки требуют 8-bit grayscale (256 уровней силы удара), а stucki давал 1-bit — все полутона лица терялись. 8-bit BMP теперь стандарт для impact
+- **laser_80w и impact: highlight_start исправлен (160→195/200)** (FIX-5): коррекция яркости теперь достигает целевого диапазона лица (190–225). Формула: `white_ceiling - 40`
 - **Лесенка на контуре портрета**: `scipy.binary_dilation/erosion` с крестовым ядром → OpenCV LINE_AA с субпиксельным антиалиасингом. Старый GaussianBlur-подход давал alpha=1-2 вместо значимых 50-200
 - **Утечка файлового дескриптора** (AUDIT-2.2): `Image.open()` в контекстном менеджере — файл освобождается даже при исключении
 - **laser_80w: glow_size рассинхрон** (AUDIT-9.1): `config.yaml` приведён к DEFAULTS (`glow_size_min=15, glow_size_max=25`)
 - **Face correction: след маски на лице**: мягкая маска (float 0-1) вместо бинарной (bool) — градиентный переход без видимого скачка яркости
 - **`no_validate` не пробрасывался** (AUDIT-2.1): CLI флаг `--no-validate` теперь доходит до `process_steps()`
-- **impact dither_method: stucki → none**: ударные станки требуют 8-bit grayscale (256 уровней силы удара), а stucki давал 1-bit — все полутона лица терялись при дизеринге
 - **cv2 fallback warning**: если opencv-python не установлен, `_make_smooth_mask()` теперь логирует warning о возможной лесенке на контуре
 
 ### 🔧 Изменения
 
+- **Пресеты упрощены до 3 канонических** (FIX-2+3): удалены `laser-dark-portrait` и `impact-soft` (неопределённая семантика). Оставшиеся пресеты (`laser-default`, `laser-80w-default`, `impact-default`) переписаны как явные зеркала DEFAULTS с полем `description`
+- **Ключ `brightness` объявлен deprecated**: заменён на `stone_gamma` (1/brightness) во всём проекте. Автомиграция сохранена для обратной совместимости до v6.0.0
 - **Web UI: Windows-фикс**: запуск через `python -m uvicorn` вместо `uv run uvicorn` (Windows теряет venv в child process)
 - **Numba JIT warmup**: прогрев при старте backend (FastAPI lifespan) и CLI — первый экспорт с дизерингом без задержки
 - **Deprecated reexports** (AUDIT-3.4): `_reexport_cache` заменён на `globals()` + `__getattr__` с `_DEPRECATED_REEXPORTS` dict
@@ -34,8 +37,8 @@
 
 ### 🧪 Тестирование
 
-- **365+ автотестов** (было 266+) + 31 backend API тест
-- Новые тесты chromakey: `TestSmoothMask` (5 тестов), `test_mask_significant_intermediate_values`, `test_no_staircase_on_diagonal`
+- **375+ автотестов** (было 266+) + 31 backend API тест
+- Новые тесты инвариантов: `test_config_defaults_sync.py`, `test_shadow_noise_invariants.py`
 - Проверка реального антиалиасинга: промежуточные значения >10 на контуре (не только 1-2)
 
 ## [5.0.0] - 2026-05-08

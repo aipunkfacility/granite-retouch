@@ -102,7 +102,7 @@ img_gray = img.convert("L")
 
 Параметры зависят от типа станка и аналитики:
 - **Laser Standard:** glow 40–80px, opacity 30–40% (широкий, мягкий)
-- **Laser 80W:** фиксированные параметры (20, 15) — мощный лазер сам создаёт контраст
+- **Laser 80W:** фиксированные параметры (20, 15) — мощный лазер сам создаёт контраст. Glow фиксирован на середине диапазона для обеспечения детерминированности (D.1).
 - **Impact:** параметры зависят от `subject_separation` и `tonal_range` — при низкой сепарации glow усиливается
 
 ### 6. Levels (яркость)
@@ -110,7 +110,7 @@ img_gray = img.convert("L")
 **Модуль:** `retouch/processing/levels.py`
 
 Фактор яркости вычисляется из analytics (адаптивный режим):
-- `target_pre_fb`: laser_standard=210, laser_80w=190, impact=190
+- `target_pre_fb`: laser_standard=210, laser_80w=170, impact=180
 - `factor = target_pre_fb / median_brightness`, ограничен диапазоном [0.70, 1.35]
 - Защита от клиппинга: если `p90 * factor > 250` → фактор снижается
 - Без analytics — legacy mode (фиксированный `brightness_factor` из конфига)
@@ -134,9 +134,10 @@ img_gray = img.convert("L")
   - Это поднимает лицо (тёмное) без пересвета воротника (светлого)
 - Масочная защита: коррекция применяется только внутри `subject_mask`
 - Целевые диапазоны по типу станка:
-  - **Laser Standard:** 230–245, white_ceiling: 250
-  - **Laser 80W:** 190–210, white_ceiling: 235
-  - **Impact:** 200–225, white_ceiling: 240
+  - **Laser Standard:** 230–245, white_ceiling: 250, highlight_start: 210
+  - **Laser 80W:** 190–210, white_ceiling: 235, highlight_start: 195
+  - **Impact:** 200–225, white_ceiling: 240, highlight_start: 200
+- **highlight_start** теперь вычисляется по формуле `white_ceiling - 40`, чтобы коррекция уровней плавно затухала только после достижения целевой яркости лица. Это гарантирует, что яркое лицо не будет «задушено» защитой от пересвета слишком рано.
 
 ### 8. Unsharp Mask (адаптивный)
 
