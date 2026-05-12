@@ -30,6 +30,7 @@ export interface MachineParams {
   highlight_start: ParamRange;
   white_ceiling: ParamRange;
   glow_style: ParamToggle;  // 0=outer, 1=inner — сегментный контрол
+  unsharp_threshold: ParamRange;  // Advanced — порог резкости
 }
 
 /** Impact-specific extra parameters */
@@ -99,7 +100,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     legacy_step_order: { min: 0, max: 1, step: 1, label: "Старый порядок шагов", unit: "(0/1)" },
     min_resolution: { min: 256, max: 1024, step: 64, label: "Мин. разрешение", unit: "px" },
     result_min_black_ratio: { min: 0, max: 0.5, step: 0.01, label: "Мин. доля чёрного", unit: "" },
-    mask_soft_sigma: { min: 0, max: 4, step: 0.1, label: "Мягкость краёв маски", unit: "σ" },
+    mask_soft_sigma: { min: 0, max: 5, step: 0.1, label: "Мягкость краёв маски", unit: "σ" },
     contour_smooth_epsilon: { min: 0.001, max: 0.01, step: 0.001, label: "Сглаживание контура", unit: "" },
     laser_standard: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -113,6 +114,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
       glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
     },
     laser_80w: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -126,6 +128,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
       glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
     },
     impact: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -139,6 +142,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
       glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
       shadow_noise_min: { min: 0, max: 30, step: 1, label: "Шум теней: мин", unit: "" },
       shadow_noise_max: { min: 0, max: 30, step: 1, label: "Шум теней: макс", unit: "" },
       shadow_noise_threshold: { min: 10, max: 80, step: 1, label: "Порог шума теней", unit: "" },

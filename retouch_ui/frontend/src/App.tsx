@@ -231,11 +231,6 @@ export default function App() {
     ? { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) }
     : {};
 
-  // Get current preview image
-  const currentPreviewImage = selectedStep === "dithered" && ditherImageUrl
-    ? ditherImageUrl
-    : undefined;
-
   // Layout: sidebar left (params) + main area (image) right
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">

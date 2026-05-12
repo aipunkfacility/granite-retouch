@@ -78,6 +78,6 @@ Tailwind CSS 4, CSS-переменные для тем, сетка 4px.
 
 1. [Remix Icon](https://remixicon.com/) — основная библиотека иконок
 2. [Inter Typeface](https://rsms.me/inter/) — основной шрифт
-3. [Outfit Typeface](https://rsms.me/inter/) — шрифт заголовков
+3. [Outfit Typeface](https://outfit.fontby.com/) — шрифт заголовков
 4. [Tailwind CSS v4.0](https://tailwindcss.com/blog/tailwindcss-v4-alpha) — спецификация стилей
 5. [shadcn/ui](https://ui.shadcn.com/) — компонентная база CRM
