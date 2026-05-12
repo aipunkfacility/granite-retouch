@@ -565,12 +565,15 @@ def process_preview(
     machine_cfg = config.get("processing", {}).get(machine_type, {})
 
     # D.1: Фиксируем glow для стабильного preview (deterministic)
-    glow_min = machine_cfg.get("glow_size_min", 40)
-    glow_max = machine_cfg.get("glow_size_max", 80)
+    # Fallback из DEFAULTS по machine_type, а не хардкод laser_standard (40, 80, 30, 40)
+    from retouch.config import DEFAULTS as _DEFAULTS
+    _fb = _DEFAULTS["processing"].get(machine_type, _DEFAULTS["processing"]["laser_standard"])
+    glow_min = machine_cfg.get("glow_size_min", _fb["glow_size_min"])
+    glow_max = machine_cfg.get("glow_size_max", _fb["glow_size_max"])
     glow_mid = (glow_min + glow_max) // 2
 
-    opacity_min = machine_cfg.get("glow_opacity_min", 30)
-    opacity_max = machine_cfg.get("glow_opacity_max", 40)
+    opacity_min = machine_cfg.get("glow_opacity_min", _fb["glow_opacity_min"])
+    opacity_max = machine_cfg.get("glow_opacity_max", _fb["glow_opacity_max"])
     opacity_mid = (opacity_min + opacity_max) // 2
 
     # Открываем изображение ОДИН раз через контекстный менеджер —
