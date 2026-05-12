@@ -10,7 +10,7 @@ except ImportError:
     HAS_YAML = False
 
 try:
-    from pydantic import BaseModel, Field
+    from pydantic import BaseModel, Field, field_validator
     HAS_PYDANTIC = True
 except ImportError:
     HAS_PYDANTIC = False
@@ -144,6 +144,14 @@ if HAS_PYDANTIC:
         glow_opacity_min: int = Field(30, ge=10, le=100)
         glow_opacity_max: int = Field(40, ge=10, le=100)
         glow_style: str = Field("outer", pattern="^(inner|outer)$")
+
+        @field_validator("glow_style", mode="before")
+        @classmethod
+        def _coerce_glow_style(cls, v):
+            """Accept int 0/1 from legacy frontend toggle (0=outer, 1=inner)."""
+            if isinstance(v, int):
+                return "inner" if v else "outer"
+            return v
         stone_gamma: float = Field(0.88, ge=0.5, le=1.5)  # FIX #8
         unsharp_threshold: int = Field(3, ge=0, le=20)  # FIX #11: SOP 3.1
         target_pre_fb: int = Field(160, ge=60, le=220)

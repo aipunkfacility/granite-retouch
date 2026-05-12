@@ -127,7 +127,7 @@ export default function App() {
   );
 
   const handleConfigChangeByPath = useCallback(
-    (path: string[], value: number) => {
+    (path: string[], value: number | string) => {
       const newConfig = JSON.parse(JSON.stringify(config));
       let obj: ConfigTree = newConfig;
       for (let i = 0; i < path.length - 1; i++) {

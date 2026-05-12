@@ -17,7 +17,7 @@ export interface FaceOvalParams {
  * Replaces Record<string, any> throughout the frontend to enable
  * TypeScript checking on config access paths.
  */
-export type ConfigValue = number | ConfigTree;
+export type ConfigValue = number | string | ConfigTree;
 export interface ConfigTree {
   [key: string]: ConfigValue;
 }

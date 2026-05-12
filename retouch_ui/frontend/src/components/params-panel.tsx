@@ -6,7 +6,7 @@ import { useState } from "react";
 interface Props {
   machineType: MachineType;
   config: ConfigTree;
-  onConfigChange: (path: string[], value: number) => void;
+  onConfigChange: (path: string[], value: number | string) => void;
   vignetteOverlayEnabled: boolean;
   onVignetteOverlayToggle: (enabled: boolean) => void;
   faceOvalOverlayEnabled: boolean;
@@ -55,7 +55,7 @@ export function ParamsPanel({
     </div>
   );
 
-  const renderToggle = (path: string[], param: ParamToggle, value: number) => (
+  const renderToggle = (path: string[], param: ParamToggle, value: string) => (
     <div key={path.join(".")} className="space-y-1">
       <label className="text-sm text-text-secondary">{param.label}</label>
       <div className="flex gap-1">
@@ -91,9 +91,10 @@ export function ParamsPanel({
     return null;
   };
 
-  const getValue = (path: string[]): number => {
+  const getValue = (path: string[]): number | string => {
     let obj: unknown = config;
     for (const key of path) obj = (obj as Record<string, unknown>)?.[key];
+    if (typeof obj === "string") return obj;
     return typeof obj === "number" ? obj : 0;
   };
 

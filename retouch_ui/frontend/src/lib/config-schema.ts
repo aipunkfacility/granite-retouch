@@ -10,7 +10,7 @@ export interface ParamRange {
 /** Toggle parameter (on/off or option switch) */
 export interface ParamToggle {
   type: "toggle";
-  options: { value: number; label: string }[];
+  options: { value: string; label: string }[];
   label: string;
 }
 
@@ -29,7 +29,7 @@ export interface MachineParams {
   face_region_top: ParamRange;
   highlight_start: ParamRange;
   white_ceiling: ParamRange;
-  glow_style: ParamToggle;  // 0=outer, 1=inner — сегментный контрол
+  glow_style: ParamToggle;  // "outer"/"inner" — сегментный контрол
   unsharp_threshold: ParamRange;  // Advanced — порог резкости
 }
 
@@ -113,7 +113,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      glow_style: { type: "toggle", options: [{ value: "outer", label: "Outer" }, { value: "inner", label: "Inner" }], label: "Стиль Glow" },
       unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
     },
     laser_80w: {
@@ -127,7 +127,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      glow_style: { type: "toggle", options: [{ value: "outer", label: "Outer" }, { value: "inner", label: "Inner" }], label: "Стиль Glow" },
       unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
     },
     impact: {
@@ -141,7 +141,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
+      glow_style: { type: "toggle", options: [{ value: "outer", label: "Outer" }, { value: "inner", label: "Inner" }], label: "Стиль Glow" },
       unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
       shadow_noise_min: { min: 0, max: 30, step: 1, label: "Шум теней: мин", unit: "" },
       shadow_noise_max: { min: 0, max: 30, step: 1, label: "Шум теней: макс", unit: "" },
