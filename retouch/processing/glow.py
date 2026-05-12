@@ -4,11 +4,7 @@ import warnings
 
 from PIL import Image, ImageFilter, ImageOps, ImageChops
 
-try:
-    import numpy as np
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
+import numpy as np
 
 
 def _calculate_glow_params(analytics: dict, machine_type: str,
@@ -18,41 +14,57 @@ def _calculate_glow_params(analytics: dict, machine_type: str,
     Рандомизация убрана — glow всегда одинаковый при одинаковых входных
     данных. Это гарантирует preview-export consistency (D.1).
 
+    Все machine_type читают glow-диапазоны из machine_cfg с fallback на
+    DEFAULTS. Результат — точка внутри диапазона, определяемая аналитикой:
+    - laser_standard: позиция в диапазоне по tonal_range
+    - laser_80w: midpoint диапазона (нет адаптивной логики)
+    - impact: позиция в диапазоне по subject_separation
+
     Args:
         analytics: dict с метриками от analyze_input()
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
-        machine_cfg: dict — параметры станка из config.yaml. Для laser_80w
-            glow_size_min/max и glow_opacity_min/max читаются из конфига
-            вместо захардкоженных значений.
+        machine_cfg: dict — параметры станка из config.yaml
 
     Returns:
         tuple: (glow_size, glow_opacity_percent) — размер и непрозрачность в %%
     """
-    if machine_type == 'laser_80w':
-        cfg = machine_cfg or {}
-        glow_min = cfg.get('glow_size_min', 15)
-        glow_max = cfg.get('glow_size_max', 25)
-        opacity_min = cfg.get('glow_opacity_min', 10)
-        opacity_max = cfg.get('glow_opacity_max', 20)
-        return ((glow_min + glow_max) // 2, (opacity_min + opacity_max) // 2)
+    from retouch.config import DEFAULTS
+
+    # Fallback на DEFAULTS если machine_cfg не передан или неполный
+    fb = DEFAULTS["processing"].get(
+        machine_type, DEFAULTS["processing"]["laser_standard"]
+    )
+    cfg = machine_cfg or {}
+    glow_min = cfg.get('glow_size_min', fb['glow_size_min'])
+    glow_max = cfg.get('glow_size_max', fb['glow_size_max'])
+    opacity_min = cfg.get('glow_opacity_min', fb['glow_opacity_min'])
+    opacity_max = cfg.get('glow_opacity_max', fb['glow_opacity_max'])
 
     if machine_type == 'impact':
+        # Impact: больше separation → меньше glow (субъект хорошо отделён)
         separation = analytics.get('subject_separation', 150)
         if separation > 80:
-            return (14, 65)   # midpoint(10..18), midpoint(60..70)
+            t = 0.25   # ближе к min диапазона
         elif separation > 40:
-            return (20, 70)   # midpoint(15..25), midpoint(65..75)
+            t = 0.50   # середина диапазона
         else:
-            return (25, 77)   # midpoint(20..30), midpoint(70..85)
-
-    # laser_standard: by tonal_range
-    tonal_range = analytics.get('tonal_range', 100)
-    if tonal_range > 120:
-        return (40, 25)   # midpoint(30..50), midpoint(20..30)
-    elif tonal_range > 80:
-        return (50, 35)   # midpoint(40..60), midpoint(30..40)
+            t = 0.75   # ближе к max диапазона
+    elif machine_type == 'laser_standard':
+        # Laser standard: шире tonal_range → больше glow
+        tonal_range = analytics.get('tonal_range', 100)
+        if tonal_range > 120:
+            t = 0.0    # узкий диапазон → минимальный glow
+        elif tonal_range > 80:
+            t = 0.5    # средний → midpoint
+        else:
+            t = 1.0    # широкий → максимальный glow
     else:
-        return (65, 40)   # midpoint(50..80), midpoint(35..45)
+        # laser_80w: простой midpoint
+        t = 0.5
+
+    glow_size = int(glow_min + t * (glow_max - glow_min))
+    glow_opacity = int(opacity_min + t * (opacity_max - opacity_min))
+    return (glow_size, glow_opacity)
 
 
 def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
@@ -87,12 +99,9 @@ def apply_outer_glow(img_gray, subject_mask, glow_size=20, glow_opacity=0.35):
     glow_mask = ImageChops.subtract(blurred_mask, subject_mask)
 
     # Масштабируем по opacity (numpy вместо point(lambda) — ~10x быстрее)
-    if HAS_NUMPY:
-        glow_arr = np.array(glow_mask, dtype=np.float32)
-        glow_arr = np.minimum(255.0, glow_arr * glow_opacity).astype(np.uint8)
-        glow_mask = Image.fromarray(glow_arr)
-    else:
-        glow_mask = glow_mask.point(lambda p: min(255, int(p * glow_opacity)))
+    glow_arr = np.array(glow_mask, dtype=np.float32)
+    glow_arr = np.minimum(255.0, glow_arr * glow_opacity).astype(np.uint8)
+    glow_mask = Image.fromarray(glow_arr)
 
     # Composite: белое свечение через glow_mask поверх оригинала
     img_with_glow = Image.composite(
@@ -119,22 +128,10 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     Returns:
         PIL.Image: grayscale с Inner Glow
     """
-    if not HAS_NUMPY:
-        # Pillow fallback — упрощённая версия
-        blurred_mask = subject_mask.filter(
-            ImageFilter.GaussianBlur(radius=glow_size)
-        )
-        # Композит: яркое свечение через размытую маску
-        glow_layer = Image.new('L', img_gray.size, glow_color)
-        result = Image.composite(glow_layer, img_gray, blurred_mask)
-        if glow_opacity < 1.0:
-            result = Image.blend(img_gray, result, glow_opacity)
-        return result
-
     mask_arr = np.array(subject_mask) > 128
 
     # Сжимаем маску — внутренний край = разница
-    # GaussianBlur вместо binary_erosion — изотропная, без лесенки
+    # GaussianBlur вместо binary_erosion — изотропная, без лесеньки
     from scipy.ndimage import gaussian_filter
     iterations = max(1, glow_size // 2)
     inv = 1.0 - mask_arr.astype(np.float32)
@@ -197,11 +194,19 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
         glow_size, glow_opacity_pct = _calculate_glow_params(analytics, machine_type, machine_cfg)
         glow_opacity = glow_opacity_pct / 100
     else:
-        # D.1: Детерминированный fallback — midpoint диапазона из конфига
-        glow_size_min = machine_cfg.get("glow_size_min", 40)
-        glow_size_max = machine_cfg.get("glow_size_max", 80)
-        glow_opacity_min = machine_cfg.get("glow_opacity_min", 30)
-        glow_opacity_max = machine_cfg.get("glow_opacity_max", 40)
+        # D.1: Детерминированный fallback — midpoint диапазона из конфига.
+        # Fallback-значения берём из DEFAULTS по machine_type, а не хардкодим
+        # laser_standard (40, 80, 30, 40) — это давало неверные значения для
+        # impact (10, 25, 60, 80) и laser_80w (15, 25, 10, 20).
+        from retouch.config import DEFAULTS
+        _fb = DEFAULTS["processing"].get(
+            machine_type or "laser_standard",
+            DEFAULTS["processing"]["laser_standard"],
+        )
+        glow_size_min = machine_cfg.get("glow_size_min", _fb["glow_size_min"])
+        glow_size_max = machine_cfg.get("glow_size_max", _fb["glow_size_max"])
+        glow_opacity_min = machine_cfg.get("glow_opacity_min", _fb["glow_opacity_min"])
+        glow_opacity_max = machine_cfg.get("glow_opacity_max", _fb["glow_opacity_max"])
 
         glow_size = glow_size_override or (glow_size_min + glow_size_max) // 2
         glow_opacity = (glow_opacity_override / 100) if glow_opacity_override else (

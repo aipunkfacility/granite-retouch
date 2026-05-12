@@ -64,7 +64,7 @@ class TestCalculateGlowParamsLaser80wConfig:
         )
 
     def test_laser_80w_default_config_matches_current_hardcode(self):
-        """При дефолтном конфиге результат = текущий хардкод (20, 15)."""
+        """При дефолтном конфиге результат = midpoint диапазона DEFAULTS."""
         from retouch.processing.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         default_cfg = {
@@ -81,19 +81,61 @@ class TestCalculateGlowParamsLaser80wConfig:
         result = _calculate_glow_params(analytics, 'laser_80w')
         assert result == (20, 15)
 
-    def test_laser_standard_unchanged_by_refactor(self):
-        """laser_standard не затронут — поведение сохраняется."""
+    def test_laser_standard_uses_config_ranges(self):
+        """laser_standard читает glow-диапазоны из конфига, а не хардкод."""
         from retouch.processing.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
-        result = _calculate_glow_params(analytics, 'laser_standard')
-        assert result == (50, 35)
+        # Дефолтный конфиг laser_standard: glow 40-80, opacity 30-40
+        # tonal_range=100 → t=0.5 → glow=60, opacity=35
+        default_cfg = DEFAULTS["processing"]["laser_standard"]
+        result = _calculate_glow_params(analytics, 'laser_standard', machine_cfg=default_cfg)
+        assert result == (60, 35), (
+            f"Ожидали (60, 35), получили {result} — конфиг игнорируется"
+        )
 
-    def test_impact_unchanged_by_refactor(self):
-        """impact не затронут — поведение сохраняется."""
+    def test_laser_standard_custom_config(self):
+        """laser_standard с кастомным конфигом — параметры из конфига."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'tonal_range': 100}
+        custom_cfg = {
+            'glow_size_min': 20, 'glow_size_max': 60,
+            'glow_opacity_min': 10, 'glow_opacity_max': 30,
+        }
+        # t=0.5 → glow=40, opacity=20
+        result = _calculate_glow_params(analytics, 'laser_standard', machine_cfg=custom_cfg)
+        assert result == (40, 20)
+
+    def test_impact_uses_config_ranges(self):
+        """impact читает glow-диапазоны из конфига, а не хардкод."""
+        from retouch.processing.glow import _calculate_glow_params
+        # Дефолтный конфиг impact: glow 10-25, opacity 60-80
+        # separation=100 (>80) → t=0.25 → glow=13, opacity=65
+        analytics = {'subject_separation': 100}
+        default_cfg = DEFAULTS["processing"]["impact"]
+        result = _calculate_glow_params(analytics, 'impact', machine_cfg=default_cfg)
+        assert result == (13, 65), (
+            f"Ожидали (13, 65), получили {result} — конфиг игнорируется"
+        )
+
+    def test_impact_custom_config(self):
+        """impact с кастомным конфигом — параметры из конфига."""
+        from retouch.processing.glow import _calculate_glow_params
+        analytics = {'subject_separation': 100}
+        custom_cfg = {
+            'glow_size_min': 20, 'glow_size_max': 40,
+            'glow_opacity_min': 30, 'glow_opacity_max': 50,
+        }
+        # separation=100 (>80) → t=0.25 → glow=25, opacity=35
+        result = _calculate_glow_params(analytics, 'impact', machine_cfg=custom_cfg)
+        assert result == (25, 35)
+
+    def test_impact_no_config_uses_defaults(self):
+        """impact без machine_cfg — fallback на DEFAULTS."""
         from retouch.processing.glow import _calculate_glow_params
         analytics = {'subject_separation': 100}
         result = _calculate_glow_params(analytics, 'impact')
-        assert result == (14, 65)
+        # DEFAULTS: glow 10-25, opacity 60-80; t=0.25 → (13, 65)
+        assert result == (13, 65)
 
 
 class TestGlowDeterminism:

@@ -7,6 +7,10 @@ export interface ParamRange {
   unit?: string;
 }
 
+/** Auto-generated defaults from Python DEFAULTS (run scripts/export_defaults.py) */
+import configDefaults from "./config-defaults.json";
+export { configDefaults };
+
 /** Toggle parameter (on/off or option switch) */
 export interface ParamToggle {
   type: "toggle";

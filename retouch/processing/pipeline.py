@@ -27,11 +27,7 @@ from retouch.processing.vignette import apply_vignette
 from retouch.processing.mask_utils import clamp_masked
 from retouch.processing.gamma import apply_stone_gamma_masked
 
-try:
-    import numpy as np
-    HAS_NUMPY = True
-except ImportError:
-    HAS_NUMPY = False
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +164,7 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
         "quality_warnings": [],
     }
 
-    if not HAS_NUMPY or img_final is None or subject_mask is None:
+    if img_final is None or subject_mask is None:
         return metrics
 
     # Конвертируем в grayscale если нужно
@@ -444,7 +440,7 @@ def _run_pipeline_steps(
     stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
     white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
 
-    needs_numpy = HAS_NUMPY and (
+    needs_numpy = (
         (shadow_floor > 0) or
         (stone_gamma is not None and stone_gamma != 1.0) or
         (white_ceiling is not None)
@@ -577,30 +573,30 @@ def process_preview(
     opacity_max = machine_cfg.get("glow_opacity_max", 40)
     opacity_mid = (opacity_min + opacity_max) // 2
 
-    # Открываем изображение ОДИН раз
-    img = Image.open(input_path)
-    orig_w, orig_h = img.size
-    needs_resize = max(orig_w, orig_h) > max_size
+    # Открываем изображение ОДИН раз через контекстный менеджер —
+    # гарантирует освобождение файлового дескриптора при любом исходе.
+    with Image.open(input_path) as img:
+        orig_w, orig_h = img.size
+        needs_resize = max(orig_w, orig_h) > max_size
 
-    if needs_resize:
-        # FIX-4: Рассчитываем финальный размер ЗАРАНЕЕ — без повторного Image.open()
-        # Стандартный thumbnail: уменьшаем по длинной стороне
-        scale = max_size / max(orig_w, orig_h)
-        target_w = int(orig_w * scale)
-        target_h = int(orig_h * scale)
+        if needs_resize:
+            # FIX-4: Рассчитываем финальный размер ЗАРАНЕЕ — без повторного Image.open()
+            # Стандартный thumbnail: уменьшаем по длинной стороне
+            scale = max_size / max(orig_w, orig_h)
+            target_w = int(orig_w * scale)
+            target_h = int(orig_h * scale)
 
-        # D.2: Минимальная высота >= 200 для широких кадров
-        if target_h < 200:
-            ratio = 200 / orig_h
-            target_w = min(int(orig_w * ratio), max_size * 3)
-            target_h = 200
+            # D.2: Минимальная высота >= 200 для широких кадров
+            if target_h < 200:
+                ratio = 200 / orig_h
+                target_w = min(int(orig_w * ratio), max_size * 3)
+                target_h = 200
 
-        img.thumbnail((target_w, target_h), Image.LANCZOS)
+            img.thumbnail((target_w, target_h), Image.LANCZOS)
 
-    # Конвертируем в RGBA и передаём напрямую — БЕЗ disk I/O
-    img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img.copy()
-    img_rgba.load()  # FIX-1: материализовать пиксели до закрытия файла (OSError на lazy .copy())
-    img.close()
+        # Конвертируем в RGBA и передаём напрямую — БЕЗ disk I/O
+        img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img.copy()
+        img_rgba.load()  # FIX-1: материализовать пиксели до закрытия файла (OSError на lazy .copy())
 
     return process_steps(
         input_image=img_rgba,

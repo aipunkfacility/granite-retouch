@@ -149,6 +149,20 @@ class TestLoadConfig:
         # Должен вернуть deepcopy(DEFAULTS)
         assert config["processing"]["blue_threshold"] == DEFAULTS["processing"]["blue_threshold"]
 
+    def test_no_yaml_path_returns_deepcopy(self):
+        """Без config.yaml load_config возвращает deepcopy, а не ссылку на DEFAULTS."""
+        config = load_config("/nonexistent/config.yaml")
+        # Это НЕ должен быть тот же объект — deepcopy создаёт новый
+        assert config is not DEFAULTS
+        assert config["processing"] is not DEFAULTS["processing"]
+
+    def test_no_yaml_path_mutation_safe(self):
+        """Мутация результата load_config() без файла не мутирует DEFAULTS."""
+        config = load_config("/nonexistent/config.yaml")
+        config["processing"]["laser_standard"]["stone_gamma"] = 999
+        # DEFAULTS не должен мутировать
+        assert DEFAULTS["processing"]["laser_standard"]["stone_gamma"] == 0.88
+
     def test_empty_config_file(self, tmp_path):
         """Пустой config.yaml → DEFAULTS (deep_merge(DEFAULTS, {}))."""
         config_file = tmp_path / "empty.yaml"

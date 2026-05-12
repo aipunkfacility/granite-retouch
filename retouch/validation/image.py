@@ -62,21 +62,12 @@ def validate_image_input(input_path, config=None):
 
 
 def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):
-    """Проверить, что изображение содержит синий хромакей (#0000FF).
-
-    Использует numpy при наличии (быстрее), иначе fallback на Pillow.
-    """
-    try:
-        import numpy as np
-        arr = np.array(img)
-        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-        blue_mask = (b > r + threshold) & (b > g + threshold)
-        ratio = float(blue_mask.sum()) / blue_mask.size
-    except ImportError:
-        data = list(img.getdata())
-        total = len(data)
-        blue_pixels = sum(1 for px in data if px[2] > px[0] + threshold and px[2] > px[1] + threshold)
-        ratio = blue_pixels / total
+    """Проверить, что изображение содержит синий хромакей (#0000FF)."""
+    import numpy as np
+    arr = np.array(img)
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    blue_mask = (b > r + threshold) & (b > g + threshold)
+    ratio = float(blue_mask.sum()) / blue_mask.size
 
     if ratio < min_blue_ratio:
         raise ValidationError(
@@ -90,16 +81,10 @@ def validate_blue_chromakey(img, threshold=30, min_blue_ratio=0.15):
 
 def validate_result_black_ratio(img, min_black_ratio=0.25):
     """Проверить, что результат содержит достаточно чёрного фона."""
-    try:
-        import numpy as np
-        arr = np.array(img)
-        black_mask = (arr[..., 0] < 10) & (arr[..., 1] < 10) & (arr[..., 2] < 10)
-        ratio = float(black_mask.sum()) / black_mask.size
-    except ImportError:
-        data = list(img.getdata())
-        total = len(data)
-        black_pixels = sum(1 for r, g, b in data if r < 10 and g < 10 and b < 10)
-        ratio = black_pixels / total
+    import numpy as np
+    arr = np.array(img)
+    black_mask = (arr[..., 0] < 10) & (arr[..., 1] < 10) & (arr[..., 2] < 10)
+    ratio = float(black_mask.sum()) / black_mask.size
 
     if ratio < min_black_ratio:
         raise ValidationError(

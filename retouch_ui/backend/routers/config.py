@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from retouch.config import (
     DEFAULTS,
     _migrate_face_target,
+    _run_migrations,
     deep_merge,
     find_config_path,
     load_config,
@@ -27,6 +28,28 @@ from ..schemas import (
 logger = logging.getLogger("retouch_ui.config")
 
 router = APIRouter(prefix="/api", tags=["config"])
+
+# Корневая директория проекта — для проверки containment путей
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+def _validate_path_containment(path: Path) -> Path:
+    """Проверить, что путь находится внутри корня проекта.
+
+    resolve() раскрывает symlink'и и .. — защита от path traversal.
+    startswith() проверяет, что итоговый путь внутри проекта.
+
+    Raises:
+        HTTPException: если путь выходит за пределы проекта
+    """
+    resolved = path.resolve()
+    if not str(resolved).startswith(str(_PROJECT_ROOT)):
+        raise HTTPException(
+            403,
+            f"Путь {resolved} выходит за пределы проекта {_PROJECT_ROOT}. "
+            f"Path traversal заблокирован.",
+        )
+    return resolved
 
 
 @router.get("/config", response_model=ConfigResponse)
@@ -53,7 +76,7 @@ async def update_config(request: ConfigUpdateRequest):
     full_config = deep_merge(DEFAULTS, request.config)
 
     # Миграция устаревших ключей (brightness → stone_gamma, и т.д.)
-    full_config = _migrate_face_target(full_config)
+    full_config = _run_migrations(full_config)
 
     # Валидация объединённого конфига
     warnings = validate_config(full_config)
@@ -63,9 +86,12 @@ async def update_config(request: ConfigUpdateRequest):
     if config_path is None:
         config_path = Path.cwd() / "config.yaml"
 
+    # Безопасность: проверить, что путь внутри проекта
+    config_path = _validate_path_containment(config_path)
+
     # Сохранить
     try:
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(full_config, f, default_flow_style=False, allow_unicode=True)
         logger.info("Config saved to %s", config_path)
     except Exception as exc:

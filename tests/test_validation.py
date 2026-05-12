@@ -115,6 +115,19 @@ class TestValidateBlueChromakey:
 class TestValidateResultBlackRatio:
     """Тесты проверки доли чёрного фона в результате."""
 
+    def test_returns_float_ratio(self):
+        """validate_result_black_ratio возвращает float (долю), а не bool."""
+        arr = np.zeros((512, 512, 3), dtype=np.uint8)
+        # 40% чёрного
+        arr[:205, :, :] = 0
+        arr[205:, :, :] = [128, 128, 128]
+        img = Image.fromarray(arr)
+        ratio = validate_result_black_ratio(img, min_black_ratio=0.25)
+        assert isinstance(ratio, float), (
+            f"validate_result_black_ratio должен возвращать float, а не {type(ratio).__name__}"
+        )
+        assert 0.0 <= ratio <= 1.0
+
     def test_mostly_black_passes(self):
         """Изображение с >25% чёрного проходит."""
         arr = np.zeros((512, 512, 3), dtype=np.uint8)

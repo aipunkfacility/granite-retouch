@@ -28,6 +28,7 @@ STONE_PROFILES = {
 }
 
 DEFAULTS = {
+    "config_version": 2,  # Версия схемы конфига — для цепочки миграций
     "processing": {
         "blue_threshold": 30,
         "min_blue_ratio": 0.15,
@@ -102,6 +103,9 @@ DEFAULTS = {
         "horizontal_oversize": 0.2,
     },
 }
+
+# Текущая версия схемы конфига — должна совпадать с DEFAULTS["config_version"]
+CONFIG_VERSION = DEFAULTS["config_version"]
 
 
 def resolve_config(processing_params: dict | None = None,
@@ -206,6 +210,7 @@ if HAS_PYDANTIC:
         horizontal_oversize: float = Field(0.2, ge=0.0, le=0.5)
 
     class RetouchConfig(BaseModel):
+        config_version: int = Field(CONFIG_VERSION, ge=1)
         processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
         machine: MachineGlobalConfig = Field(default_factory=MachineGlobalConfig)
         stone: StoneConfig = Field(default_factory=StoneConfig)
@@ -282,12 +287,49 @@ def _migrate_face_target(config: dict) -> dict:
     return config
 
 
+# ---------------------------------------------------------------------------
+# Цепочка миграций (config_version → config_version + 1)
+# ---------------------------------------------------------------------------
+
+
+def _migrate_v0_to_v1(config: dict) -> dict:
+    """Миграция v0 → v1: face_brightness_target list → min/max,
+    laser → laser_standard, brightness → stone_gamma."""
+    return _migrate_face_target(config)
+
+
+def _migrate_v1_to_v2(config: dict) -> dict:
+    """Миграция v1 → v2: добавление config_version, ничего не меняет
+    в существующих ключах — версияфикация конфига."""
+    config["config_version"] = 2
+    return config
+
+
+# Реестр миграций: version → функция миграции до version+1
+_MIGRATIONS = {
+    0: _migrate_v0_to_v1,
+    1: _migrate_v1_to_v2,
+}
+
+
+def _run_migrations(config: dict) -> dict:
+    """Запустить все миграции последовательно.
+
+    Миграции выполняются ВСЕГДА, независимо от config_version в конфиге,
+    потому что deep_merge(DEFAULTS, yaml) может добавить config_version
+    из DEFAULTS раньше, чем YAML-ключи будут мигрированы.
+    Все миграции идемпотентны — повторный запуск безопасен.
+    """
+    for version in sorted(_MIGRATIONS.keys()):
+        config = _MIGRATIONS[version](config)
+    config["config_version"] = CONFIG_VERSION
+    return config
+
+
 def load_config(config_path=None):
     """Загрузить конфиг: YAML с deep-merge поверх DEFAULTS.
     DEFAULTS копируется глубоко — мутация результата не мутирует DEFAULTS.
     Поиск config_path делегирован find_config_path()."""
-    defaults = DEFAULTS
-
     if config_path is None:
         config_path = find_config_path()
 
@@ -298,13 +340,15 @@ def load_config(config_path=None):
                 "PyYAML not installed, ignoring %s. Install: uv pip install PyYAML",
                 config_path,
             )
-            return defaults
+            return copy.deepcopy(DEFAULTS)
         with open(config_path, "r", encoding="utf-8") as f:
             yaml_config = yaml.safe_load(f) or {}
-        merged = deep_merge(defaults, yaml_config)
-        return _migrate_face_target(merged)
+        merged = deep_merge(DEFAULTS, yaml_config)
+        return _run_migrations(merged)
 
-    return defaults
+    # Нет config.yaml — вернуть глубокую копию DEFAULTS.
+    # deepcopy гарантирует, что мутация результата не затронет глобальный DEFAULTS.
+    return copy.deepcopy(DEFAULTS)
 
 
 def validate_config(config: dict) -> list[str]:
