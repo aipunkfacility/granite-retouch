@@ -168,11 +168,17 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
     По умолчанию используется стиль из machine_cfg['glow_style'] или 'outer'
     (обратная совместимость).
 
+    FIX: glow_size масштабируется пропорционально разрешению изображения.
+    Конфигурационные значения glow_size заданы для эталонного разрешения
+    REFERENCE_SIZE=768 (preview). На больших изображениях (экспорт 3000px+)
+    glow_size умножается на scale=max(w,h)/768, чтобы относительный размер
+    свечения оставался одинаковым. Без этого на экспорте glow почти невидим.
+
     Args:
         img_gray: PIL.Image в режиме L (grayscale)
         subject_mask: PIL.Image в режиме L (маска субъекта, 255=субъект)
         machine_cfg: dict с параметрами станка из config.yaml
-        glow_size_override: переопределить размер glow (px)
+        glow_size_override: переопределить размер glow (px, БЕЗ масштабирования)
         glow_opacity_override: переопределить opacity glow (%%)
         analytics: dict от analyze_input() — если передан вместе с
             machine_type, параметры glow рассчитываются адаптивно (P3).
@@ -181,13 +187,17 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
 
     Returns:
         PIL.Image: grayscale с Glow
-        int: glow_size (px)
+        int: glow_size (px, УЖЕ масштабированный)
         float: glow_opacity (0.0–1.0)
     """
+    # Эталонное разрешение — при котором конфигурационные glow_size корректны.
+    # Это размер preview (768px по длинной стороне).
+    REFERENCE_SIZE = 768
+
     # Определяем стиль glow
     style = glow_style or machine_cfg.get("glow_style", "outer")
 
-    # Определяем параметры glow
+    # Определяем параметры glow (в эталонных пикселях)
     if (analytics is not None and machine_type is not None
             and glow_size_override is None and glow_opacity_override is None):
         # P3: Адаптивные параметры из аналитики
@@ -212,6 +222,16 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
         glow_opacity = (glow_opacity_override / 100) if glow_opacity_override else (
             (glow_opacity_min + glow_opacity_max) // 2 / 100
         )
+
+    # FIX: Масштабируем glow_size пропорционально разрешению.
+    # glow_size в конфиге задан для REFERENCE_SIZE (768px).
+    # На изображении 3000px: scale = 3000/768 ≈ 3.9, glow_size 60px → 234px.
+    # glow_size_override уже учитывает масштаб (передаётся из preview,
+    # который и так 768px), поэтому НЕ масштабируем override.
+    if glow_size_override is None:
+        img_long_side = max(img_gray.size)
+        scale = img_long_side / REFERENCE_SIZE
+        glow_size = max(1, int(glow_size * scale))
 
     # Применяем выбранный стиль
     if style == "inner":

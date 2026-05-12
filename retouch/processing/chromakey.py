@@ -37,10 +37,11 @@ def remove_blue_background(img, threshold=30, fringe_radius=3,
         mask_soft_sigma: sigma Gaussian blur для софт-краёв маски.
             0 = бинарная маска (старое поведение).
             1.0-2.0 = плавные края без ступенек (рекомендуется).
-        contour_smooth_epsilon: параметр сглаживания контура (cv2.approxPolyDP).
-            0.001 = минимальное сглаживание (ближе к оригиналу).
-            0.005 = заметное сглаживание (убирает мелкие неровности).
-            Рассчитывается как доля периметра контура. Только при наличии cv2.
+        contour_smooth_epsilon: DEPRECATED — параметр approxPolyDP, теперь
+            игнорируется. approxPolyDP убран: он создавал полигон с малым
+            числом вершин и прямыми отрезками, что давало чёрную угловатую
+            полосу между субъектом и outer glow. Параметр оставлен для
+            совместимости сигнатуры.
 
     Returns:
         tuple: (img_without_bg, subject_mask) — оба PIL.Image
@@ -56,16 +57,22 @@ def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
 
     Алгоритм:
     1. findContours — извлечь векторный контур из бинарной маски
-    2. approxPolyDP — сгладить контур (убрать пиксельный шум, сохранить форму)
-    3. drawContours(LINE_AA) — растеризовать с субпиксельным антиалиасингом
+    2. drawContours(LINE_AA) — растеризовать с субпиксельным антиалиасингом
 
-    Результат: uint8 массив 0-255, где на контуре плавный градиент
-    вместо бинарного 0/255. Нет лесенки на диагоналях.
+    FIX: approxPolyDP убран — он создавал полигон с малым числом вершин
+    и прямыми отрезками. На вогнутых участках контура (шея-плечи, уши)
+    прямые линии между вершинами уходили за пределы реального контура
+    человека. Это создавало чёрную угловатую полосу между субъектом
+    и outer glow: в этих зонах subject_mask=255 (внутри полигона),
+    но img_gray — тёмный фон, а glow_mask=0 (внутри «субъекта»).
+
+    Антиалиасинг LINE_AA на исходном контуре даёт гладкие края
+    без потери точности формы.
 
     Args:
         binary_mask: ndarray bool — бинарная маска субъекта (True = субъект)
-        smooth_epsilon: float — параметр сглаживания approxPolyDP.
-            Рассчитывается как доля периметра контура (arcLength).
+        smooth_epsilon: float — DEPRECATED, игнорируется.
+            Оставлен для совместимости сигнатуры.
 
     Returns:
         ndarray uint8 — маска 0-255 с антиалиасными краями
@@ -82,10 +89,13 @@ def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
     mask_uint8 = binary_mask.astype(np.uint8) * 255
 
     # 1. Трассировка контура
+    # CHAIN_APPROX_SIMPLE — убирает избыточные точки на прямых отрезках,
+    # сохраняя точность кривых. Без approxPolyDP — контур следует
+    # пиксельной границе маски максимально точно.
     contours, _ = cv2.findContours(
         mask_uint8,
         cv2.RETR_EXTERNAL,       # Только внешние контуры (без дыр)
-        cv2.CHAIN_APPROX_SIMPLE  # Упрощение: горизонтальные/вертикальные сегменты
+        cv2.CHAIN_APPROX_SIMPLE  # Упрощение: только горизонтальные/вертикальные
     )
 
     if not contours:
@@ -94,19 +104,19 @@ def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
     # 2. Выбрать самый большой контур (по площади)
     main_contour = max(contours, key=cv2.contourArea)
 
-    # 3. Сгладить контур
-    epsilon = smooth_epsilon * cv2.arcLength(main_contour, True)
-    smoothed = cv2.approxPolyDP(main_contour, epsilon, True)
-
-    # 4. Растеризовать с антиалиасингом
+    # Логируем число вершин для диагностики
     logger.info(
-        "OpenCV: anti-aliased mask created (contours=%d, epsilon=%.4f)",
-        len(contours), smooth_epsilon,
+        "OpenCV: anti-aliased mask (contour points=%d, approxPolyDP=OFF)",
+        len(main_contour),
     )
+
+    # 3. Растеризовать с антиалиасингом
+    # LINE_AA даёт плавный субпиксельный градиент на контуре.
+    # Без approxPolyDP — контур точно повторяет исходную маску.
     result = np.zeros_like(mask_uint8)
     cv2.drawContours(
         result,
-        [smoothed],
+        [main_contour],
         contourIdx=-1,           # Все контуры в списке (у нас один)
         color=255,
         thickness=cv2.FILLED,    # Заливка
