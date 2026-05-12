@@ -190,7 +190,11 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
 
     if analytics['p90_brightness'] * factor > white_ceiling:
         safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)
-        factor = min(factor, safe_factor)
+        # Не затемнять: минимум factor = 1.0 (нейтрально).
+        # Пересвет обрезается в пост-обработке (pipeline.py: clamp_masked).
+        # Без этого условия factor падает < 1.0 и затемняет всё изображение,
+        # вместо того чтобы осветлить и обрезать только пересвет.
+        factor = min(factor, max(safe_factor, 1.0))
 
     logger.info(
         "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",

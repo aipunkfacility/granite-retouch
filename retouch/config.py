@@ -51,6 +51,7 @@ DEFAULTS = {
             "white_ceiling": 250,
             "face_region_top": 0.45,
             "highlight_start": 200,
+            "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "dither_method": "none",  # FIX #9: 8-bit BMP, без дизеринга
         },
         "laser_80w": {
@@ -66,6 +67,7 @@ DEFAULTS = {
             "white_ceiling": 235,
             "face_region_top": 0.45,
             "highlight_start": 195,
+            "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "dither_method": "jarvis",  # FIX #9: SOP 4.1
             "dither_upsample": 2,  # FIX #10: SOP 5.2
         },
@@ -81,6 +83,7 @@ DEFAULTS = {
             "white_ceiling": 240,
             "face_region_top": 0.45,
             "highlight_start": 200,
+            "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "shadow_noise_min": 5,
             "shadow_noise_max": 15,
             "shadow_noise_threshold": 30,  # A.1: порог для shadow noise

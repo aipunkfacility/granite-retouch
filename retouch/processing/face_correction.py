@@ -108,7 +108,8 @@ def _curves_correction(arr, correction, highlight_start=200.0, mask=None,
 
 def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                           face_region_top=0.45, highlight_start=160,
-                          white_ceiling=None, face_mask_img=None):
+                          white_ceiling=None, face_mask_img=None,
+                          skin_threshold=100):
     """Проверить и скорректировать яркость лица для ЧПУ.
 
     Использует НЕлинейную (curves) коррекцию:
@@ -125,6 +126,11 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
     что в зоне лица много тёмных пикселей (волосы, тени), но кожа
     уже достаточно светлая и дополнительное осветление приведёт к засвету.
 
+    Начиная с версии 1.1, замер медианы фильтруется порогом skin_threshold:
+    пиксели темнее порога (волосы, брови, глубокие тени) исключаются.
+    Это предотвращает ложное затемнение: волосы тёмные (50-80), но кожа
+    светлая (190-210), и медиана по всему лицу даёт ложное «лицо тёмное».
+
     Args:
         img_gray: PIL.Image в режиме L (grayscale)
         face_target: [min, max] целевого диапазона яркости
@@ -138,6 +144,10 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         face_mask_img: PIL.Image в режиме L — маска зоны лица (из face_region.py).
             Если передана, используется для замера яркости вместо
             face_region_top. Приоритет выше face_region_top (C.3).
+        skin_threshold: int (0-255) — порог отделения кожи от волос при замере.
+            Пиксели < skin_threshold исключаются из расчёта медианы.
+            По умолчанию 100: волосы/брови (50-80) ниже, кожа (100+) выше.
+            0 = замер по всему лицу (старое поведение).
 
     Returns:
         tuple: (img, before, after, factor) — скорректированное изображение,
@@ -183,9 +193,31 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             if face_mask.sum() == 0:
                 face_mask = full_subject_mask
 
-        inner_pixels = arr[face_mask]
-        if len(inner_pixels) == 0:
+        # Skin-only замер: исключаем волосы и глубокие тени.
+        # Пиксели < skin_threshold — это волосы/брови (50-80), они не должны
+        # влиять на расчёт целевой яркости КОЖИ (190-210 для laser_80w).
+        # Без этого фильтра медиана = (кожа + волосы)/2 → ложное затемнение.
+        inner_pixels_all = arr[face_mask]
+        if len(inner_pixels_all) == 0:
             return img_gray, 0.0, 0.0, 1.0
+
+        if skin_threshold > 0:
+            face_skin_mask = face_mask & (arr >= skin_threshold)
+            inner_pixels = arr[face_skin_mask]
+            if len(inner_pixels) == 0:
+                # Fallback: всё темнее порога — замеряем по всему лицу
+                inner_pixels = inner_pixels_all
+                logger.info(
+                    "Skin threshold %d: no pixels above, fallback to full face",
+                    skin_threshold,
+                )
+            else:
+                logger.info(
+                    "Skin-only measurement: %d/%d pixels above threshold %d",
+                    len(inner_pixels), len(inner_pixels_all), skin_threshold,
+                )
+        else:
+            inner_pixels = inner_pixels_all
 
         avg_brightness = float(np.median(inner_pixels))
         face_p75 = float(np.percentile(inner_pixels, 75))
@@ -214,7 +246,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
             if face_p90 >= target_max - 15:
-                gentle_cap = 1.08  # FIX #5: восстановлено (было 1.15)
+                gentle_cap = 1.15  # Безопасно с skin-only замером + curves protection
                 logger.info(
                     "Face brightening CAPPED at %.2f: p90=%.1f near target_max=%d",
                     gentle_cap, face_p90, target_max,

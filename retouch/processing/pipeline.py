@@ -531,6 +531,7 @@ def _apply_face_brightness(img, machine_cfg, subject_mask, glow_size, face_mask=
     face_region_top = machine_cfg.get("face_region_top", 0.45)
     highlight_start = machine_cfg.get("highlight_start", 200)
     white_ceiling = machine_cfg.get("white_ceiling", None)
+    skin_threshold = machine_cfg.get("face_skin_threshold", 100)
 
     return check_face_brightness(
         img, face_target, subject_mask,
@@ -539,6 +540,7 @@ def _apply_face_brightness(img, machine_cfg, subject_mask, glow_size, face_mask=
         highlight_start=highlight_start,
         white_ceiling=white_ceiling,
         face_mask_img=face_mask,  # C.3: маска лица из овала (приоритет над face_region_top)
+        skin_threshold=skin_threshold,  # порог кожи: волосы < threshold, кожа >= threshold
     )
 
 
