@@ -34,6 +34,8 @@ from ..schemas import (
     PreviewResponse,
     PreviewDiagnostics,
     ExportRequest,
+    DitherPreviewRequest,
+    DitherPreviewResponse,
     FaceOvalParams,
     PreviewParams,
     VignetteMaskRequest,
@@ -489,6 +491,98 @@ async def export_image(
         media_type=media_type,
         filename=filename,
         background=background_tasks,
+    )
+
+
+@router.post("/process/dither-preview", response_model=DitherPreviewResponse)
+async def dither_preview(request: DitherPreviewRequest):
+    """Предпросмотр Jarvis дизеринга для laser_80w.
+
+    Вызывается ОТДЕЛЬНО от /process/preview — по кнопке в UI.
+    Без Numba: 30-120 сек + предупреждение.
+    С Numba: ~1-2 сек.
+    """
+    if request.machine != "laser_80w":
+        raise HTTPException(400, "Дизеринг доступен только для laser_80w")
+
+    # Найти загруженный файл
+    entry = _uploaded_files.get(request.file_id)
+    if entry is None:
+        raise HTTPException(404, f"Файл не найден: {request.file_id}")
+
+    input_path, _, _, _ = entry
+
+    # Собрать конфиг
+    full_config = load_config()
+    overrides_data = _params_to_overrides(request.params)
+    overrides, face_oval_dict = overrides_data
+
+    if overrides:
+        full_config = deep_merge(full_config, overrides)
+
+    face_oval = face_oval_dict
+
+    # Предупреждение о Numba
+    numba_available = _get_numba_available()
+
+    _ref_inc(request.file_id)
+
+    # CPU-bound: полный пайплайн + дизеринг
+    try:
+        result: PipelineResult = await asyncio.wait_for(
+            asyncio.to_thread(
+                process_steps,
+                input_path=str(input_path),
+                machine_type=request.machine,
+                config=full_config,
+                face_oval=face_oval,
+            ),
+            timeout=180.0 if not numba_available else 30.0,
+        )
+    except asyncio.TimeoutError:
+        _ref_dec(request.file_id)
+        raise HTTPException(
+            408,
+            f"Превышено время дизеринг-превью ({180 if not numba_available else 30} сек).",
+        )
+    except Exception as exc:
+        _ref_dec(request.file_id)
+        logger.exception("Ошибка дизеринг-превью: %s", exc)
+        raise HTTPException(500, f"Ошибка обработки: {exc}")
+
+    _ref_dec(request.file_id)
+
+    # Применить Jarvis дизеринг для предпросмотра
+    try:
+        from retouch.processing.export import jarvis_dither
+        dithered = await asyncio.wait_for(
+            asyncio.to_thread(jarvis_dither, result.img_final),
+            timeout=120.0 if not numba_available else 10.0,
+        )
+    except asyncio.TimeoutError:
+        result.release_intermediates()
+        raise HTTPException(408, "Превышено время Jarvis дизеринга")
+    except Exception as exc:
+        result.release_intermediates()
+        logger.exception("Ошибка Jarvis дизеринга: %s", exc)
+        raise HTTPException(500, f"Ошибка дизеринга: {exc}")
+
+    # Кодируем в base64
+    buf = io.BytesIO()
+    if dithered.mode == "RGBA":
+        dithered.save(buf, format="PNG")
+    elif dithered.mode == "L":
+        dithered.save(buf, format="PNG")
+    else:
+        dithered.convert("RGB").save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    dithered_data_uri = f"data:image/png;base64,{b64}"
+
+    result.release_intermediates()
+
+    return DitherPreviewResponse(
+        image=dithered_data_uri,
+        numba_available=numba_available,
     )
 
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ImageUpload } from "./components/image-upload";
 import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
@@ -44,19 +44,25 @@ export default function App() {
   const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
   const [faceOvalOverlayEnabled, setFaceOvalOverlayEnabled] = useState(false);
   const [faceOval, setFaceOval] = useState<FaceOvalParams | null>(null);
+  const [faceOvalPinned, setFaceOvalPinned] = useState(false);
+
+  // Dither preview state
+  const [ditherImageUrl, setDitherImageUrl] = useState<string | null>(null);
+  const [ditherLoading, setDitherLoading] = useState(false);
+  const ditherAbortRef = useRef<AbortController | null>(null);
 
   // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
 
   // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state.
-  // Когда overlay выключен, preview детектирует овал автоматически.
-  // Нужно сохранить его в state, чтобы export получил тот же овал.
+  // Когда overlay выключен И овал не закреплён (Pin OFF) — обновляем из автодетекции.
+  // Pin ON — блокирует автообновление, овал фиксируется.
   useEffect(() => {
-    if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled) {
+    if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled && !faceOvalPinned) {
       setFaceOval(previewResult.diagnostics.face_oval);
     }
-  }, [previewResult, faceOvalOverlayEnabled]);
+  }, [previewResult, faceOvalOverlayEnabled, faceOvalPinned]);
 
   // Vignette params derived from config
   const vignetteParams = getVignetteParams(config);
@@ -101,8 +107,10 @@ export default function App() {
     (newFileId: string, previewUrl: string) => {
       setFileId(newFileId);
       setOriginalUrl(previewUrl);
-      // Reset face oval to default on new image
+      // Reset face oval to default on new image, unpin
       setFaceOval({ ...DEFAULT_FACE_OVAL });
+      setFaceOvalPinned(false);
+      setDitherImageUrl(null);
       // Auto-preview after upload
       requestPreview(newFileId, machineType, config, faceOvalOverlayEnabled ? faceOval : null);
     },
@@ -112,6 +120,7 @@ export default function App() {
   const handleMachineChange = useCallback(
     (type: MachineType) => {
       setMachineType(type);
+      setDitherImageUrl(null);
       if (fileId) requestPreviewWithOval(fileId, type, config);
     },
     [fileId, config, requestPreviewWithOval],
@@ -151,10 +160,81 @@ export default function App() {
   const handleFaceOvalChange = useCallback(
     (newOval: FaceOvalParams) => {
       setFaceOval(newOval);
+      // Auto-pin on manual drag (source → "manual")
+      if (newOval.source === "manual" && !faceOvalPinned) {
+        setFaceOvalPinned(true);
+      }
       if (fileId) requestPreview(fileId, machineType, config, newOval);
     },
-    [fileId, machineType, config, requestPreview],
+    [fileId, machineType, config, requestPreview, faceOvalPinned],
   );
+
+  const handleFaceOvalPinToggle = useCallback(() => {
+    setFaceOvalPinned((prev) => !prev);
+  }, []);
+
+  // Dither preview handler
+  const handleRequestDitherPreview = useCallback(async () => {
+    if (!fileId) return;
+
+    // Warn if no Numba
+    if (previewResult?.diagnostics && !previewResult.diagnostics.numba_available) {
+      const ok = window.confirm(
+        "Без Numba дизеринг занимает 30-120 сек. Продолжить?"
+      );
+      if (!ok) return;
+    }
+
+    setDitherLoading(true);
+    setDitherImageUrl(null);
+
+    // Cancel previous request
+    ditherAbortRef.current?.abort();
+    const ac = new AbortController();
+    ditherAbortRef.current = ac;
+
+    try {
+      const body: Record<string, unknown> = {
+        file_id: fileId,
+        machine: "laser_80w",
+      };
+      if (config) {
+        body.params = { ...config, face_oval: faceOvalOverlayEnabled ? faceOval : null };
+      }
+
+      const res = await fetch("/api/process/dither-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ac.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      setDitherImageUrl(data.image);
+      setSelectedStep("dithered");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      console.error("Dither preview error:", err);
+      alert(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      setDitherLoading(false);
+    }
+  }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult]);
+
+  // Compute available steps (add "dithered" if we have a dither image)
+  const availableSteps = previewResult
+    ? { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) }
+    : {};
+
+  // Get current preview image
+  const currentPreviewImage = selectedStep === "dithered" && ditherImageUrl
+    ? ditherImageUrl
+    : undefined;
 
   // Layout: sidebar left (params) + main area (image) right
   return (
@@ -215,6 +295,8 @@ export default function App() {
                 onVignetteOverlayToggle={setVignetteOverlayEnabled}
                 faceOvalOverlayEnabled={faceOvalOverlayEnabled}
                 onFaceOvalOverlayToggle={setFaceOvalOverlayEnabled}
+                faceOvalPinned={faceOvalPinned}
+                onFaceOvalPinToggle={handleFaceOvalPinToggle}
               />
               <div className="border-t border-border pt-4">
                 <ConfigActions
@@ -235,6 +317,8 @@ export default function App() {
                   setFileId(null);
                   setOriginalUrl(null);
                   setFaceOval(null);
+                  setFaceOvalPinned(false);
+                  setDitherImageUrl(null);
                 }}
                 className="text-sm text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
               >
@@ -252,11 +336,14 @@ export default function App() {
               <StepSelector
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
-                availableSteps={Object.keys(previewResult.images)}
+                availableSteps={Object.keys(availableSteps)}
+                machineType={machineType}
+                onRequestDitherPreview={handleRequestDitherPreview}
+                ditherLoading={ditherLoading}
               />
               <BeforeAfter
                 originalUrl={originalUrl}
-                images={previewResult.images}
+                images={availableSteps}
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 vignetteOverlayEnabled={vignetteOverlayEnabled}

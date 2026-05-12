@@ -17,15 +17,16 @@
   --color-text-secondary: #a0a0a0;
   --color-text-muted: #666666;
 
-  /* Accents */
-  --color-accent-blue: #4a90d9;
-  --color-accent-green: #4caf50;
-  --color-accent-orange: #ff9800;
-  --color-accent-red: #ef5350;
+  /* Accents — Labradorite palette */
+  --color-accent-blue: #7C8CF8;            /* Labradorite dark */
+  --color-accent-primary-light: #5B6ABF;   /* Labradorite light — hover */
+  --color-accent-green: #10B981;           /* Emerald */
+  --color-accent-orange: #F59E0B;          /* Amber */
+  --color-accent-red: #E11D48;             /* Rose */
 
   /* Borders */
   --color-border: #3a3a3a;
-  --color-border-focus: #4a90d9;
+  --color-border-focus: #7C8CF8;           /* match accent */
 
   /* Fonts */
   --font-heading: "Outfit", sans-serif;

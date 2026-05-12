@@ -172,3 +172,18 @@ class VignetteMaskResponse(BaseModel):
     """Ответ POST /api/vignette/mask."""
     mask: str = Field(..., description="data:image/png;base64,... арховая маска")
     params: VignetteMaskParams = Field(..., description="Вычисленные параметры эллипса")
+
+
+class DitherPreviewRequest(BaseModel):
+    """Запрос POST /api/process/dither-preview."""
+    file_id: str = Field(..., description="UUID загруженного файла")
+    machine: str = Field("laser_80w", pattern="^(laser_80w)$",
+                         description="Тип станка (только laser_80w)")
+    params: Optional[PreviewParams] = Field(None,
+                                            description="Валидированные параметры обработки")
+
+
+class DitherPreviewResponse(BaseModel):
+    """Ответ POST /api/process/dither-preview."""
+    image: str = Field(..., description="data:image/png;base64,... дизеринг-превью")
+    numba_available: bool = Field(True, description="Доступен ли Numba JIT")

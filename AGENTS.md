@@ -6,7 +6,7 @@ granite-retouch — система автоматизации подготовк
 
 **Важно:** Агенты генерируют только текстовые промпты для Nano Banana, а не изображения напрямую. Генерация выполняется оператором вручную.
 
-**Модули обработки (v5.0.0):**
+**Модули обработки (v6.0.0):**
 - `retouch/processing/chromakey.py` — удаление синего фона + fringe removal
 - `retouch/processing/analysis.py` — преданализ: 13 метрик + ImageAnalytics dataclass
 - `retouch/processing/glow.py` — Glow: inner + outer, детерминированный
@@ -51,11 +51,14 @@ uv run python -m retouch order validate ORD-2026-042
 # Тесты (266+ автотестов + 31 backend API тест, не требуют GIMP/фото)
 make test
 
-# Web UI — интерактивная настройка с предпросмотром
+# Web UI — интерактивная настройка с предпросмотром (v6.0)
 make ui              # dev-режим: backend + frontend (два процесса)
 make ui-backend      # только FastAPI backend
 make ui-frontend     # только Vite frontend
 make ui-prod         # production: статики + uvicorn (один процесс)
+# v6.0: Advanced Mode | Pin Face Oval | Dither Preview (laser_80w)
+# glow_style — сегментный контрол (ParamToggle), не слайдер
+# legacy_step_order — убран из UI, доступен только через config.yaml
 ```
 
 ## Соглашения об именовании
@@ -106,4 +109,4 @@ orders/active/ORD-2026-001/
 
 ---
 
-Обновлено: 2026-05-09
+Обновлено: 2026-05-12

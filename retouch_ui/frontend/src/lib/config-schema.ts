@@ -7,6 +7,16 @@ export interface ParamRange {
   unit?: string;
 }
 
+/** Toggle parameter (on/off or option switch) */
+export interface ParamToggle {
+  type: "toggle";
+  options: { value: number; label: string }[];
+  label: string;
+}
+
+/** Union type for any parameter definition */
+export type ParamDef = ParamRange | ParamToggle;
+
 /** Machine parameters (laser_standard / laser_80w / impact) */
 export interface MachineParams {
   glow_size_min: ParamRange;
@@ -19,7 +29,7 @@ export interface MachineParams {
   face_region_top: ParamRange;
   highlight_start: ParamRange;
   white_ceiling: ParamRange;
-  glow_style: ParamRange;  // 0=outer, 1=inner — для UI как toggle/slider
+  glow_style: ParamToggle;  // 0=outer, 1=inner — сегментный контрол
 }
 
 /** Impact-specific extra parameters */
@@ -35,9 +45,11 @@ export interface ProcessingParams {
   blue_threshold: ParamRange;
   min_blue_ratio: ParamRange;
   fringe_radius: ParamRange;
-  legacy_step_order: ParamRange;  // 0=false, 1=true — toggle
+  legacy_step_order: ParamRange;  // 0=false, 1=true — toggle [HIDDEN]
   min_resolution: ParamRange;
   result_min_black_ratio: ParamRange;
+  mask_soft_sigma: ParamRange;           // НОВОЕ — Advanced
+  contour_smooth_epsilon: ParamRange;    // НОВОЕ — Advanced
 }
 
 /** Vignette parameters */
@@ -59,6 +71,25 @@ export interface ConfigSchema {
   vignette: VignetteParams;
 }
 
+/** Parameters hidden by default — shown only in Advanced Mode */
+export const ADVANCED_PARAMS = new Set([
+  "blue_threshold",
+  "min_blue_ratio",
+  "fringe_radius",
+  "min_resolution",
+  "result_min_black_ratio",
+  "face_region_top",
+  "highlight_start",
+  "unsharp_threshold",
+  "mask_soft_sigma",
+  "contour_smooth_epsilon",
+]);
+
+/** Parameters removed from UI entirely (dev-only or deprecated) */
+export const HIDDEN_PARAMS = new Set([
+  "legacy_step_order",  // dev-rollback, мёртвый параметр
+]);
+
 /** Schema — used by params-panel.tsx to generate sliders */
 export const CONFIG_SCHEMA: ConfigSchema = {
   processing: {
@@ -68,6 +99,8 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     legacy_step_order: { min: 0, max: 1, step: 1, label: "Старый порядок шагов", unit: "(0/1)" },
     min_resolution: { min: 256, max: 1024, step: 64, label: "Мин. разрешение", unit: "px" },
     result_min_black_ratio: { min: 0, max: 0.5, step: 0.01, label: "Мин. доля чёрного", unit: "" },
+    mask_soft_sigma: { min: 0, max: 4, step: 0.1, label: "Мягкость краёв маски", unit: "σ" },
+    contour_smooth_epsilon: { min: 0.001, max: 0.01, step: 0.001, label: "Сглаживание контура", unit: "" },
     laser_standard: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
@@ -79,7 +112,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { min: 0, max: 1, step: 1, label: "Стиль Glow", unit: "(0=out/1=in)" },
+      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
     },
     laser_80w: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -92,7 +125,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { min: 0, max: 1, step: 1, label: "Стиль Glow", unit: "(0=out/1=in)" },
+      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
     },
     impact: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -105,7 +138,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       face_region_top: { min: 0.2, max: 0.8, step: 0.01, label: "Зона лица (верх)", unit: "" },
       highlight_start: { min: 100, max: 250, step: 1, label: "Начало затухания коррекции", unit: "" },
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
-      glow_style: { min: 0, max: 1, step: 1, label: "Стиль Glow", unit: "(0=out/1=in)" },
+      glow_style: { type: "toggle", options: [{ value: 0, label: "Outer" }, { value: 1, label: "Inner" }], label: "Стиль Glow" },
       shadow_noise_min: { min: 0, max: 30, step: 1, label: "Шум теней: мин", unit: "" },
       shadow_noise_max: { min: 0, max: 30, step: 1, label: "Шум теней: макс", unit: "" },
       shadow_noise_threshold: { min: 10, max: 80, step: 1, label: "Порог шума теней", unit: "" },
@@ -123,7 +156,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
 
 /** Parameter groups for params-panel tabs */
 export const PARAM_GROUPS = [
-  { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "legacy_step_order", "min_resolution", "result_min_black_ratio"] },
+  { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "legacy_step_order", "min_resolution", "result_min_black_ratio", "mask_soft_sigma", "contour_smooth_epsilon"] },
   { key: "laser_standard", label: "Laser 20-40W", params: Object.keys(CONFIG_SCHEMA.processing.laser_standard) },
   { key: "laser_80w", label: "Laser 80W+", params: Object.keys(CONFIG_SCHEMA.processing.laser_80w) },
   { key: "impact", label: "Impact", params: Object.keys(CONFIG_SCHEMA.processing.impact) },

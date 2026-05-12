@@ -2,6 +2,32 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.0.0] - 2026-05-12
+
+### Breaking Changes
+
+- **Accent palette**: `--color-accent-blue` изменён с `#4a90d9` на `#7C8CF8` (Labradorite)
+- **Status colors**: green/orange/red → Emerald/Amber/Rose
+- **`legacy_step_order` убран из UI**: доступен только через config.yaml
+
+### Новые возможности
+
+- **Labradorite accent palette**: дизайн-система приведена к палитре Granite CRM. Акцентный цвет — Labradorite `#7C8CF8`, статусные — Emerald/Amber/Rose
+- **Advanced Mode**: технические параметры скрыты по умолчанию, доступны по чекбоксу Advanced. Оператор видит 5-7 ключевых слайдеров вместо 12+
+- **ParamToggle**: `glow_style` — сегментный контрол (Outer/Inner) вместо слайдера 0-1. Новый тип `ParamToggle` в config-schema
+- **Dither preview**: предпросмотр Jarvis дизеринга для laser_80w (по кнопке «Просмотр дизеринга»). Без Numba — 30-120 сек с подтверждением оператора. Эндпоинт `POST /api/process/dither-preview`
+- **Pin Face Oval**: фиксация овала лица кнопкой-пин. Ручное перемещение овала автоматически ставит Pin ON, блокируя автообновление из автодетекции. Pin OFF — овал обновляется из diagnostics
+- **mask_soft_sigma / contour_smooth_epsilon**: добавлены в config-schema (Advanced). Ранее отсутствовали в UI-схеме
+- **HIDDEN_PARAMS**: `legacy_step_order` полностью убран из UI (доступен только через config.yaml)
+- **ADVANCED_PARAMS**: `blue_threshold`, `min_blue_ratio`, `fringe_radius`, `min_resolution`, `result_min_black_ratio`, `face_region_top`, `highlight_start`, `unsharp_threshold`, `mask_soft_sigma`, `contour_smooth_epsilon` — скрыты по умолчанию
+
+### Документация
+
+- **design-system.md**: переписан — тёмная тема для Retouch, Remix Icon вместо Lucide, Outfit для заголовков, разделение CRM/Retouch
+- **config.md**: пометки [Advanced] / [Hidden] для параметров, `glow_style` описан как toggle
+- **pipeline.md**: описание Pin-механизма и dither preview
+- **webui-setup.md**: Advanced Mode, Pin Face Oval, Просмотр дизеринга
+
 ## [5.0.0] - 2026-05-12
 
 ### ✨ Новые возможности

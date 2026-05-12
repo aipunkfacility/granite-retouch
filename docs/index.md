@@ -25,6 +25,8 @@
 - **[guides/style-guide-laser-80w.md](guides/style-guide-laser-80w.md)** — стиль генерации для мощных лазеров (60–80W+)
 - **[guides/style-guide-impact.md](guides/style-guide-impact.md)** — стиль генерации для ударной гравировки
 - **[guides/nano-banana.md](guides/nano-banana.md)** — работа с Nano Banana Pro
+- **[guides/webui-setup.md](guides/webui-setup.md)** — Web UI: запуск, возможности, troubleshooting
+- **[guides/design-system.md](guides/design-system.md)** — дизайн-система Granite: палитра, типографика, компоненты (v6.0)
 
 ## Архитектура
 
