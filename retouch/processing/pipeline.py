@@ -1,7 +1,6 @@
 """Полный пайплайн обработки портрета для гравировки."""
 
 import logging
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -53,7 +52,7 @@ class PipelineContext:
     img_chromakey: Image.Image | None = None
     subject_mask: Image.Image | None = None
     face_mask: Image.Image | None = None
-    face_oval: dict | None = None
+    face_oval: dict[str, float] | None = None
     analytics: dict | None = None
     machine_type: str = "laser_standard"
     config: dict = field(default_factory=dict)
@@ -63,7 +62,7 @@ class PipelineContext:
     face_brightness_before: float = 0.0
     face_brightness_after: float = 0.0
     correction_factor: float = 1.0
-    warnings: list = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -131,28 +130,7 @@ class PipelineResult:
         """Освободить промежуточные при выходе из with-блока."""
         self.release_intermediates()
 
-    @property
-    def img_sharpened(self) -> Image.Image | None:
-        """FIX-10: Deprecated alias для img_postproc.
 
-        Историческое имя — после unsharp+shadow_noise+gamma 'sharpened' неточно.
-        Будет удалено в следующем релизе.
-        """
-        warnings.warn(
-            "img_sharpened is deprecated, use img_postproc",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.img_postproc
-
-    @img_sharpened.setter
-    def img_sharpened(self, value):
-        warnings.warn(
-            "img_sharpened is deprecated, use img_postproc",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.img_postproc = value
 
 
 def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
@@ -195,20 +173,20 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
     metrics["tonal_range_output"] = p90 - p10
 
     # Предупреждения
-    warnings = []
+    quality_warnings = []
     if clipped > 5.0:
-        warnings.append(
+        quality_warnings.append(
             f"Высокий клиппинг: {clipped:.1f}% пикселей >= {white_ceiling}"
         )
     if crushed > 10.0:
-        warnings.append(
+        quality_warnings.append(
             f"Провал теней: {crushed:.1f}% пикселей <= {shadow_floor}"
         )
     if p90 - p10 < 30:
-        warnings.append(
+        quality_warnings.append(
             f"Узкий тональный диапазон: {p90 - p10:.0f} (p10={p10:.0f}, p90={p90:.0f})"
         )
-    metrics["quality_warnings"] = warnings
+    metrics["quality_warnings"] = quality_warnings
 
     return metrics
 
@@ -257,7 +235,7 @@ def process_steps(
         config = load_config()
 
     # Валидация конфига
-    warnings = validate_config(config)
+    validation_warnings = validate_config(config)
 
     # Загрузка изображения — из файла или из PIL напрямую
     if input_image is not None:
@@ -335,7 +313,7 @@ def process_steps(
         machine_cfg=machine_cfg,
         stone_type=config.get("stone", {}).get("type", "granite"),
         step_mm=config.get("machine", {}).get("step_mm", 0.300),
-        warnings=warnings,
+        warnings=validation_warnings,
     )
 
     # B.1: Выполнение шагов через PipelineContext
@@ -600,7 +578,7 @@ def process_preview(
             img.thumbnail((target_w, target_h), Image.LANCZOS)
 
         # Конвертируем в RGBA и передаём напрямую — БЕЗ disk I/O
-        img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img.copy()
+        img_rgba = img.convert("RGBA") if img.mode != "RGBA" else img
         img_rgba.load()  # FIX-1: материализовать пиксели до закрытия файла (OSError на lazy .copy())
 
     return process_steps(
@@ -716,10 +694,11 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
         ) from e
 
 
-def process(input_path, output_path, machine_type="laser_standard",
-            glow_size_override=None, glow_opacity_override=None,
-            config=None, fmt="bmp", overwrite=True, no_validate=False,
-            face_oval=None):
+def process(input_path: str, output_path: str, machine_type: str = "laser_standard",
+            glow_size_override: int | None = None, glow_opacity_override: float | None = None,
+            config: dict | None = None, fmt: str = "bmp", overwrite: bool = True,
+            no_validate: bool = False,
+            face_oval: dict[str, float] | None = None) -> PipelineResult:
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,

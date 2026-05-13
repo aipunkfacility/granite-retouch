@@ -9,12 +9,6 @@ try:
 except ImportError:
     HAS_YAML = False
 
-try:
-    from pydantic import BaseModel, Field, field_validator
-    HAS_PYDANTIC = True
-except ImportError:
-    HAS_PYDANTIC = False
-
 
 # Все допустимые значения machine_type
 MACHINE_TYPES = ("laser_standard", "laser_80w", "impact")
@@ -142,9 +136,11 @@ def resolve_config(processing_params: dict | None = None,
     return base
 
 
-# --- Pydantic модели (optional) ---
+# --- Pydantic модели ---
 
-if HAS_PYDANTIC:
+try:
+    from pydantic import BaseModel, Field, field_validator
+
     class MachineConfig(BaseModel):
         glow_size_min: int = Field(40, ge=5, le=100)
         glow_size_max: int = Field(80, ge=5, le=100)
@@ -219,6 +215,10 @@ if HAS_PYDANTIC:
         stone: StoneConfig = Field(default_factory=StoneConfig)
         vignette: VignetteConfig = Field(default_factory=VignetteConfig)
         model_config = {"extra": "allow"}
+
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
 
 
 def deep_merge(base: dict, override: dict) -> dict:
@@ -361,8 +361,9 @@ def validate_config(config: dict) -> list[str]:
 
     if HAS_PYDANTIC:
         try:
+            from pydantic import ValidationError as PydanticValidationError
             RetouchConfig(**config)
-        except Exception as e:
+        except PydanticValidationError as e:
             warnings.append(f"Config validation: {e}")
 
     # Кросс-валидация (Pydantic не проверяет отношения полей)

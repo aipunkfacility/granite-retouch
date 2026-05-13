@@ -1,6 +1,11 @@
 """Арховая виньетка (Memorial Arch)."""
 
+import logging
+
 from PIL import Image, ImageDraw, ImageFilter
+
+
+logger = logging.getLogger(__name__)
 
 
 def generate_arch_mask(width: int, height: int, vign_cfg: dict) -> Image.Image:
@@ -33,7 +38,9 @@ def generate_arch_mask(width: int, height: int, vign_cfg: dict) -> Image.Image:
         [-h_oversize, arch_top_y, width + h_oversize, arch_bottom_y],
         fill=255
     )
-    return arch.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    result = arch.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    logger.info("Arch mask generated: %dx%d, blur=%d", width, height, blur_radius)
+    return result
 
 
 def apply_vignette(img_gray, width, height, vign_cfg):
@@ -51,6 +58,7 @@ def apply_vignette(img_gray, width, height, vign_cfg):
     Returns:
         tuple: (PIL.Image L-изображение на чёрном фоне, PIL.Image маска виньетки L)
     """
+    logger.info("Applying vignette: %dx%d", width, height)
     arch_mask = generate_arch_mask(width, height, vign_cfg)
 
     # Composite over black, staying in L mode

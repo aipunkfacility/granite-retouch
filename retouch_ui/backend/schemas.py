@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 # ─── Валидация параметров обработки (D.4) ─────────────────────────────
@@ -31,12 +30,12 @@ class PreviewParams(BaseModel):
     """
     model_config = {"extra": "allow"}
 
-    face_oval: Optional[FaceOvalParams] = Field(None,
+    face_oval: FaceOvalParams | None = Field(None,
                                                 description="Овал зоны лица (нормализованный)")
-    stone_type: Optional[str] = Field(None,
+    stone_type: str | None = Field(None,
                                       pattern="^(granite|marble|gabbro|basalt)$",
                                       description="Тип камня")
-    step_mm: Optional[float] = Field(None, ge=0.10, le=0.50,
+    step_mm: float | None = Field(None, ge=0.10, le=0.50,
                                      description="Шаг ЧПУ (мм)")
 
 
@@ -54,8 +53,8 @@ class PreviewRequest(BaseModel):
     file_id: str = Field(..., description="UUID загруженного файла")
     machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$",
                          description="Тип станка")
-    params: Optional[PreviewParams] = Field(None,
-                                            description="Валидированные параметры обработки")
+    params: PreviewParams | None = Field(None,
+                                          description="Валидированные параметры обработки")
     full_steps: bool = Field(True, description="D.3: true=все шаги, false=только final")
 
 
@@ -63,8 +62,8 @@ class ExportRequest(BaseModel):
     """Запрос POST /api/process/export."""
     file_id: str = Field(..., description="UUID загруженного файла")
     machine: str = Field("laser_standard", pattern="^(laser_standard|laser_80w|impact)$")
-    params: Optional[PreviewParams] = Field(None,
-                                            description="Валидированные параметры обработки")
+    params: PreviewParams | None = Field(None,
+                                          description="Валидированные параметры обработки")
     format: str = Field("bmp", pattern="^(bmp|bmp_1bit|bmp_8bit|png|tiff)$",
                         description="Формат экспорта")
 
@@ -106,7 +105,7 @@ class PreviewDiagnostics(BaseModel):
     width: int = 0
     height: int = 0
     # AUDIT-3.1: face_oval для передачи из preview в export
-    face_oval: Optional[dict] = None
+    face_oval: dict | None = None
     # Numba availability — False = дизеринг на чистом Python (30-120 сек)
     numba_available: bool = True
 
@@ -179,8 +178,8 @@ class DitherPreviewRequest(BaseModel):
     file_id: str = Field(..., description="UUID загруженного файла")
     machine: str = Field("laser_80w", pattern="^(laser_80w)$",
                          description="Тип станка (только laser_80w)")
-    params: Optional[PreviewParams] = Field(None,
-                                            description="Валидированные параметры обработки")
+    params: PreviewParams | None = Field(None,
+                                          description="Валидированные параметры обработки")
 
 
 class DitherPreviewResponse(BaseModel):

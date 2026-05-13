@@ -61,6 +61,9 @@ def clamp_masked(arr, subject_mask, vmin=0, vmax=None, mask_bool=None):
         return arr
     if mask_bool is None:
         mask_bool = np.array(subject_mask) > 128
+    # Only copy if we actually modify the array
+    if vmin is None and vmax is None:
+        return arr
     result = arr.copy()
     if vmin is not None:
         result = np.where(mask_bool, np.maximum(result, vmin), result)

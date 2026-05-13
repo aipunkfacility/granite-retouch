@@ -30,7 +30,7 @@ logger = logging.getLogger("retouch_ui")
 async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения."""
     # Startup: запустить TTL-очистку загруженных файлов
-    cleanup_task = asyncio.create_task(process._ttl_cleanup())
+    cleanup_task = asyncio.create_task(process.cleanup_expired())
     logger.info("granite-retouch backend v%s запущен", __version__)
 
     # AUDIT-8.4: Прогрев Numba JIT — первый экспорт с дизерингом

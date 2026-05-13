@@ -1,8 +1,6 @@
 """Glow (Contour Light) — контурное свечение: inner и outer."""
 
-import warnings
-
-from PIL import Image, ImageFilter, ImageOps, ImageChops
+from PIL import Image, ImageFilter, ImageChops
 
 import numpy as np
 
@@ -133,7 +131,7 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     # Сжимаем маску — внутренний край = разница
     # GaussianBlur вместо binary_erosion — изотропная, без лесеньки
     from scipy.ndimage import gaussian_filter
-    iterations = max(1, glow_size // 2)
+    iterations = max(1, glow_size / 2)  # BE-L4: float для точности
     inv = 1.0 - mask_arr.astype(np.float32)
     blurred = gaussian_filter(inv, sigma=iterations)
     shrunk = blurred < 0.5
@@ -143,7 +141,7 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
 
     # Размываем край для плавного затухания к центру
     edge_img = Image.fromarray(edge.astype(np.uint8) * 255)
-    edge_blurred = edge_img.filter(ImageFilter.GaussianBlur(glow_size // 2))
+    edge_blurred = edge_img.filter(ImageFilter.GaussianBlur(glow_size / 2))  # BE-L4: float
 
     # Composite: белый через размытый край поверх оригинала
     glow_layer = Image.new("L", img_gray.size, glow_color)
@@ -218,9 +216,9 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
         glow_opacity_min = machine_cfg.get("glow_opacity_min", _fb["glow_opacity_min"])
         glow_opacity_max = machine_cfg.get("glow_opacity_max", _fb["glow_opacity_max"])
 
-        glow_size = glow_size_override or (glow_size_min + glow_size_max) // 2
+        glow_size = glow_size_override or int((glow_size_min + glow_size_max) / 2)  # BE-L4
         glow_opacity = (glow_opacity_override / 100) if glow_opacity_override else (
-            (glow_opacity_min + glow_opacity_max) // 2 / 100
+            (glow_opacity_min + glow_opacity_max) / 2 / 100  # BE-L4: float
         )
 
     # FIX: Масштабируем glow_size пропорционально разрешению.
@@ -250,20 +248,3 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
 
     return result, glow_size, glow_opacity
 
-
-# A.5: Backward-compatible alias — устаревшее обманчивое имя.
-# apply_glow() — диспетчер (inner/outer), а не только inner glow.
-# AUDIT-5.5: alias удалён, доступ через __getattr__ с DeprecationWarning.
-
-
-def __getattr__(name):
-    """AUDIT-5.5: Ленивый deprecated alias для apply_inner_glow."""
-    if name == "apply_inner_glow":
-        warnings.warn(
-            "apply_inner_glow устарел — это alias для apply_glow (диспетчер). "
-            "Используйте: from retouch.processing.glow import apply_glow",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return apply_glow
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

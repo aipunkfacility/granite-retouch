@@ -13,7 +13,6 @@ import time
 import uuid
 from pathlib import Path
 from collections import OrderedDict
-from typing import Dict, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -49,8 +48,8 @@ router = APIRouter(prefix="/api", tags=["process"])
 
 # ─── Хранилище загруженных файлов ─────────────────────────────────────
 # Ключ: file_id (UUID), значение: (путь к файлу, оригинальное имя, ref_count, upload_time)
-_UploadedEntry = Tuple[Path, str, int, float]
-_uploaded_files: Dict[str, _UploadedEntry] = {}
+_UploadedEntry = tuple[Path, str, int, float]
+_uploaded_files: dict[str, _UploadedEntry] = {}
 
 MAX_UPLOADED_FILES = 50  # A16: лимит на количество одновременно загруженных файлов
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 МБ — лимит размера загружаемого файла
@@ -70,7 +69,7 @@ def _cleanup_uploaded(file_id: str) -> None:
         logger.warning("Не удалось удалить %s: %s", path, exc)
 
 
-async def _ttl_cleanup() -> None:
+async def cleanup_expired() -> None:
     """Фоновая корутина: удалять файлы старше 30 минут (D.5: с учётом ref_count)."""
     MAX_AGE_SEC = 1800  # 30 минут
 
@@ -176,8 +175,6 @@ async def upload_image(file: UploadFile = File(...)):
 
         # Проверка размера файла
         if len(content) > MAX_UPLOAD_BYTES:
-            tmp.close()
-            Path(tmp.name).unlink(missing_ok=True)
             raise HTTPException(
                 413,
                 f"Файл слишком большой ({len(content) / 1024 / 1024:.1f} МБ). "
@@ -188,13 +185,15 @@ async def upload_image(file: UploadFile = File(...)):
         tmp.close()  # Закрыть ДО передачи пути в PIL (Windows: PermissionError)
     except asyncio.TimeoutError:
         tmp.close()
-        Path(tmp.name).unlink(missing_ok=True)
+        Path(tmp.name).unlink(missing_ok=True)  # BE-L8: безопасное удаление
         raise HTTPException(408, "Превышено время загрузки файла (60 сек)")
     except HTTPException:
+        tmp.close()
+        Path(tmp.name).unlink(missing_ok=True)  # BE-L8: безопасное удаление
         raise
     except Exception:
         tmp.close()
-        Path(tmp.name).unlink(missing_ok=True)
+        Path(tmp.name).unlink(missing_ok=True)  # BE-L8: безопасное удаление
         raise HTTPException(500, "Ошибка при сохранении файла")
 
     file_id = uuid.uuid4().hex
@@ -434,9 +433,6 @@ async def export_image(
         logger.exception("Ошибка экспорта: %s", exc)
         raise HTTPException(500, f"Ошибка обработки: {exc}")
 
-    # D.5: Уменьшаем ref_count
-    _ref_dec(request.file_id)
-
     # Сохранить результат во временный файл для отдачи
     # Определяем расширение и media type по формату
     ext_map = {
@@ -484,6 +480,9 @@ async def export_image(
 
     # Освободить память PipelineResult
     result.release_intermediates()
+
+    # D.5: Уменьшаем ref_count после завершения экспорта
+    _ref_dec(request.file_id)
 
     filename = f"result{suffix}"
     return FileResponse(
