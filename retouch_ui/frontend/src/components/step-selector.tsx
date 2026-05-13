@@ -9,7 +9,7 @@ interface Props {
   ditherLoading?: boolean;
 }
 
-const STEP_LABELS: Record<string, string> = {
+export const STEP_LABELS: Record<string, string> = {
   chromakey: "Хромакей",
   glow: "Glow",
   leveled: "Levels",
