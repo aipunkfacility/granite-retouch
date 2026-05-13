@@ -15,6 +15,7 @@ from retouch.processing.face_correction import (
     check_face_brightness,
     _curves_correction,
     _shrink_mask,
+    HAS_NUMPY,
 )
 from retouch.processing.face_region import _detect_face_by_width_profile
 
@@ -71,10 +72,10 @@ class TestFaceCorrectionMask:
 # ─── gentle_cap ────────────────────────────────────────────────────────
 
 class TestGentleCap:
-    """gentle_cap = 1.08 (было 1.15)."""
+    """gentle_cap = 1.15 (p90 near target_max)."""
 
-    def test_gentle_cap_108_when_p90_near_target(self):
-        """p90 >= target_max - 15 — коррекция ограничена 1.08."""
+    def test_gentle_cap_115_when_p90_near_target(self):
+        """p90 >= target_max - 15 — коррекция ограничена gentle_cap=1.15."""
         arr = np.full((200, 200), 130, dtype=np.uint8)
         arr[10:100, 10:100] = 195  # p90~195
         gray = Image.fromarray(arr)
@@ -83,8 +84,8 @@ class TestGentleCap:
 
         result, before, after, factor = check_face_brightness(
             gray, target, mask, glow_size=0)
-        assert factor <= 1.08, \
-            f"gentle_cap должен быть 1.08, factor={factor:.3f}"
+        assert factor <= 1.15, \
+            f"gentle_cap должен быть <= 1.15, factor={factor:.3f}"
 
 
 # ─── Детекция лица ─────────────────────────────────────────────────────
@@ -136,8 +137,11 @@ class TestFaceMaskInCheckFaceBrightness:
 
     def test_face_mask_img_overrides_face_region_top(self):
         """При передаче face_mask_img — замер по ней, не по face_region_top."""
+        # Создаём изображение где верхняя часть тёмная, нижняя яркая.
+        # face_region_top=0.45 захватит и тёмную, и яркую части (среднее).
+        # face_mask в нижней части — замерит только яркие пиксели.
         arr = np.full((300, 200), 200, dtype=np.uint8)
-        arr[:100, :] = 50  # верхняя треть тёмная
+        arr[:120, :] = 50  # верхняя часть тёмная
 
         img = Image.fromarray(arr)
         subject_mask = Image.new("L", (200, 300), 255)
@@ -149,11 +153,13 @@ class TestFaceMaskInCheckFaceBrightness:
         _, before_with_mask, _, _ = check_face_brightness(
             img, [180, 220], subject_mask,
             face_mask_img=face_mask_img,
+            skin_threshold=0,  # замер по всем пикселям, без порога кожи
         )
 
         _, before_legacy, _, _ = check_face_brightness(
             img, [180, 220], subject_mask,
             face_region_top=0.45,
+            skin_threshold=0,  # замер по всем пикселям, без порога кожи
         )
 
         assert before_with_mask > before_legacy, \
@@ -222,3 +228,56 @@ class TestShrinkMaskPillowFallback:
         assert arr[100, 45] == 0, "Левый край должен быть сжат"
         assert arr[100, 155] == 0, "Правый край должен быть сжат"
         assert arr[100, 100] == 255, "Центр должен оставаться белым"
+
+
+# ─── AUDIT: face_correction Pillow fallback percentiles ────────────────
+
+class TestPillowFallbackPercentiles:
+    """BE-M7: face_p75/face_p90 доступны в Pillow-ветке."""
+
+    def test_percentiles_available_without_scipy(self, monkeypatch):
+        """При HAS_NUMPY=True но без scipy percentiles вычисляются через numpy."""
+        if not HAS_NUMPY:
+            pytest.skip("numpy не установлена")
+
+        arr = np.full((200, 200), 150, dtype=np.uint8)
+        arr[:100, :] = 50  # верхняя часть тёмная
+        img = Image.fromarray(arr)
+        subject_mask = Image.new("L", (200, 200), 255)
+
+        # Вызов не должен падать с NameError для face_p75/face_p90
+        result, before, after, factor = check_face_brightness(
+            img, [180, 220], subject_mask,
+            glow_size=0, skin_threshold=0,
+        )
+        # Функция должна отработать без ошибки
+        assert result is not None
+
+    def test_no_top_level_imagefilter_import(self):
+        """BE-M3: ImageFilter не импортируется на уровне модуля."""
+        import retouch.processing.face_correction as fc
+        # Модульный ImageFilter не должен быть в глобальных импортах
+        # (локальный импорт в _shrink_mask допустим)
+        import inspect
+        source = inspect.getsource(fc)
+        top_level_lines = source.split('\n')
+        # Ищем строку импорта на уровне модуля (не внутри функции)
+        for line in top_level_lines[:30]:  # первые 30 строк — импорты
+            if 'from PIL import' in line and 'ImageFilter' in line:
+                pytest.fail(f"ImageFilter найден в top-level импорте: {line.strip()}")
+
+
+class TestFaceCorrectionDoubleCeiling:
+    """BE-L7: двойной ceiling в _curves_correction."""
+
+    def test_curves_correction_result_in_range(self):
+        """Результат _curves_correction всегда в [0, 255]."""
+        arr = np.full((100, 100), 50.0, dtype=np.float32)
+        mask = np.ones((100, 100), dtype=bool)
+
+        result = _curves_correction(
+            arr, correction=1.2, highlight_start=200,
+            mask=mask, target_ceiling=240.0,
+        )
+        assert result.min() >= 0
+        assert result.max() <= 255

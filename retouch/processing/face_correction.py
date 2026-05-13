@@ -2,7 +2,7 @@
 
 import logging
 
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 
 try:
     import numpy as np
@@ -223,9 +223,18 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         face_p75 = float(np.percentile(inner_pixels, 75))
         face_p90 = float(np.percentile(inner_pixels, 90))
     else:
+        # BE-M7: Pillow-ветка (HAS_NUMPY == False).
+        # Перцентили вычисляются через аналитическую оценку по ImageStat.
         from PIL import ImageStat
         stat = ImageStat.Stat(img_gray, mask=inner_mask_img)
         avg_brightness = stat.mean[0]
+
+        # Аналитическая оценка перцентилей по mean и stddev.
+        # Нормальное распределение: p75 ≈ mean + 0.67*σ, p90 ≈ mean + 1.28*σ.
+        # ImageStat.stddev доступен в Pillow.
+        est_stddev = stat.stddev[0] if stat.stddev else 30.0
+        face_p75 = float(min(avg_brightness + 0.67 * est_stddev, 255.0))
+        face_p90 = float(min(avg_brightness + 1.28 * est_stddev, 255.0))
 
     target_min, target_max = face_target
     target_mid = (target_min + target_max) / 2
@@ -287,9 +296,9 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 mask=correction_mask_arr,
                 target_ceiling=effective_ceiling,
             )
-            if white_ceiling is not None:
-                ceiling_mask = (correction_mask_arr > 0.5) & (result_arr > white_ceiling)
-                result_arr = np.where(ceiling_mask, float(white_ceiling), result_arr)
+            # BE-L7: Убран double ceiling — _curves_correction уже применяет
+            # effective_ceiling (= white_ceiling при осветлении), повторный
+            # clip поверх не нужен и давал двойное ограничение.
             result = Image.fromarray(result_arr.astype(np.uint8))
         else:
             logger.warning(

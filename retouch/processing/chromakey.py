@@ -6,7 +6,7 @@ FIX: Антиалиасная маска через OpenCV contour tracing — �
 
 import logging
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 try:
     import numpy as np
@@ -19,6 +19,12 @@ try:
     HAS_CV2 = True
 except ImportError:
     HAS_CV2 = False
+
+try:
+    from scipy.ndimage import gaussian_filter
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +139,11 @@ def _smooth_dilate(mask, radius):
     ступеньки на диагональных краях. GaussianBlur + threshold
     эквивалентен дилатации с круглым ядром.
     """
-    from scipy.ndimage import gaussian_filter
+    if not HAS_SCIPY:
+        # Fallback: простая бинарная дилатация через Pillow
+        mask_img = Image.fromarray(mask.astype(np.uint8) * 255)
+        blurred = mask_img.filter(ImageFilter.GaussianBlur(radius=radius))
+        return np.array(blurred) > 128
     blurred = gaussian_filter(mask.astype(np.float32), sigma=radius)
     return blurred > 0.5
 
@@ -144,7 +154,11 @@ def _smooth_erode(mask, radius):
     binary_erosion с дефолтным structuring element (крест) даёт
     ступеньки. Эрозия = инвертировать → размыть → порог → инвертировать.
     """
-    from scipy.ndimage import gaussian_filter
+    if not HAS_SCIPY:
+        # Fallback: эрозия через Pillow (инвертировать → blur → порог → инвертировать)
+        mask_img = Image.fromarray((~mask).astype(np.uint8) * 255)
+        blurred = mask_img.filter(ImageFilter.GaussianBlur(radius=radius))
+        return np.array(blurred) < 128
     inv = (~mask).astype(np.float32)
     blurred = gaussian_filter(inv, sigma=radius)
     return blurred < 0.5
@@ -163,7 +177,6 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
 
     Если cv2 недоступен: fallback на GaussianBlur-подход (хуже, но работает).
     """
-    from scipy.ndimage import gaussian_filter
 
     # uint8 — основная работа (4 байт/пиксель вместо 16 при float32)
     arr = np.array(img)  # uint8 RGBA
@@ -187,7 +200,7 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
         g_f = g[fringe_ys, fringe_xs].astype(np.float32)
         blue_strength = np.clip((b_f - np.maximum(r_f, g_f)) / (threshold * 2), 0, 1)
         fringe_factor = blue_strength
-        b_corrected = (b_f * (1 - fringe_factor) + np.maximum(r_f, g_f) * fringe_factor).astype(np.uint8)
+        b_corrected = np.clip(b_f * (1 - fringe_factor) + np.maximum(r_f, g_f) * fringe_factor, 0, 255).astype(np.uint8)
         arr[fringe_ys, fringe_xs, 2] = b_corrected
 
     subject_bool = ~blue_mask
@@ -209,7 +222,15 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
         # для плавного перехода в glow/face_correction
         if mask_soft_sigma > 0:
             subject_mask_float = aa_mask.astype(np.float32)
-            subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            if HAS_SCIPY:
+                subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            else:
+                # BE-M6: Pillow fallback для gaussian_filter
+                sm_img = Image.fromarray(subject_mask_float.astype(np.uint8))
+                subject_mask_float = np.array(
+                    sm_img.filter(ImageFilter.GaussianBlur(radius=mask_soft_sigma)),
+                    dtype=np.float32
+                )
             # Возвращаем 255 внутри (не размываем вглубь субъекта)
             inner = aa_mask > 200
             inner_solid = _smooth_erode(inner, radius=max(1, int(mask_soft_sigma * 2)))
@@ -220,7 +241,15 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
 
     else:
         # --- Fallback: GaussianBlur-подход (без cv2) ---
-        bg_soft = gaussian_filter(blue_mask.astype(np.float32), sigma=1.0)
+        if HAS_SCIPY:
+            bg_soft = gaussian_filter(blue_mask.astype(np.float32), sigma=1.0)
+        else:
+            # BE-M6: Pillow fallback для gaussian_filter
+            bg_img = Image.fromarray(blue_mask.astype(np.uint8) * 255)
+            bg_soft = np.array(
+                bg_img.filter(ImageFilter.GaussianBlur(radius=1.0)),
+                dtype=np.float32,
+            ) / 255.0
 
         arr[blue_mask] = [0, 0, 0, 0]
         alpha_aa = np.clip((1.0 - bg_soft) * 255.0, 0, 255)
@@ -231,7 +260,15 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
 
         if mask_soft_sigma > 0:
             subject_mask_float = subject_bool.astype(np.float32) * 255.0
-            subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            if HAS_SCIPY:
+                subject_mask_float = gaussian_filter(subject_mask_float, sigma=mask_soft_sigma)
+            else:
+                # BE-M6: Pillow fallback для gaussian_filter
+                sm_img = Image.fromarray(subject_mask_float.astype(np.uint8))
+                subject_mask_float = np.array(
+                    sm_img.filter(ImageFilter.GaussianBlur(radius=mask_soft_sigma)),
+                    dtype=np.float32
+                )
             inner_solid = _smooth_erode(subject_bool, radius=max(1, int(mask_soft_sigma * 2)))
             subject_mask_float[inner_solid] = 255.0
             subject_arr = np.clip(subject_mask_float, 0, 255).astype(np.uint8)
@@ -246,6 +283,8 @@ def _remove_blue_pillow(img, threshold=30, fringe_radius=3):
 
     Примечание: Pillow-fallback не поддерживает mask_soft_sigma —
     всегда возвращает бинарную маску. numpy-реализация доступна.
+    Требуется scipy для fringe removal; если scipy недоступна —
+    fringe_radius игнорируется.
     """
     width, height = img.size
     data = list(img.getdata())

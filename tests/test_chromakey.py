@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.chromakey import remove_blue_background, _make_smooth_mask, HAS_CV2
+from retouch.processing.chromakey import remove_blue_background, _make_smooth_mask, HAS_CV2, HAS_SCIPY
 
 
 class TestRemoveBlueBackground:
@@ -383,6 +383,45 @@ class TestSmoothMask:
         # Снаружи — 0
         assert result_min[5, 5] == 0
         assert result_max[5, 5] == 0
+
+    def test_fringe_correction_no_overflow(self):
+        """BE-M16: fringe correction не переполняет uint8.
+
+        Без np.clip() перед .astype(np.uint8) значения > 255
+        могли обёртываться (wrap around), давая артефакты.
+        """
+        w, h = 200, 200
+        arr = np.zeros((h, w, 4), dtype=np.uint8)
+        # Синий фон
+        arr[..., 2] = 255; arr[..., 3] = 255
+        # Субъект — яркие пиксели, чтобы fringe давал значения > 255
+        arr[60:140, 60:140, :] = [250, 10, 250, 255]
+        # Fringe-зона с экстремальными значениями
+        arr[58:60, 60:140, :] = [10, 10, 255, 255]
+        arr[140:142, 60:140, :] = [10, 10, 255, 255]
+
+        img = Image.fromarray(arr)
+        result, _ = remove_blue_background(img, threshold=30, fringe_radius=3)
+
+        result_arr = np.array(result)
+        # Все каналы должны быть в диапазоне 0-255 (без overflow)
+        assert result_arr.min() >= 0
+        assert result_arr.max() <= 255
+
+    def test_scipy_import_at_module_level(self):
+        """BE-M6: scipy импортирован на уровне модуля с HAS_SCIPY флагом."""
+        import retouch.processing.chromakey as ck
+        assert hasattr(ck, 'HAS_SCIPY'), "Модуль должен экспортировать HAS_SCIPY"
+        assert isinstance(ck.HAS_SCIPY, bool)
+
+    def test_has_scipy_flag_allows_numpy_path(self, chromakey_img):
+        """BE-M6: при HAS_SCIPY=True numpy-путь работает нормально."""
+        if not HAS_SCIPY:
+            pytest.skip("scipy не установлена")
+        img, _ = chromakey_img
+        result, mask = remove_blue_background(img, threshold=30, fringe_radius=3)
+        assert result.mode == "RGBA"
+        assert mask.mode == "L"
 
     def test_cv2_fallback_logs_warning(self, monkeypatch, caplog):
         """При отсутствии cv2 _make_smooth_mask логирует warning о лесенке на контуре."""

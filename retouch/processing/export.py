@@ -65,7 +65,20 @@ if HAS_NUMBA:
         return result
 
 
-def _error_diffusion_dither(img_gray, weights):
+def _uint8_to_mode1(arr: np.ndarray, size: tuple[int, int]) -> Image.Image:
+    """BE-L13: Создать 1-bit изображение напрямую из uint8 массива (0/255).
+
+    Без двойной конвертации fromarray(L).convert('1'):
+    упаковываем булеву маску в packed bitmap для Pillow mode '1'.
+    """
+    # bool array: 255 → True (белый), 0 → False (чёрный)
+    bool_arr = arr >= 128
+    # PIL mode '1' ожидает packed bits: каждый байт = 8 пикселей, MSB first
+    packed = np.packbits(bool_arr, axis=1)
+    return Image.frombytes('1', size, packed.tobytes())
+
+
+def _error_diffusion_dither(img_gray, weights) -> Image.Image:
     """Обобщённый алгоритм дизеринга с диффузией ошибки.
 
     При наличии Numba использует JIT-компилированную версию
@@ -93,7 +106,8 @@ def _error_diffusion_dither(img_gray, weights):
         result = _error_diffusion_dither_jit(
             arr_float, offsets_x, offsets_y, weights_arr, n_weights
         )
-        return Image.fromarray(result).convert('1')
+        # BE-L13: Собираем 1-bit напрямую из uint8 (0/255) без двойной конвертации
+        return _uint8_to_mode1(result, img_gray.size)
 
     # Python fallback — чистый Python без Numba
     arr = np.array(img_gray, dtype=np.float64)
@@ -120,10 +134,11 @@ def _error_diffusion_dither(img_gray, weights):
                 if 0 <= nx < width and 0 <= ny < height:
                     arr[ny, nx] += error * coeff
 
-    return Image.fromarray(result).convert('1')
+    # BE-L13: Собираем 1-bit напрямую из uint8 (0/255) без двойной конвертации
+    return _uint8_to_mode1(result, img_gray.size)
 
 
-def stucki_dither(img_gray):
+def stucki_dither(img_gray) -> Image.Image:
     """Применить дизеринг Stucki к grayscale-изображению.
 
     Stucki — модификация алгоритма Джарвиса с улучшенным сохранением
@@ -148,7 +163,7 @@ def stucki_dither(img_gray):
     return _error_diffusion_dither(img_gray, weights)
 
 
-def jarvis_dither(img_gray):
+def jarvis_dither(img_gray) -> Image.Image:
     """Применить дизеринг Jarvis, Judice & Ninke к grayscale-изображению.
 
     JJN даёт максимально плавные переходы — идеален для CO2 лазеров
@@ -171,7 +186,7 @@ def jarvis_dither(img_gray):
     return _error_diffusion_dither(img_gray, weights)
 
 
-def _apply_dither(img_gray, method='jarvis'):
+def _apply_dither(img_gray, method='jarvis') -> Image.Image:
     """Применить выбранный алгоритм дизеринга.
 
     Args:
@@ -190,7 +205,7 @@ def _apply_dither(img_gray, method='jarvis'):
         return jarvis_dither(img_gray)
 
 
-def dither_with_upsample(img_gray, method='jarvis', upsample=2):
+def dither_with_upsample(img_gray, method='jarvis', upsample=2) -> Image.Image:
     """Применить дизеринг с предварительным upsampling'ом (SOP 5.2).
 
     SOP рекомендует увеличить разрешение в 2-4x перед конверсией в 1-bit.
@@ -224,7 +239,7 @@ def dither_with_upsample(img_gray, method='jarvis', upsample=2):
     return result.convert('1')
 
 
-def save_bmp_8bit(img, output_path, machine_type=None):
+def save_bmp_8bit(img, output_path, machine_type=None) -> None:
     """Сохранить изображение как 8-bit grayscale BMP с палитрой R=G=B.
 
     Формат: BMP, 8-bit indexed, палитра 256 записей (0,0,0)...(255,255,255).
@@ -242,6 +257,8 @@ def save_bmp_8bit(img, output_path, machine_type=None):
         img_gray = img.convert('L')
     elif img.mode == '1':
         img_gray = img.convert('L')
+    elif img.mode == 'P':
+        img_gray = img.convert('L')
     else:
         img_gray = img
 
@@ -257,7 +274,7 @@ def save_bmp_8bit(img, output_path, machine_type=None):
     )
 
 
-def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dither_upsample=1):
+def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dither_upsample=1) -> None:
     """Сохранить изображение как 1-bit монохромный BMP с дизерингом.
 
     Формат: BMP, 1-bit (два цвета: чёрный и белый).
@@ -304,7 +321,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
 
 
 def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
-                  dither_method=None, dither_upsample=1, save_png_preview=False):
+                  dither_method=None, dither_upsample=1, save_png_preview=False) -> str:
     """Экспорт результата пайплайна в нужном формате.
 
     Логика выбора формата:
