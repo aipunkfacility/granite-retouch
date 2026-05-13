@@ -10,6 +10,7 @@
 - **Status colors**: green/orange/red → Emerald/Amber/Rose
 - **`legacy_step_order` убран из UI**: доступен только через config.yaml
 - **`dither_upsample` удалён**: NEAREST downsample на 1-bit — no-op, параметр не давал эффекта. Функция `dither_with_upsample()` удалена из `export.py`, поле удалено из `MachineConfig`, `DEFAULTS`, `config.yaml`, пресетов и `config-defaults.json`
+- **Градиентная маска хромакея**: вместо бинарного порога + OpenCV contour tracing альфа-канал вычисляется напрямую из градиента «степени синевы» (soft-step вокруг threshold). Устраняет зазубренный контур на диагоналях. `contour_smooth_epsilon` deprecated (игнорируется). Fringe removal сохранён (бинарный порог для RGB-коррекции). Ветка `if HAS_CV2:` убрана — один путь для всех окружений
 
 ### Новые возможности
 

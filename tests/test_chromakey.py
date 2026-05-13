@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.chromakey import remove_blue_background, _make_smooth_mask, HAS_CV2, HAS_SCIPY
+from retouch.processing.chromakey import (
+    remove_blue_background, _make_smooth_mask, _compute_blue_strength,
+    HAS_CV2, HAS_SCIPY,
+)
 
 
 class TestRemoveBlueBackground:
@@ -43,8 +46,8 @@ class TestRemoveBlueBackground:
     def test_subject_mask_mostly_binary_without_soft_sigma(self, chromakey_img):
         """Маска субъекта без mask_soft_sigma: преимущественно 0 и 255.
 
-        С cv2 антиалиасная маска содержит промежуточные значения на контуре
-        (1-2 пикселя шириной). Это нормально — основная масса пикселей
+        Градиентная маска даёт промежуточные значения только на границе
+        (transition zone ~2*half_band пикселей). Основная масса пикселей
         должна быть 0 или 255.
         """
         img, _ = chromakey_img
@@ -54,9 +57,10 @@ class TestRemoveBlueBackground:
         mask_arr = np.array(mask)
         binary_count = ((mask_arr == 0) | (mask_arr == 255)).sum()
         total = mask_arr.size
-        # >95% пикселей должны быть 0 или 255
+        # >90% пикселей должны быть 0 или 255
+        # (градиентная маска шире чем старый LINE_AA, но всё ещё узкая)
         pct = binary_count / total
-        assert pct > 0.95, \
+        assert pct > 0.90, \
             f"Маска без sigma должна быть преимущественно бинарной: {pct:.1%}"
 
     def test_no_chromakey_returns_full_mask(self, no_chromakey_img):
@@ -156,15 +160,11 @@ class TestSoftMask:
             "Софт-маска должна иметь промежуточные значения на криволинейной границе"
 
     def test_mask_significant_intermediate_values(self):
-        """Антиалиасинг даёт значимые промежуточные значения (>10), не только 1-2.
+        """Градиентная маска даёт значимые промежуточные значения (>10).
 
-        Это ключевая проверка: старый GaussianBlur-подход давал alpha=1-2
-        на контуре — визуально неотличимо от 0. OpenCV LINE_AA даёт
-        значения 50-200 на переходных пикселях.
+        Градиент синевы даёт плавный переход вместо бинарного 0/255.
+        Значения на контуре — 20-230 вместо 1-2 от старого GaussianBlur.
         """
-        if not HAS_CV2:
-            pytest.skip("OpenCV не установлен — тест только для cv2")
-
         img, cx, cy, radius = self._make_circle_img()
         _, mask = remove_blue_background(img, threshold=30, fringe_radius=3,
                                           mask_soft_sigma=1.5)
@@ -178,7 +178,7 @@ class TestSoftMask:
 
         significant = (border_values > 10) & (border_values < 245)
         assert significant.sum() > 0, \
-            "Антиалиасинг должен давать значимые промежуточные значения (>10)"
+            "Градиентная маска должна давать значимые промежуточные значения (>10)"
 
     def test_mask_is_white_inside_subject(self):
         """Внутри субъекта маска = 255 (без размытия вглубь)."""
@@ -223,39 +223,59 @@ class TestSoftMask:
             "Больший sigma должен давать более широкую переходную зону"
 
     def test_no_staircase_on_diagonal(self):
-        """На диагональной границе нет ступенчатого паттерна.
+        """На диагональной границе с антиалиасингом — плавные промежуточные значения.
 
-        Проверяем что на 45-градусных участках контура круга маска
-        содержит антиалиасные переходные пиксели (не только 0/255).
+        Градиентная маска следует за реальным градиентом синевы.
+        На изображении с антиалиасингом (полусиние пиксели на границе)
+        маска даёт промежуточные alpha-значения вместо бинарного 0/255.
         """
-        if not HAS_CV2:
-            pytest.skip("OpenCV не установлен — тест только для cv2")
+        w, h = 200, 200
+        arr = np.zeros((h, w, 4), dtype=np.uint8)
+        arr[..., 2] = 255  # синий фон
+        arr[..., 3] = 255
 
-        img, cx, cy, radius = self._make_circle_img()
-        _, mask = remove_blue_background(img, threshold=30, fringe_radius=3,
+        # Круг с широким антиалиасингом: 6px transition zone
+        cy, cx, radius = 100, 100, 60
+        yy, xx = np.ogrid[:h, :w]
+        dist = np.sqrt((xx - cx)**2 + (yy - cy)**2).astype(float)
+
+        # Внутри: чистый серый (с запасом от transition)
+        inside = dist <= radius - 3
+        arr[inside] = [200, 200, 200, 255]
+
+        # Transition zone: 6px с плавной интерполяцией
+        transition = (dist > radius - 3) & (dist <= radius + 3)
+        t = np.clip((dist - (radius - 3)) / 6.0, 0, 1)
+
+        # Векторная интерполяция: t=0 субъект, t=1 фон
+        rg = (200 * (1 - t)).astype(np.uint8)
+        b_val = (200 * (1 - t) + 255 * t).astype(np.uint8)
+        arr[transition, 0] = rg[transition]
+        arr[transition, 1] = rg[transition]
+        arr[transition, 2] = b_val[transition]
+
+        img = Image.fromarray(arr)
+        _, mask = remove_blue_background(img, threshold=30, fringe_radius=0,
                                           mask_soft_sigma=0)
 
         mask_arr = np.array(mask)
 
-        # На 45-градусных участках контура круга:
-        # Точка на контуре под 45°: (cx + r*cos45, cy + r*sin45)
+        # На 45° диагонали — ищем промежуточные значения
         cos45 = sin45 = 0.7071
-        # Сканируем по диагонали через точку (cx + r*0.7, cy - r*0.7)
         diag_x = int(cx + radius * cos45)
         diag_y = int(cy - radius * sin45)
 
-        # Берём 3×3 окно вокруг ожидаемой точки контура
-        y1 = max(0, diag_y - 2)
-        y2 = min(mask_arr.shape[0], diag_y + 3)
-        x1 = max(0, diag_x - 2)
-        x2 = min(mask_arr.shape[1], diag_x + 3)
+        # Расширенное окно для поиска transition zone
+        y1 = max(0, diag_y - 4)
+        y2 = min(mask_arr.shape[0], diag_y + 5)
+        x1 = max(0, diag_x - 4)
+        x2 = min(mask_arr.shape[1], diag_x + 5)
         window = mask_arr[y1:y2, x1:x2]
 
-        # На диагональном участке контура должны быть промежуточные значения
-        intermediate = (window > 5) & (window < 250)
+        significant = (window > 20) & (window < 235)
         window_vals = window.flatten().tolist()
-        assert intermediate.sum() > 0, \
-            f"На диагональном контуре должны быть антиалиасные пиксели. Окно: {window_vals}"
+        assert significant.sum() > 0, \
+            f"На диагональном контуре с антиалиасингом должны быть промежуточные значения. Окно: {window_vals}"
 
     def test_chromakey_base_array_is_uint8(self):
         """Основной массив хромакея — uint8 (не float32).
@@ -298,6 +318,101 @@ class TestSoftMask:
         # Порог 80 MB (cv2 добавляет аллокации по сравнению с чистым scipy).
         assert peak < 80_000_000, \
             f"Пиковое потребление памяти аномально высокое: {peak/1e6:.1f} MB"
+
+
+class TestGradientMask:
+    """Тесты градиентной маски хромакея — _compute_blue_strength + альфа."""
+
+    def test_blue_strength_soft_step(self):
+        """_compute_blue_strength: soft-step вокруг threshold.
+
+        - excess < threshold - half_band: strength=0 (твёрдый субъект)
+        - excess == threshold: strength≈0.5
+        - excess > threshold + half_band: strength=1 (твёрдый фон)
+        """
+        threshold = 30
+        # 1×3 изображение: чистый субъект, порог, чистый фон
+        arr = np.array([
+            [[128, 128, 128, 255],   # grayscale: excess=0 → strength=0
+             [128, 128, 158, 255],   # excess=30 → strength≈0.5
+             [0,   0,   255, 255]],  # чистый синий: excess=255 → strength=1
+        ], dtype=np.uint8)
+        r = arr[..., 0]
+        g = arr[..., 1]
+        b = arr[..., 2]
+        strength = _compute_blue_strength(r, g, b, threshold)
+
+        # Grayscale субъект: excess=0, strength≈0
+        assert strength[0, 0] == 0.0, \
+            f"Grayscale субъект должен быть strength=0, а не {strength[0, 0]}"
+        # На пороге: strength≈0.5
+        assert 0.4 < strength[0, 1] < 0.6, \
+            f"На пороге strength≈0.5, а не {strength[0, 1]}"
+        # Чистый синий: strength=1
+        assert strength[0, 2] == 1.0, \
+            f"Чистый синий должен быть strength=1, а не {strength[0, 2]}"
+
+    def test_grayscale_subject_zero_strength(self):
+        """Pure grayscale (R=G=B) — всегда strength=0.
+
+        Главный инвариант: субъект не становится полупрозрачным.
+        """
+        threshold = 30
+        # Разные яркости grayscale — все должны дать strength=0
+        for val in [0, 50, 128, 200, 255]:
+            arr = np.array([[[val, val, val, 255]]], dtype=np.uint8)
+            r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+            strength = _compute_blue_strength(r, g, b, threshold)
+            assert strength[0, 0] == 0.0, \
+                f"Grayscale ({val}) должен быть strength=0, а не {strength[0, 0]}"
+
+    def test_moderate_blue_pixel_full_background(self):
+        """Пиксель R=50, G=50, B=100 → strength=1.0.
+
+        Проверяет что moderate blue (excess=50 при threshold=30)
+        считается твёрдым фоном, не полупрозрачным.
+        """
+        threshold = 30
+        arr = np.array([[[50, 50, 100, 255]]], dtype=np.uint8)
+        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+        strength = _compute_blue_strength(r, g, b, threshold)
+        assert strength[0, 0] == 1.0, \
+            f"R=50,G=50,B=100 (excess=50) должен быть strength=1.0, а не {strength[0, 0]}"
+
+    def test_gradient_alpha_at_boundary(self):
+        """На границе субъекта альфа содержит значимые промежуточные значения.
+
+        Создаём изображение с градиентным переходом (2-3 пикселя
+        с промежуточной синевой). Пиксели на границе должны получить
+        промежуточную альфу вместо бинарного 0/255.
+        """
+        w, h = 100, 100
+        arr = np.zeros((h, w, 4), dtype=np.uint8)
+        # Синий фон
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        # Субъект в центре
+        arr[30:70, 30:70] = [180, 180, 180, 255]
+        # Градиентная граница: полусиние пиксели между субъектом и фоном
+        # Верхняя граница: R,G плавно нарастают, B убывает
+        for i in range(3):
+            blue_val = 255 - i * 40   # 255, 215, 175
+            rg_val = 60 + i * 40      # 60, 100, 140
+            arr[30 - 1 - i, 30:70] = [rg_val, rg_val, blue_val, 255]
+            arr[70 + i, 30:70] = [rg_val, rg_val, blue_val, 255]
+
+        img = Image.fromarray(arr)
+        result, mask = remove_blue_background(img, threshold=30, fringe_radius=0,
+                                               mask_soft_sigma=0)
+
+        result_arr = np.array(result)
+        # Row 27: R=140, G=140, B=175, excess=35 → в transition zone
+        # Row 29: чистый синий (excess=195) → alpha=0
+        # Проверяем row 27 — это полусиний пиксель с промежуточной альфой
+        gradient_alpha = result_arr[27, 40:60, 3]  # Row с excess=35
+        intermediate = (gradient_alpha > 0) & (gradient_alpha < 255)
+        assert intermediate.sum() > 0, \
+            f"Полусиние пиксели (excess≈35) должны иметь промежуточную альфу. Значения: {gradient_alpha.tolist()}"
 
 
 class TestSmoothMask:

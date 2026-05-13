@@ -21,7 +21,7 @@
 | `highlight_start` | int | 210 | 80–250 | Яркость, начиная с которой применяется защита от пересвета (curves highlight protection). Рекомендуемая формула: `white_ceiling - 40`. **[Advanced]** |
 | `shadow_noise_threshold` | int | 30 | 5–80 | Порог яркости для shadow noise: шум добавляется только в пиксели < threshold внутри маски субъекта |
 | `mask_soft_sigma` | float | 1.5 | 0–5.0 | Ширина размытия краёв маски субъекта. 0 = бинарная маска (старое поведение). 1.0–2.0 = плавные края (рекомендуется). Размытие применяется к subject_mask, но не к альфа-каналу. **[Advanced]** |
-| `contour_smooth_epsilon` | float | 0.002 | 0.0–0.01 | Параметр сглаживания контура хромакея через `cv2.approxPolyDP`. 0.001 = минимальное (ближе к оригиналу). 0.005 = агрессивное (сглаживает пряди волос). Требует `opencv-python`. Без cv2 — игнорируется. **[Advanced]** |
+| `contour_smooth_epsilon` | float | 0.002 | 0.0–0.01 | **DEPRECATED** — игнорируется. Градиентная маска хромакея не использует contour tracing. Параметр оставлен для совместимости. Ранее: параметр сглаживания через `cv2.approxPolyDP`. **[Advanced]** |
 | `legacy_step_order` | bool | false | true/false | Использовать старый порядок шагов (unsharp ДО face_brightness). Для rollback без redeploy. **[Hidden — убран из UI, доступен только через config.yaml]** |
 
 ---
