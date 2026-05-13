@@ -29,13 +29,19 @@ from retouch.processing.mask_utils import apply_masked as _apply_masked
 
 
 # ─── Backward-compatible re-exports (F.1) ──────────────────────────────
+# BE-I2: Replaced __getattr__ + globals() with direct imports.
+# These re-exports will be removed in the next release.
 # DEPRECATED: используйте прямые импорты из source-модулей.
-# Эти re-exports будут удалены в следующем релизе.
-#
-# Реэкспорт через __getattr__ — DeprecationWarning срабатывает ТОЛЬКО
-# при фактическом доступе к устаревшим именам, а не при обычном
-# импорте apply_levels.
 
+from retouch.processing.unsharp import apply_unsharp_mask  # noqa: F401
+from retouch.processing.unsharp import _adaptive_unsharp_percent  # noqa: F401
+from retouch.processing.face_correction import check_face_brightness  # noqa: F401
+from retouch.processing.face_correction import _curves_correction  # noqa: F401
+from retouch.processing.face_correction import _shrink_mask  # noqa: F401
+from retouch.processing.shadow_noise import add_shadow_noise  # noqa: F401
+from retouch.processing.mask_utils import apply_masked  # noqa: F401
+
+# Emit deprecation warnings for all re-exported names at import time
 _DEPRECATED_REEXPORTS = {
     "apply_unsharp_mask": "retouch.processing.unsharp",
     "_adaptive_unsharp_percent": "retouch.processing.unsharp",
@@ -46,30 +52,13 @@ _DEPRECATED_REEXPORTS = {
     "apply_masked": "retouch.processing.mask_utils",
 }
 
-
-_reexport_warned: set = set()  # Имена, для которых уже выдан DeprecationWarning
-
-
-def __getattr__(name):
-    if name in _DEPRECATED_REEXPORTS:
-        module_path = _DEPRECATED_REEXPORTS[name]
-        import importlib
-        mod = importlib.import_module(module_path)
-        obj = getattr(mod, name)
-        # AUDIT-3.4: Предупреждение только при первом обращении
-        if name not in _reexport_warned:
-            _reexport_warned.add(name)
-            warnings.warn(
-                f"Импорт '{name}' из retouch.processing.levels устарел. "
-                f"Используйте: from {module_path} import {name}",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        # Кеширование через globals() — последующие обращения идут
-        # через обычный словарь модуля, __getattr__ не вызывается повторно
-        globals()[name] = obj
-        return obj
-    raise AttributeError(f"module 'retouch.processing.levels' has no attribute {name!r}")
+for _name, _module in _DEPRECATED_REEXPORTS.items():
+    warnings.warn(
+        f"Импорт '{_name}' из retouch.processing.levels устарел. "
+        f"Используйте: from {_module} import {_name}",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 # ─── Levels — основная функция ────────────────────────────────────────

@@ -9,7 +9,7 @@
 ## 1. Создать заказ
 
 ```bash
-python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
+uv run python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 ```
 
 Это создаст директорию `orders/active/ORD-2026-042/` с `order.json` и подпапкой `generated/`.
@@ -61,11 +61,11 @@ orders/active/ORD-2026-042/generated/ai.png
 ### 5b. Ретушь (CLI)
 
 ```bash
-python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
+uv run python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
     -o orders/active/ORD-2026-042/generated/final.bmp -m laser_standard
 
 # Для мощного лазера 60-80W+
-python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
+uv run python -m retouch process -i orders/active/ORD-2026-042/generated/ai.png \
     -o orders/active/ORD-2026-042/generated/final.bmp -m laser_80w
 ```
 
@@ -117,13 +117,13 @@ make ui-prod
 
 ```bash
 # Список всех заказов
-python -m retouch order list
+uv run python -m retouch order list
 
 # Валидация заказа
-python -m retouch order validate ORD-2026-042
+uv run python -m retouch order validate ORD-2026-042
 
 # Создать с привязкой к CRM
-python -m retouch order create ORD-2026-043 --crm CMP-0012 -m laser_standard
+uv run python -m retouch order create ORD-2026-043 --crm CMP-0012 -m laser_standard
 ```
 
 См. [reference/cli.md](reference/cli.md).

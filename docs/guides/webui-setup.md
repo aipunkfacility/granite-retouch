@@ -41,6 +41,8 @@ uv run python -m uvicorn retouch_ui.backend.main:app --port 8000 --reload
 ```
 INFO: Uvicorn running on http://127.0.0.1:8000
 granite-retouch backend v3.0.0-dev запущен
+
+> **Примечание:** Версия `v3.0.0-dev` указана для примера. Актуальную версию см. в `pyproject.toml` (поле `version`).
 ```
 
 > **Важно:** порт **8000** — по умолчанию. Vite proxy настроен на `localhost:8000`.
@@ -68,7 +70,7 @@ Vite автоматически проксирует запросы `/api/*` н�
 
 ## Проверка
 
-- Backend health: http://localhost:8000/api/health → `{"status":"ok","version":"3.0.0-dev"}`
+- Backend health: http://localhost:8000/api/health → `{"status":"ok","version":"..."}` (версия из `pyproject.toml`)
 - Frontend загружает изображение → preview → экспорт BMP/PNG/TIFF
 
 ## Production-режим (один процесс)

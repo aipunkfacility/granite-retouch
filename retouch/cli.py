@@ -73,7 +73,7 @@ def cmd_validate(args):
 
 def cmd_gimp(args):
     """GIMP-обработка портрета (experimental / not recommended)."""
-    print("⚠ Experimental: results may be incorrect. "
+    print("[WARN] Experimental: results may be incorrect. "
           "Use `retouch process` for production.", file=sys.stderr)
 
     from retouch.gimp.runner import run_gimp

@@ -8,7 +8,7 @@
 
 ```bash
 uv sync --extra dev   # pytest + jsonschema
-make test                     # 365+ тестов + 31 backend API тест
+make test                     # 451+ тестов + 31 backend API тест
 ```
 
 ## Быстрый старт

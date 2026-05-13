@@ -1,8 +1,11 @@
 """Валидация order.json по schema.json."""
 
+import importlib.util
 import json
 import logging
 from pathlib import Path
+
+HAS_JSONSCHEMA = bool(importlib.util.find_spec("jsonschema"))
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,8 @@ def validate_order(order_path, schema_path=None):
     """
     try:
         import jsonschema
-        HAS_JSONSCHEMA = True
     except ImportError:
-        HAS_JSONSCHEMA = False
+        pass
 
     order_path = Path(order_path)
     if not order_path.is_file():

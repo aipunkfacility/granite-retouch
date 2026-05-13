@@ -26,6 +26,37 @@
 
 ---
 
+## Сводная таблица параметров по станкам
+
+Все параметры, которые различаются между типами станков. Общие параметры (`blue_threshold`, `min_blue_ratio`, `fringe_radius` и т.д.) задаются на уровне `processing` и наследуются всеми станками.
+
+| Параметр | `laser_standard` | `laser_80w` | `impact` |
+|----------|:-----------------:|:-----------:|:--------:|
+| `glow_size_min` | 40 | 15 | 10 |
+| `glow_size_max` | 80 | 25 | 25 |
+| `glow_opacity_min` | 30 | 10 | 60 |
+| `glow_opacity_max` | 40 | 20 | 80 |
+| `glow_style` | `"outer"` | `"outer"` | `"outer"` |
+| `stone_gamma` | 0.88 | 0.85 | 0.90 |
+| `unsharp_threshold` | 3 | 3 | 2 |
+| `shadow_floor` | 5 | 5 | 8 |
+| `target_pre_fb` | 180 | 150 | 160 |
+| `face_brightness_target_min` | 230 | 190 | 200 |
+| `face_brightness_target_max` | 245 | 210 | 225 |
+| `white_ceiling` | 250 | 235 | 240 |
+| `face_region_top` | 0.45 | 0.45 | 0.45 |
+| `highlight_start` | 200 | 195 | 200 |
+| `face_skin_threshold` | 100 | 100 | 100 |
+| `shadow_noise_min` | — | — | 5 |
+| `shadow_noise_max` | — | — | 15 |
+| `shadow_noise_threshold` | — | — | 30 |
+| `dither_method` | `"none"` | `"jarvis"` | `"none"` |
+| `dither_upsample` | — | 2 | — |
+
+> Параметры, отмеченные `—`, не определены для данного станка (используется значение по умолчанию из `MachineConfig`).
+
+---
+
 ## processing.laser_standard
 
 Параметры для стандартной лазерной гравировки 20–40W (Mirtels, Stanzone).
