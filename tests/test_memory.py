@@ -35,8 +35,14 @@ class TestPipelineMemory:
         массивов + scipy буферы. Реалистичный пик ~50-200 MB.
         Порог 500 MB — щедрый, но ловит OOM-регрессию.
         """
+        import gc
+
         from retouch.processing.pipeline import process_export
         from retouch.config import DEFAULTS
+
+        # T-F2: ensure tracemalloc is stopped and GC runs between tests
+        tracemalloc.stop()
+        gc.collect()
 
         img = _make_test_image(1024)
         input_path = tmp_path / "input.png"
@@ -58,6 +64,7 @@ class TestPipelineMemory:
             _, peak = tracemalloc.get_traced_memory()
         finally:
             tracemalloc.stop()
+            gc.collect()
 
         peak_mb = peak / 1e6
         assert peak < 500_000_000, (

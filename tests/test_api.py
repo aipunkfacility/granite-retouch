@@ -100,28 +100,51 @@ class TestStableSerialize:
         assert h1 == h2, "Порядок ключей не должен влиять на хэш"
 
     def test_cache_key_deterministic(self):
-        """Одинаковые параметры — одинаковый cache_key."""
+        """T-D3: Одинаковые параметры — одинаковый cache_key."""
         from retouch_ui.backend.routers.process import _cache_key
         from retouch_ui.backend.schemas import PreviewParams
 
         params = PreviewParams(step_mm=0.30, stone_type="granite")
-        k1 = _cache_key("abc123", "laser_standard", params)
-        k2 = _cache_key("abc123", "laser_standard", params)
+        k1 = _cache_key("test_id", "laser_standard", params)
+        k2 = _cache_key("test_id", "laser_standard", params)
 
         assert k1 == k2, "Одинаковые параметры — одинаковый ключ кэша"
+
+    def test_cache_key_differs_for_different_params(self):
+        """T-D3: Разные параметры — разные ключи кэша."""
+        from retouch_ui.backend.routers.process import _cache_key
+        from retouch_ui.backend.schemas import PreviewParams
+
+        params1 = PreviewParams(step_mm=0.30, stone_type="granite")
+        params2 = PreviewParams(step_mm=0.20, stone_type="granite")
+
+        k1 = _cache_key("test_id", "laser_standard", params1)
+        k2 = _cache_key("test_id", "laser_standard", params2)
+
+        assert k1 != k2, "Разные параметры — разные ключи кэша"
 
     def test_preview_cache_stores_base64_not_pil(self):
         """Кэш хранит base64 строки, не PIL объекты."""
         from retouch_ui.backend.routers.process import _preview_cache
 
-        for key, value in _preview_cache.items():
-            assert isinstance(value, dict), "Кэш должен содержать dict"
-            if "images" in value:
-                for img_key, img_val in value["images"].items():
-                    assert isinstance(img_val, str), \
-                        f"Кэш должен хранить base64 строки, не {type(img_val)}"
-                    assert img_val.startswith("data:image/"), \
-                        "Кэш должен содержать data URI"
+        # Insert a real element so the loop body is actually exercised
+        _preview_cache["test-key"] = {
+            "images": {
+                "final": "data:image/png;base64,iVBORw0KGgo=",
+            }
+        }
+
+        try:
+            for key, value in _preview_cache.items():
+                assert isinstance(value, dict), "Кэш должен содержать dict"
+                if "images" in value:
+                    for img_key, img_val in value["images"].items():
+                        assert isinstance(img_val, str), \
+                            f"Кэш должен хранить base64 строки, не {type(img_val)}"
+                        assert img_val.startswith("data:image/"), \
+                            "Кэш должен содержать data URI"
+        finally:
+            _preview_cache.pop("test-key", None)
 
 
 class TestReexports:

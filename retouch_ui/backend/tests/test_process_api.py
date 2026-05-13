@@ -61,26 +61,22 @@ def test_upload_tiff_accepted(client):
     assert res.status_code == 200
 
 
-def test_upload_limit(client, monkeypatch):
+def test_upload_limit(client, isolated_uploaded_files):
     """Uploading beyond MAX_UPLOADED_FILES returns 503."""
     # Fill the store to capacity
-    _uploaded_files.clear()
     import time
     for i in range(MAX_UPLOADED_FILES):
-        _uploaded_files[f"fake-{i}"] = (None, f"file-{i}.png", 0, time.time())
+        isolated_uploaded_files[f"fake-{i}"] = (None, f"file-{i}.png", 0, time.time())
 
-    try:
-        img = Image.new("RGB", (64, 64), (0, 0, 255))
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        res = client.post(
-            "/api/upload",
-            files={"file": ("extra.png", buf, "image/png")},
-        )
-        assert res.status_code == 503
-    finally:
-        _uploaded_files.clear()
+    img = Image.new("RGB", (64, 64), (0, 0, 255))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    res = client.post(
+        "/api/upload",
+        files={"file": ("extra.png", buf, "image/png")},
+    )
+    assert res.status_code == 503
 
 
 # ─── Preview ──────────────────────────────────────────────────────────────

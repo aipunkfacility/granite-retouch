@@ -8,6 +8,17 @@ from PIL import Image
 from fastapi.testclient import TestClient
 
 from ..main import app
+from ..routers.process import _uploaded_files as _uploaded_files_mod
+
+
+@pytest.fixture
+def isolated_uploaded_files(monkeypatch):
+    """Save/restore _uploaded_files so tests never leak state."""
+    saved = dict(_uploaded_files_mod)
+    _uploaded_files_mod.clear()
+    yield _uploaded_files_mod
+    _uploaded_files_mod.clear()
+    _uploaded_files_mod.update(saved)
 
 
 @pytest.fixture
