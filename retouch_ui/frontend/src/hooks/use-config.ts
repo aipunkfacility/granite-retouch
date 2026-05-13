@@ -33,8 +33,12 @@ export function useConfig(): UseConfigReturn {
     if (defaults) {
       setConfig(defaults);
     } else {
-      const result: DefaultsResult = await fetchDefaults();
-      setConfig(result.defaults);
+      try {
+        const result: DefaultsResult = await fetchDefaults();
+        setConfig(result.defaults);
+      } catch (e) {
+        console.error("Failed to fetch defaults:", e);
+      }
     }
   }, []);
 

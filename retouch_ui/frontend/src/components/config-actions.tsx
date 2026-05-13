@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { saveConfig, fetchDefaults, fetchPresets, createPreset, deletePreset } from "../lib/api";
 import type { PresetItem } from "../lib/api";
 import type { ConfigTree } from "../lib/types";
@@ -7,19 +7,28 @@ interface Props {
   config: ConfigTree;
   onConfigReset: (defaults: ConfigTree) => void;
   onConfigChange: (config: ConfigTree) => void;
+  showToast?: (msg: string) => void;
 }
 
-export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) {
+export function ConfigActions({ config, onConfigReset, onConfigChange, showToast }: Props) {
   const [presets, setPresets] = useState<PresetItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [showPresets, setShowPresets] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const saveMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up save message timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     fetchPresets()
       .then((res) => setPresets(res.presets))
-      .catch(() => {});
+      .catch((e) => showToast?.(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -28,9 +37,12 @@ export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) 
     try {
       await saveConfig(config);
       setSaveMessage("Сохранено");
-      setTimeout(() => setSaveMessage(null), 2000);
+      if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
+      saveMessageTimerRef.current = setTimeout(() => setSaveMessage(null), 2000);
     } catch {
       setSaveMessage("Ошибка сохранения");
+      if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
+      saveMessageTimerRef.current = setTimeout(() => setSaveMessage(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -40,10 +52,10 @@ export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) 
     try {
       const result = await fetchDefaults();
       onConfigReset(result.defaults);
-    } catch {
-      // Ignore if backend is down
+    } catch (e) {
+      showToast?.(e instanceof Error ? e.message : String(e));
     }
-  }, [onConfigReset]);
+  }, [onConfigReset, showToast]);
 
   const handleCreatePreset = useCallback(async () => {
     if (!presetName.trim()) return;
@@ -52,19 +64,19 @@ export function ConfigActions({ config, onConfigReset, onConfigChange }: Props) 
       setPresetName("");
       const res = await fetchPresets();
       setPresets(res.presets);
-    } catch {
-      // Ignore errors
+    } catch (e) {
+      showToast?.(e instanceof Error ? e.message : String(e));
     }
-  }, [presetName, config]);
+  }, [presetName, config, showToast]);
 
   const handleDeletePreset = useCallback(async (name: string) => {
     try {
       await deletePreset(name);
       setPresets((prev) => prev.filter((p) => p.name !== name));
-    } catch {
-      // Ignore errors
+    } catch (e) {
+      showToast?.(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [showToast]);
 
   return (
     <div className="space-y-3">

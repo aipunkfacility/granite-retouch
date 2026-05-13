@@ -20,6 +20,11 @@ function isParamToggle(param: ParamDef): param is ParamToggle {
   return "type" in param && param.type === "toggle";
 }
 
+/** Type guard for ParamDef — checks if value looks like a valid param definition */
+function isParamDef(val: unknown): val is ParamDef {
+  return val != null && typeof val === "object" && ("label" in val || "type" in val);
+}
+
 export function ParamsPanel({
   machineType,
   config,
@@ -79,10 +84,12 @@ export function ParamsPanel({
 
   const getParamDef = (groupKey: string, paramKey: string): ParamDef | null => {
     if (groupKey === "common") {
-      return CONFIG_SCHEMA.processing[paramKey as keyof typeof CONFIG_SCHEMA.processing] as ParamDef | null;
+      const val = CONFIG_SCHEMA.processing[paramKey as keyof typeof CONFIG_SCHEMA.processing];
+      return isParamDef(val) ? val : null;
     }
     if (groupKey === "vignette") {
-      return CONFIG_SCHEMA.vignette[paramKey as keyof typeof CONFIG_SCHEMA.vignette] as ParamDef | null;
+      const val = CONFIG_SCHEMA.vignette[paramKey as keyof typeof CONFIG_SCHEMA.vignette];
+      return isParamDef(val) ? val : null;
     }
     if (groupKey === "laser_standard" || groupKey === "laser_80w" || groupKey === "impact") {
       const machine = CONFIG_SCHEMA.processing[groupKey] as Record<string, ParamDef> | undefined;
@@ -196,7 +203,7 @@ export function ParamsPanel({
       )}
 
       {/* Sliders */}
-      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+      <div className="space-y-3 max-h-[min(60vh,40rem)] overflow-y-auto pr-1">
         {visibleTabs
           .filter((g) => g.key === effectiveTab)
           .map((g) =>

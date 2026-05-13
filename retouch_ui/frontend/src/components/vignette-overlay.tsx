@@ -12,8 +12,6 @@ import {
   computeEllipseGeometry,
   computeParamsFromDrag,
   computeParamsFromTopDragShift,
-  computeImgRenderMetrics,
-  VIGNETTE_LIMITS,
 } from "../lib/vignette-geometry";
 import type { VignetteParams, EllipseGeometry, DragHandleType } from "../lib/vignette-geometry";
 import { fetchVignetteMask } from "../lib/api";
@@ -125,7 +123,7 @@ export function VignetteOverlay({
     (handle: DragHandleType, e: React.PointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      (e.target as Element).setPointerCapture(e.pointerId);
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
       setDragging(handle);
     },
     [],
@@ -189,12 +187,12 @@ export function VignetteOverlay({
           <rect
             x={-viewboxPadding} y={0}
             width={viewboxPadding - 1} height={imageHeight}
-            fill="rgba(0,0,0,0.35)"
+            fill="var(--vignette-oversize-fill, rgba(0,0,0,0.35))"
           />
           <rect
             x={imageWidth + 1} y={0}
             width={viewboxPadding - 1} height={imageHeight}
-            fill="rgba(0,0,0,0.35)"
+            fill="var(--vignette-oversize-fill, rgba(0,0,0,0.35))"
           />
         </>
       )}
@@ -202,7 +200,7 @@ export function VignetteOverlay({
       {/* ── Рамка изображения ── */}
       <rect
         x={0} y={0} width={imageWidth} height={imageHeight}
-        fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={1}
+        fill="none" stroke="var(--vignette-border, rgba(255,255,255,0.15))" strokeWidth={1}
       />
 
       {/* ── L2: серверная маска (полупрозрачная) ── */}
@@ -221,8 +219,8 @@ export function VignetteOverlay({
         cy={geo.cy}
         rx={geo.rx}
         ry={geo.ry}
-        fill="rgba(68,136,255,0.06)"
-        stroke="#4488ff"
+        fill="var(--vignette-fill, rgba(68,136,255,0.06))"
+        stroke="var(--vignette-stroke, #4488ff)"
         strokeWidth={2}
         strokeDasharray={serverMaskUrl ? "none" : "8 4"}
       />
@@ -231,7 +229,7 @@ export function VignetteOverlay({
       <line
         x1={0} y1={geo.archBottomY}
         x2={imageWidth} y2={geo.archBottomY}
-        stroke="#4488ff" strokeWidth={1}
+        stroke="var(--vignette-stroke, #4488ff)" strokeWidth={1}
         strokeDasharray="6 4" opacity={0.4}
       />
 
@@ -242,39 +240,39 @@ export function VignetteOverlay({
           <line
             x1={0} y1={geo.archBottomY}
             x2={-geo.hOversizePx} y2={geo.cy}
-            stroke="#4488ff" strokeWidth={1.5}
+            stroke="var(--vignette-stroke, #4488ff)" strokeWidth={1.5}
             strokeDasharray="4 3" opacity={0.5}
           />
           <line
             x1={-geo.hOversizePx} y1={geo.cy}
             x2={0} y2={geo.archTopY + (geo.archBottomY - geo.archTopY) * 0.1}
-            stroke="#4488ff" strokeWidth={1.5}
+            stroke="var(--vignette-stroke, #4488ff)" strokeWidth={1.5}
             strokeDasharray="4 3" opacity={0.5}
           />
           {/* Правая сторона */}
           <line
             x1={imageWidth} y1={geo.archBottomY}
             x2={imageWidth + geo.hOversizePx} y2={geo.cy}
-            stroke="#4488ff" strokeWidth={1.5}
+            stroke="var(--vignette-stroke, #4488ff)" strokeWidth={1.5}
             strokeDasharray="4 3" opacity={0.5}
           />
           <line
             x1={imageWidth + geo.hOversizePx} y1={geo.cy}
             x2={imageWidth} y2={geo.archTopY + (geo.archBottomY - geo.archTopY) * 0.1}
-            stroke="#4488ff" strokeWidth={1.5}
+            stroke="var(--vignette-stroke, #4488ff)" strokeWidth={1.5}
             strokeDasharray="4 3" opacity={0.5}
           />
           {/* Подписи oversize */}
           <text
             x={-geo.hOversizePx / 2} y={geo.cy - 8}
-            fill="#4488ff" fontSize={11} textAnchor="middle"
+            fill="var(--vignette-stroke, #4488ff)" fontSize={11} textAnchor="middle"
             fontFamily="monospace"
           >
             {(vignetteParams.horizontal_oversize * 100).toFixed(0)}%
           </text>
           <text
             x={imageWidth + geo.hOversizePx / 2} y={geo.cy - 8}
-            fill="#4488ff" fontSize={11} textAnchor="middle"
+            fill="var(--vignette-stroke, #4488ff)" fontSize={11} textAnchor="middle"
             fontFamily="monospace"
           >
             {(vignetteParams.horizontal_oversize * 100).toFixed(0)}%
@@ -288,7 +286,7 @@ export function VignetteOverlay({
         x={geo.cx}
         y={geo.archTopY}
         active={dragging === "top"}
-        cursor={shiftHeld ? "ns-resize" : "ns-resize"}
+        cursor="ns-resize"
         label={shiftHeld ? "diameter" : "headroom"}
         onPointerDown={(e) => handleDragStart("top", e)}
       />
@@ -350,7 +348,7 @@ function DragHandle({ x, y, active, cursor, label, onPointerDown }: DragHandlePr
       {/* Visible handle */}
       <circle
         cx={x} cy={y} r={RADIUS}
-        fill={active ? "#66aaff" : "#4488ff"}
+        fill={active ? "var(--vignette-handle-active, #66aaff)" : "var(--vignette-stroke, #4488ff)"}
         stroke="white"
         strokeWidth={2}
         onPointerDown={onPointerDown}
@@ -358,7 +356,7 @@ function DragHandle({ x, y, active, cursor, label, onPointerDown }: DragHandlePr
       {/* Label */}
       <text
         x={x} y={y - RADIUS - 6}
-        fill="#4488ff"
+        fill="var(--vignette-stroke, #4488ff)"
         fontSize={9}
         textAnchor="middle"
         fontFamily="monospace"

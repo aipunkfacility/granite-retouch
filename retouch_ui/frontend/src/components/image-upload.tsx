@@ -31,9 +31,18 @@ export function ImageUpload({ onImageUploaded }: Props) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Upload image"
       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
         ${dragOver ? "border-accent-blue bg-bg-hover" : "border-border bg-bg-card"}`}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);

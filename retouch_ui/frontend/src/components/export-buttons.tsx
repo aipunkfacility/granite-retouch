@@ -1,10 +1,12 @@
 /** BMP/PNG export by fileId — CNC stone engraving output formats */
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { fetchExport } from "../lib/api";
 import type { MachineType, ConfigTree } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 type ExportFormat = "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff";
+
+const DROPDOWN_FORMATS: ExportFormat[] = ["bmp", "bmp_8bit", "bmp_1bit", "tiff"];
 
 interface Props {
   fileId: string | null;
@@ -43,11 +45,21 @@ function formatLabel(format: ExportFormat): string {
 export function ExportButtons({ fileId, machineType, config, faceOval }: Props) {
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownIndex, setDropdownIndex] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+  const dropdownBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const handleExport = async (format: ExportFormat) => {
     if (!fileId) return;
     setExporting(true);
     setExportFormat(format);
+    setDropdownOpen(false);
     try {
       const blob = await fetchExport(fileId, machineType, format, config, faceOval);
       const url = URL.createObjectURL(blob);
@@ -55,20 +67,61 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       a.href = url;
       a.download = `retouch_result.${formatExt(format)}`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`Ошибка экспорта: ${msg}`);
+      showToast(`Ошибка экспорта: ${msg}`);
     } finally {
       setExporting(false);
       setExportFormat(null);
     }
   };
 
+  const handleDropdownKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!dropdownOpen) {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setDropdownOpen(true);
+          setDropdownIndex(0);
+        }
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setDropdownIndex((prev) => {
+            const next = Math.min(prev + 1, DROPDOWN_FORMATS.length - 1);
+            dropdownBtnRefs.current[next]?.focus();
+            return next;
+          });
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setDropdownIndex((prev) => {
+            const next = Math.max(prev - 1, 0);
+            dropdownBtnRefs.current[next]?.focus();
+            return next;
+          });
+          break;
+        case "Escape":
+          e.preventDefault();
+          setDropdownOpen(false);
+          break;
+        case "Enter":
+          e.preventDefault();
+          handleExport(DROPDOWN_FORMATS[dropdownIndex]);
+          break;
+      }
+    },
+    [dropdownOpen, dropdownIndex, handleExport],
+  );
+
   const primaryFormat = defaultFormat(machineType);
 
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center relative">
       {/* Primary export button (format depends on machine type) */}
       <button
         onClick={() => handleExport(primaryFormat)}
@@ -100,26 +153,47 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       </button>
 
       {/* More formats dropdown */}
-      <div className="relative group">
+      <div className="relative">
         <button
           disabled={!fileId || exporting}
           className="px-2 py-1.5 bg-bg-card text-text-primary text-sm rounded hover:bg-bg-hover disabled:opacity-50 transition-colors"
           title="Другие форматы"
+          onClick={() => {
+            setDropdownOpen((prev) => !prev);
+            setDropdownIndex(0);
+          }}
+          onKeyDown={handleDropdownKeyDown}
+          onBlur={() => {
+            // Close dropdown when focus leaves the dropdown area
+            setTimeout(() => setDropdownOpen(false), 150);
+          }}
         >
           <i className="ri-arrow-down-s-line" />
         </button>
-        <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded shadow-lg z-50 hidden group-hover:block min-w-[140px]">
-          {(["bmp", "bmp_8bit", "bmp_1bit", "tiff"] as ExportFormat[]).map((fmt) => (
-            <button
-              key={fmt}
-              onClick={() => handleExport(fmt)}
-              className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-hover transition-colors"
-            >
-              {formatLabel(fmt)}
-            </button>
-          ))}
-        </div>
+        {dropdownOpen && (
+          <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded shadow-lg z-50 min-w-[140px]">
+            {DROPDOWN_FORMATS.map((fmt, idx) => (
+              <button
+                key={fmt}
+                ref={(el) => { dropdownBtnRefs.current[idx] = el; }}
+                onClick={() => handleExport(fmt)}
+                onKeyDown={handleDropdownKeyDown}
+                className={`w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-hover transition-colors
+                  ${idx === dropdownIndex ? "bg-bg-hover" : ""}`}
+              >
+                {formatLabel(fmt)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-card border border-border text-text-primary px-5 py-3 rounded-lg shadow-lg z-50 text-sm max-w-md">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

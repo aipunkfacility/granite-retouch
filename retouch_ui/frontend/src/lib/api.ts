@@ -1,23 +1,27 @@
 import type { MachineType, ConfigTree } from "./types";
 import type { FaceOvalParams } from "./face-oval-geometry";
+import type { VignetteParams } from "./vignette-geometry";
 
 const API_BASE = "/api";
 
+export interface DiagnosticsData {
+  glow_size: number;
+  glow_opacity: number;
+  face_brightness_before: number;
+  face_brightness_after: number;
+  face_correction_factor: number;
+  black_ratio: number;
+  blue_ratio: number;
+  width: number;
+  height: number;
+  // AUDIT-3.1: face_oval из preview для передачи в export
+  face_oval?: FaceOvalParams | null;
+  numba_available?: boolean;
+}
+
 export interface PreviewResult {
   images: Record<string, string>;
-  diagnostics: {
-    glow_size: number;
-    glow_opacity: number;
-    face_brightness_before: number;
-    face_brightness_after: number;
-    face_correction_factor: number;
-    black_ratio: number;
-    blue_ratio: number;
-    width: number;
-    height: number;
-    // AUDIT-3.1: face_oval из preview для передачи в export
-    face_oval?: FaceOvalParams | null;
-  };
+  diagnostics: DiagnosticsData;
   warnings: string[];
 }
 
@@ -212,7 +216,7 @@ export async function deletePreset(name: string) {
 export async function fetchVignetteMask(
   width: number,
   height: number,
-  vignetteParams: Record<string, number>,
+  vignetteParams: VignetteParams,
   signal?: AbortSignal,
 ): Promise<VignetteMaskResult> {
   const res = await fetch(`${API_BASE}/vignette/mask`, {

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { VignetteOverlay } from "./vignette-overlay";
 import { FaceOvalOverlay } from "./face-oval-overlay";
+import { STEP_LABELS } from "./step-selector";
 import { computeImgRenderMetrics } from "../lib/vignette-geometry";
 import type { VignetteParams } from "../lib/vignette-geometry";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
@@ -24,15 +25,6 @@ interface Props {
   onVignetteParamChange: (path: string[], value: number) => void;
 }
 
-const STEPS = [
-  { key: "chromakey", label: "Хромакей" },
-  { key: "glow", label: "Glow" },
-  { key: "leveled", label: "Levels" },
-  { key: "face_corrected", label: "Лицо" },
-  { key: "arch_mask", label: "Маска" },
-  { key: "final", label: "Результат" },
-];
-
 export function BeforeAfter({
   originalUrl,
   images,
@@ -46,7 +38,7 @@ export function BeforeAfter({
   vignetteParams,
   onVignetteParamChange,
 }: Props) {
-  const stepLabel = STEPS.find((s) => s.key === selectedStep)?.label ?? selectedStep;
+  const stepLabel = STEP_LABELS[selectedStep] ?? selectedStep;
   const resultContainerRef = useRef<HTMLDivElement>(null);
   const resultImgRef = useRef<HTMLImageElement>(null);
   const [renderMetrics, setRenderMetrics] = useState({

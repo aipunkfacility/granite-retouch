@@ -12,7 +12,6 @@
 import { useState, useRef, useCallback } from "react";
 import {
   computeFaceOvalFromDrag,
-  FACE_OVAL_LIMITS,
 } from "../lib/face-oval-geometry";
 import type { FaceOvalParams, FaceOvalHandleType } from "../lib/face-oval-geometry";
 
@@ -59,28 +58,13 @@ export function FaceOvalOverlay({
   const ryPx = faceOval.ry * imageHeight;
 
   // ─── SVG ↔ Image координаты ───────────────────────────────────────
-  const svgToImgNorm = useCallback(
-    (clientX: number, clientY: number): { dx: number; dy: number } | null => {
-      if (!svgRef.current) return null;
-      const rect = svgRef.current.getBoundingClientRect();
-      // Изменение в пикселях DOM → нормализованное изменение
-      const scaleX = imageWidth / rect.width;
-      const scaleY = imageHeight / rect.height;
-      return {
-        dx: (clientX - rect.left) * scaleX / imageWidth,
-        dy: (clientY - rect.top) * scaleY / imageHeight,
-      };
-    },
-    [imageWidth, imageHeight],
-  );
-
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleDragStart = useCallback(
     (handle: FaceOvalHandleType, e: React.PointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      (e.target as Element).setPointerCapture(e.pointerId);
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
       setDragging(handle);
       lastPosRef.current = { x: e.clientX, y: e.clientY };
     },
@@ -132,8 +116,8 @@ export function FaceOvalOverlay({
         cy={cyPx}
         rx={rxPx}
         ry={ryPx}
-        fill="rgba(255,180,0,0.06)"
-        stroke="#ffb400"
+        fill="var(--face-oval-fill, rgba(255,180,0,0.06))"
+        stroke="var(--face-oval-stroke, #ffb400)"
         strokeWidth={2}
         strokeDasharray="8 4"
       />
@@ -142,7 +126,7 @@ export function FaceOvalOverlay({
       <text
         x={cxPx}
         y={cyPx - ryPx - 12}
-        fill="#ffb400"
+        fill="var(--face-oval-stroke, #ffb400)"
         fontSize={10}
         textAnchor="middle"
         fontFamily="monospace"
@@ -221,7 +205,7 @@ function OvalHandle({ x, y, active, cursor, onPointerDown }: OvalHandleProps) {
       />
       <circle
         cx={x} cy={y} r={RADIUS}
-        fill={active ? "#ffd060" : "#ffb400"}
+        fill={active ? "var(--face-oval-handle-active, #ffd060)" : "var(--face-oval-stroke, #ffb400)"}
         stroke="white"
         strokeWidth={2}
         onPointerDown={onPointerDown}

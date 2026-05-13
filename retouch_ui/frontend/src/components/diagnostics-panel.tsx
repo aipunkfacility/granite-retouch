@@ -1,16 +1,6 @@
 /** Processing diagnostics: face brightness, glow, black ratio */
 
-interface DiagnosticsData {
-  glow_size: number;
-  glow_opacity: number;
-  face_brightness_before: number;
-  face_brightness_after: number;
-  face_correction_factor: number;
-  black_ratio: number;
-  blue_ratio: number;
-  width: number;
-  height: number;
-}
+import type { DiagnosticsData } from "../lib/api";
 
 interface Props {
   diagnostics: DiagnosticsData | null;
@@ -53,7 +43,7 @@ export function DiagnosticsPanel({ diagnostics, warnings }: Props) {
       {warnings.length > 0 && (
         <div className="mt-2 space-y-1">
           {warnings.map((w, i) => (
-            <p key={i} className="text-sm text-accent-orange">
+            <p key={`diagnostic-warning-${i}`} className="text-sm text-accent-orange">
               <i className="ri-alert-line mr-1" />
               {w}
             </p>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { ImageUpload } from "./components/image-upload";
 import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
@@ -35,6 +35,9 @@ const DEFAULT_FACE_OVAL: FaceOvalParams = {
 };
 
 export default function App() {
+  // Toast state
+  const [toast, setToast] = useState<string | null>(null);
+
   // State
   const [fileId, setFileId] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export default function App() {
   }, [previewResult, faceOvalOverlayEnabled, faceOvalPinned]);
 
   // Vignette params derived from config
-  const vignetteParams = getVignetteParams(config);
+  const vignetteParams = useMemo(() => getVignetteParams(config), [config]);
 
   // Image dimensions from preview diagnostics
   const imageWidth = previewResult?.diagnostics.width ?? 0;
@@ -128,7 +131,7 @@ export default function App() {
 
   const handleConfigChangeByPath = useCallback(
     (path: string[], value: number | string) => {
-      const newConfig = JSON.parse(JSON.stringify(config));
+      const newConfig = structuredClone(config);
       let obj: ConfigTree = newConfig;
       for (let i = 0; i < path.length - 1; i++) {
         if (!obj[path[i]]) obj[path[i]] = {};
@@ -196,7 +199,7 @@ export default function App() {
     try {
       const body: Record<string, unknown> = {
         file_id: fileId,
-        machine: "laser_80w",
+        machine: machineType,
       };
       if (config) {
         body.params = { ...config, face_oval: faceOvalOverlayEnabled ? faceOval : null };
@@ -220,16 +223,21 @@ export default function App() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("Dither preview error:", err);
-      alert(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`);
+      setToast(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`);
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setDitherLoading(false);
     }
   }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult]);
 
   // Compute available steps (add "dithered" if we have a dither image)
-  const availableSteps = previewResult
-    ? { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) }
-    : {};
+  const availableSteps = useMemo(
+    () =>
+      previewResult
+        ? { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) }
+        : {},
+    [previewResult, ditherImageUrl],
+  );
 
   // Layout: sidebar left (params) + main area (image) right
   return (
@@ -259,7 +267,7 @@ export default function App() {
       {configWarnings.length > 0 && (
         <div className="bg-accent-orange/10 text-accent-orange px-6 py-2 text-sm border-b border-accent-orange/20">
           {configWarnings.map((w, i) => (
-            <span key={i}>
+            <span key={`warning-${i}`}>
               {i > 0 ? " · " : ""}{w}
             </span>
           ))}
@@ -374,6 +382,13 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-card border border-border text-text-primary px-5 py-3 rounded-lg shadow-lg z-50 text-sm max-w-md">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
