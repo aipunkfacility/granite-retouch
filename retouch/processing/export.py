@@ -12,7 +12,7 @@
   - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
 
 FIX #9: Добавлены Stucki и Jarvis dithering
-FIX #10: Upsampling перед дизерингом (SOP 5.2)
+FIX #10: REMOVED — dither_upsample was broken (NEAREST downsample on 1-bit is no-op)
 PERF: Numba @njit для дизеринга — 50-200x ускорение
 BREAKING: Floyd-Steinberg удалён, floyd_steinberg редиректит на jarvis
 """
@@ -205,40 +205,6 @@ def _apply_dither(img_gray, method='jarvis') -> Image.Image:
         return jarvis_dither(img_gray)
 
 
-def dither_with_upsample(img_gray, method='jarvis', upsample=2) -> Image.Image:
-    """Применить дизеринг с предварительным upsampling'ом (SOP 5.2).
-
-    SOP рекомендует увеличить разрешение в 2-4x перед конверсией в 1-bit.
-    Это позволяет алгоритму дизеринга оперировать более мелкой сеткой,
-    что минимизирует «зубчатость» (jaggies) на кривых линиях.
-
-    Процесс: resize(up) → dither → resize(down)
-
-    Args:
-        img_gray: PIL.Image в режиме L
-        method: алгоритм дизеринга
-        upsample: коэффициент увеличения (1-4)
-
-    Returns:
-        PIL.Image: 1-bit изображение оригинального размера
-    """
-    if upsample <= 1:
-        return _apply_dither(img_gray, method)
-
-    width, height = img_gray.size
-
-    # Upsample (Nearest Neighbor — SOP 5.2)
-    up_w, up_h = width * upsample, height * upsample
-    img_up = img_gray.resize((up_w, up_h), Image.NEAREST)
-
-    # Dither at high resolution
-    img_dithered = _apply_dither(img_up, method)
-
-    # Downsample back to original size
-    result = img_dithered.resize((width, height), Image.NEAREST)
-    return result.convert('1')
-
-
 def save_bmp_8bit(img, output_path, machine_type=None) -> None:
     """Сохранить изображение как 8-bit grayscale BMP с палитрой R=G=B.
 
@@ -274,7 +240,7 @@ def save_bmp_8bit(img, output_path, machine_type=None) -> None:
     )
 
 
-def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dither_upsample=1) -> None:
+def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None) -> None:
     """Сохранить изображение как 1-bit монохромный BMP с дизерингом.
 
     Формат: BMP, 1-bit (два цвета: чёрный и белый).
@@ -287,7 +253,6 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
         output_path: путь к выходному BMP-файлу
         machine_type: тип станка (для логирования)
         dither_method: 'jarvis' | 'stucki' | None (авто)
-        dither_upsample: int (1-4) — во сколько раз увеличить перед дизерингом
     """
     # Конвертируем в grayscale
     if img.mode == 'RGB':
@@ -302,11 +267,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
     # Выбираем метод дизеринга
     method = dither_method or 'jarvis'
 
-    # FIX #10: Upsampling перед дизерингом (SOP 5.2)
-    if dither_upsample and dither_upsample > 1:
-        img_dithered = dither_with_upsample(img_gray, method=method, upsample=dither_upsample)
-    else:
-        img_dithered = _apply_dither(img_gray, method)
+    img_dithered = _apply_dither(img_gray, method)
 
     # Сохраняем как 1-bit BMP
     img_dithered.save(output_path, format='BMP')
@@ -314,14 +275,14 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None, dithe
     path = Path(output_path)
     size_kb = path.stat().st_size / 1024
     logger.info(
-        "BMP 1-bit (%s dither) saved: %s (%dx%d, %.0f KB, machine=%s, upsample=%d)",
+        "BMP 1-bit (%s dither) saved: %s (%dx%d, %.0f KB, machine=%s)",
         method, output_path, img_dithered.width, img_dithered.height,
-        size_kb, machine_type, dither_upsample or 1,
+        size_kb, machine_type,
     )
 
 
 def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
-                  dither_method=None, dither_upsample=1, save_png_preview=False) -> str:
+                  dither_method=None, save_png_preview=False) -> str:
     """Экспорт результата пайплайна в нужном формате.
 
     Логика выбора формата:
@@ -342,7 +303,6 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
         dither_method: алгоритм дизеринга ('jarvis', 'stucki', 'floyd_steinberg' (deprecated), 'none')
             None = авто (из конфига станка)
-        dither_upsample: int — upsampling перед дизерингом (SOP 5.2)
         save_png_preview: bool — сохранить PNG-дубликат рядом с BMP (по умолчанию False)
 
     Returns:
@@ -370,12 +330,12 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         # Явный запрос 1-bit — дизеринг обязателен
         method = dither_method if dither_method and dither_method != "none" else "jarvis"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
-                      dither_method=method, dither_upsample=dither_upsample)
+                      dither_method=method)
     elif fmt == "bmp" and dither_method and dither_method != "none":
         # Конфиг станка требует дизеринг → 1-bit BMP
         # laser_80w (jarvis dithering)
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
-                      dither_method=dither_method, dither_upsample=dither_upsample)
+                      dither_method=dither_method)
     else:
         # fmt='bmp' + dither_method='none' → 8-bit grayscale
         # laser_standard

@@ -1,4 +1,4 @@
-"""Тесты экспорта — дизеринг, upsampling, BMP."""
+"""Тесты экспорта — дизеринг, BMP."""
 
 import os
 import numpy as np
@@ -118,7 +118,7 @@ class TestExportFormatByMachine:
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "laser80w.bmp")
         export_result(img, out, machine_type="laser_80w", fmt="bmp",
-                      dither_method="jarvis", dither_upsample=1)
+                      dither_method="jarvis")
         with Image.open(out) as bmp:
             assert bmp.mode == "1"
 
@@ -132,32 +132,20 @@ class TestExportFormatByMachine:
             assert bmp.mode in ("L", "P")
 
 
-class TestDitherUpsampling:
-    """2-4x upsampling перед дизерингом (SOP 5.2)."""
+class TestDitherUpsampleRemoved:
+    """dither_upsample удалён — NEAREST downsample на 1-bit был no-op."""
 
-    def test_upsample_config_laser_80w(self):
-        """Laser 80W: dither_upsample >= 2."""
-        config = load_config()
-        upsample = config["processing"]["laser_80w"].get("dither_upsample", 1)
-        assert upsample >= 2, f"laser_80w dither_upsample должен быть >= 2, got {upsample}"
+    def test_dither_with_upsample_not_in_module(self):
+        """Функция dither_with_upsample удалена из модуля export."""
+        import retouch.processing.export as exp_mod
+        assert not hasattr(exp_mod, 'dither_with_upsample'), \
+            "dither_with_upsample должна быть удалена из модуля"
 
-    def test_upsample_output_size_matches_input(self):
-        """Результат upsampling+dither — того же размера что и вход."""
-        from retouch.processing.export import dither_with_upsample
-        img = Image.new("L", (100, 120), 128)
-        result = dither_with_upsample(img, method="jarvis", upsample=2)
-        assert result.size == (100, 120)
-
-    def test_upsample_improves_quality_vs_no_upsample(self):
-        """Upsampling даёт другой (лучший) результат чем без него."""
-        from retouch.processing.export import jarvis_dither, dither_with_upsample
-        img = Image.new("L", (100, 100), 128)
-        result_no_upsample = jarvis_dither(img)
-        result_with_upsample = dither_with_upsample(img, method="jarvis", upsample=2)
-        arr1 = np.array(result_no_upsample).flatten()
-        arr2 = np.array(result_with_upsample).flatten()
-        assert not np.array_equal(arr1, arr2), \
-            "Upsampling должен давать другой результат дизеринга"
+    def test_no_dither_upsample_in_defaults(self):
+        """DEFAULTS laser_80w не содержит dither_upsample."""
+        from retouch.config import DEFAULTS
+        assert "dither_upsample" not in DEFAULTS["processing"]["laser_80w"], \
+            "dither_upsample должен быть удалён из DEFAULTS"
 
 
 class TestNumbaDithering:

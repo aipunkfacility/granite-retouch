@@ -9,6 +9,7 @@
 - **Accent palette**: `--color-accent-blue` изменён с `#4a90d9` на `#7C8CF8` (Labradorite)
 - **Status colors**: green/orange/red → Emerald/Amber/Rose
 - **`legacy_step_order` убран из UI**: доступен только через config.yaml
+- **`dither_upsample` удалён**: NEAREST downsample на 1-bit — no-op, параметр не давал эффекта. Функция `dither_with_upsample()` удалена из `export.py`, поле удалено из `MachineConfig`, `DEFAULTS`, `config.yaml`, пресетов и `config-defaults.json`
 
 ### Новые возможности
 

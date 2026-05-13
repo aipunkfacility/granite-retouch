@@ -43,8 +43,7 @@
       "face_region_top": 0.45,
       "highlight_start": 195,
       "face_skin_threshold": 100,
-      "dither_method": "jarvis",
-      "dither_upsample": 2
+      "dither_method": "jarvis"
     },
     "impact": {
       "glow_size_min": 10,

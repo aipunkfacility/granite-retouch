@@ -36,7 +36,6 @@ processing:
     glow_style: outer
     highlight_start: 195
     dither_method: jarvis          # FIX #9: SOP 4.1
-    dither_upsample: 2              # FIX #10: SOP 5.2
   laser_standard:
     stone_gamma: 0.88
     unsharp_threshold: 3

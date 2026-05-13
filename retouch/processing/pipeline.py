@@ -667,17 +667,16 @@ def process_export(
     )
 
     # Сохранение BMP + PNG через export_result
-    # Передаём dither_method/dither_upsample из machine_cfg —
+    # Передаём dither_method из machine_cfg —
     # без этого export_result() не знает какой метод дизеринга использовать
     proc_cfg = config.get("processing", {}) if config else {}
     machine_cfg = proc_cfg.get(machine_type, {})
     dither_method = machine_cfg.get("dither_method", "none")
-    dither_upsample = machine_cfg.get("dither_upsample", 1)
 
     actual_path = export_result(
         result.img_final, output_path,
         machine_type=machine_type, fmt=fmt,
-        dither_method=dither_method, dither_upsample=dither_upsample,
+        dither_method=dither_method,
         save_png_preview=True,  # CLI/WebUI ожидают PNG рядом с BMP
     )
 

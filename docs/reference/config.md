@@ -51,7 +51,6 @@
 | `shadow_noise_max` | — | — | 15 |
 | `shadow_noise_threshold` | — | — | 30 |
 | `dither_method` | `"none"` | `"jarvis"` | `"none"` |
-| `dither_upsample` | — | 2 | — |
 
 > Параметры, отмеченные `—`, не определены для данного станка (используется значение по умолчанию из `MachineConfig`).
 

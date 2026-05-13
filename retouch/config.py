@@ -63,7 +63,6 @@ DEFAULTS = {
             "highlight_start": 195,
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "dither_method": "jarvis",  # FIX #9: SOP 4.1
-            "dither_upsample": 2,  # FIX #10: SOP 5.2
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
@@ -168,7 +167,6 @@ try:
         shadow_noise_threshold: int = Field(30, ge=5, le=80)
         shadow_floor: int = Field(5, ge=0, le=30)  # FIX #12: default 5 (SOP 5.1)
         dither_method: str = Field("none", pattern="^(none|floyd_steinberg|jarvis|stucki)$")  # FIX #9
-        dither_upsample: int = Field(1, ge=1, le=4)  # FIX #10
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -186,7 +184,7 @@ try:
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
             glow_style="outer", stone_gamma=0.85, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
             face_brightness_target_min=190, face_brightness_target_max=210,
-            white_ceiling=235, highlight_start=195, dither_method="jarvis", dither_upsample=2))
+            white_ceiling=235, highlight_start=195, dither_method="jarvis"))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
             glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
