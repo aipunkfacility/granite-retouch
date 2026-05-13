@@ -179,11 +179,14 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
 
     if analytics['p90_brightness'] * factor > white_ceiling:
         safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)
-        # Не затемнять: минимум factor = 1.0 (нейтрально).
-        # Пересвет обрезается в пост-обработке (pipeline.py: clamp_masked).
-        # Без этого условия factor падает < 1.0 и затемняет всё изображение,
-        # вместо того чтобы осветлить и обрезать только пересвет.
-        factor = min(factor, max(safe_factor, 1.0))
+        # Разрешаем factor < 1.0 для защиты от клиппинга, но ограничиваем
+        # снизу чтобы не затемнять слишком агрессивно. Ранее max(safe_factor, 1.0)
+        # полностью отключало защиту когда safe_factor < 1.0, и пиксели выше
+        # white_ceiling уходили в клиппинг (см. баг #5: p90=252, ceiling=250).
+        # Нижний порог 0.85 позволяет мягко сдержать пересвет, не затемняя
+        # изображение радикально. Жёсткий clamp (pipeline.py: clamp_masked)
+        # обрезает остаточный пересвет в пост-обработке.
+        factor = min(factor, max(safe_factor, 0.85))
 
     logger.info(
         "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",

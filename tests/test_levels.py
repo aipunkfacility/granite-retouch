@@ -296,6 +296,12 @@ class TestCheckFaceBrightness:
         Симулирует двойной портрет: много тёмных пикселей (волосы) в зоне
         лица занижают медиану, но кожа уже яркая (p75 >= target_max).
         Осветление в таком случае приведёт к засвету кожи.
+
+        skin_threshold=0 чтобы волосы участвовали в замере — именно их
+        наличие занижает медиану и триггерит ложное осветление.
+        При skin_threshold=100 (default) волосы отфильтруются, медиана
+        по коже будет 200 > target_max, и код корректно затемнит —
+        это проверяется отдельным тестом ниже.
         """
         # face_region_top=0.45 — замеряется верхняя часть изображения.
         # Создаём изображение 400x200, где в верхней части (180px):
@@ -310,12 +316,36 @@ class TestCheckFaceBrightness:
         target = [150, 170]
 
         result, before, after, factor = check_face_brightness(
-            gray, target, mask, glow_size=0
+            gray, target, mask, glow_size=0,
+            skin_threshold=0,  # замер по ВСЕМ пикселям (включая волосы)
         )
         # Медиана < target_min, но p75 >= target_max → коррекция пропущена
         assert factor == 1.0, (
             f"Коррекция не нужна: медиана низкая из-за волос, "
             f"но кожа уже яркая. factor={factor:.3f}"
+        )
+
+    def test_bright_skin_with_skin_threshold_gets_darkened(self):
+        """skin_threshold отфильтровывает волосы → кожа=200 > target_max → затемнение.
+
+        Когда skin_threshold=100 (default), тёмные пиксели (волосы=30)
+        исключаются из замера. Остаётся только кожа=200, что выше
+        target_max=170 — код корректно затемняет до target_mid=160.
+        """
+        h = 400
+        arr = np.full((h, 200), 30, dtype=np.uint8)
+        arr[100:180, :] = 200
+        gray = Image.fromarray(arr)
+        mask = Image.new("L", (200, h), 255)
+        target = [150, 170]
+
+        result, before, after, factor = check_face_brightness(
+            gray, target, mask, glow_size=0,
+            skin_threshold=100,  # default: волосы отфильтрованы
+        )
+        # Медиана по коже (200) > target_max (170) → затемнение
+        assert factor < 1.0, (
+            f"Кожа 200 > target_max 170: нужно затемнение, factor={factor:.3f}"
         )
 
     def test_low_median_near_ceiling_gentle_correction(self):

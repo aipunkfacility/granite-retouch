@@ -24,6 +24,7 @@
       "white_ceiling": 250,
       "face_region_top": 0.45,
       "highlight_start": 200,
+      "face_skin_threshold": 100,
       "dither_method": "none"
     },
     "laser_80w": {
@@ -41,6 +42,7 @@
       "white_ceiling": 235,
       "face_region_top": 0.45,
       "highlight_start": 195,
+      "face_skin_threshold": 100,
       "dither_method": "jarvis",
       "dither_upsample": 2
     },
@@ -58,6 +60,7 @@
       "white_ceiling": 240,
       "face_region_top": 0.45,
       "highlight_start": 200,
+      "face_skin_threshold": 100,
       "shadow_noise_min": 5,
       "shadow_noise_max": 15,
       "shadow_noise_threshold": 30,
