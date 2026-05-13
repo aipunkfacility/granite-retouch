@@ -5,7 +5,7 @@ import pytest
 from PIL import Image, ImageDraw
 
 from retouch.processing.glow import (
-    apply_inner_glow,
+    apply_glow,
     apply_outer_glow,
     apply_inner_glow_algorithm,
 )
@@ -92,9 +92,10 @@ class TestGlowStyleConfig:
                        "glow_opacity_min": 35, "glow_opacity_max": 35,
                        "glow_style": "outer"}
 
-        result, glow_size, glow_opacity = apply_inner_glow(
+        result, glow_size, glow_opacity = apply_glow(
             gray, mask, machine_cfg,
             glow_size_override=20, glow_opacity_override=35,
+            glow_style="outer",
         )
 
         assert glow_size == 20
@@ -113,9 +114,10 @@ class TestGlowStyleConfig:
                        "glow_opacity_min": 35, "glow_opacity_max": 35,
                        "glow_style": "inner"}
 
-        result, glow_size, glow_opacity = apply_inner_glow(
+        result, glow_size, glow_opacity = apply_glow(
             gray, mask, machine_cfg,
             glow_size_override=20, glow_opacity_override=80,
+            glow_style="inner",
         )
 
         result_arr = np.array(result)

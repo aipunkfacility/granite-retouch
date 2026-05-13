@@ -130,6 +130,33 @@ class PipelineResult:
         """Освободить промежуточные при выходе из with-блока."""
         self.release_intermediates()
 
+    # ─── Deprecated attribute access ──────────────────────────────────
+
+    def __getattr__(self, name):
+        """Deprecated attributes: img_sharpened → img_postproc."""
+        import warnings as _w
+        if name == "img_sharpened":
+            _w.warn(
+                "PipelineResult.img_sharpened is deprecated, use img_postproc instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self.img_postproc
+        raise AttributeError(f"'PipelineResult' object has no attribute {name!r}")
+
+    def __setattr__(self, name, value):
+        """Deprecated attributes: img_sharpened → img_postproc."""
+        if name == "img_sharpened":
+            import warnings as _w
+            _w.warn(
+                "PipelineResult.img_sharpened is deprecated, use img_postproc instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            super().__setattr__("img_postproc", value)
+        else:
+            super().__setattr__(name, value)
+
 
 
 

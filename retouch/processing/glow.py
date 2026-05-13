@@ -248,3 +248,23 @@ def apply_glow(img_gray, subject_mask, machine_cfg,
 
     return result, glow_size, glow_opacity
 
+
+# ─── Deprecated aliases ──────────────────────────────────────────────
+
+_DEPRECATED_ALIASES = {
+    "apply_inner_glow": apply_glow,
+}
+
+
+def __getattr__(name):
+    """AUDIT-5.5: deprecated aliases with DeprecationWarning."""
+    if name in _DEPRECATED_ALIASES:
+        import warnings
+        warnings.warn(
+            f"'{name}' is deprecated, use 'apply_glow' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _DEPRECATED_ALIASES[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
