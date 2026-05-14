@@ -217,10 +217,10 @@ Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. По
 
 **Модуль:** `retouch/processing/export.py`
 
-- **BMP** — основной формат для ЧПУ станков:
-  - laser_standard: 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
-  - laser_80w: 1-bit монохромный BMP с Jarvis дизерингом
-  - impact: 8-bit grayscale BMP (256 уровней силы удара ударного станка)
+- **BMP** — основной формат для ЧПУ станков (v3: формат по export_mode):
+  - Все машины по умолчанию (export_mode='8bit'): 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
+  - При export_mode='1bit': 1-bit монохромный BMP с Jarvis/Stucki дизерингом
+  - DPI в заголовке BMP: dpi = 25.4 / step_mm (Engrave не использует, но предупреждает при несовпадении)
 - **PNG** — автоматически для визуальной проверки (превью)
 - TIFF доступен через `--format tiff` (legacy)
 
@@ -234,9 +234,10 @@ Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. По
 
 **Эндпоинт:** `POST /api/process/dither-preview`
 
-Предпросмотр Jarvis дизеринга — отдельный API-вызов, не часть `/process/preview`. Доступен только для `laser_80w`.
+Предпросмотр дизеринга — отдельный API-вызов, не часть `/process/preview`. Доступен для **всех машин** — показывает результат 1-bit растрирования, чтобы оператор мог оценить переключение с 8-bit на 1-bit.
 
 - Вызывается по кнопке «Просмотр дизеринга» в StepSelector
+- Метод дизеринга берётся из конфига станка (dither_method_1bit): jarvis для лазеров, stucki для impact
 - Без Numba: 30-120 сек. С Numba: ~1-2 сек
 - Без Numba — подтверждение через `confirm()` в UI
 - Результат — base64 PNG с дизеринг-изображением, отображается как шаг «Dithered» в StepSelector

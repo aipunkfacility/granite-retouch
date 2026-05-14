@@ -2,6 +2,46 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.1.0] - 2026-05-14
+
+### 💥 Breaking Changes
+
+- **export_mode: "8bit" по умолчанию** — все станки САУНО теперь экспортируют 8-bit grayscale BMP вместо 1-bit. Engrave модулирует мощность лазера по яркости пикселей (алгоритмы Р1–Р5), что невозможно при 1-bit BMP. Ключ `dither_method` заменён на `export_mode` + `dither_method_1bit`
+- **laser_80w дефолты**: `stone_gamma: 0.85→1.0`, `step_mm: 0.300→0.250`, `face_brightness_target_min: 190→160`, `face_brightness_target_max: 210→180`
+- **per-machine step_mm**: `step_mm` перемещён из глобальной секции `machine:` в `processing.{machine}.step_mm` (глобальный сохранён как fallback)
+- **Миграция v2→v3**: `dither_method="none"` → `export_mode="8bit"`, `dither_method="jarvis"` → `export_mode="1bit", dither_method_1bit="jarvis"`. Миграция идемпотентна
+
+### ✨ Новые возможности
+
+- **export_mode**: новый параметр `"8bit" | "1bit"` в MachineConfig — определяет формат BMP. 8-bit grayscale по умолчанию
+- **dither_method_1bit**: метод дизеринга при export_mode='1bit' (jarvis для лазеров, stucki для impact)
+- **save_bmp_8bit()**: DPI в заголовке BMP из step_mm (`dpi = 25.4 / step_mm`) — Engrave предупреждает при несоответствии
+- **export_result() routing**: приоритет: явный fmt > export_mode > dither_method (fallback)
+- **Dither preview для всех машин**: кнопка «Просмотр дизеринга» доступна для всех станков, метод берётся из dither_method_1bit
+- **_apply_dither()**: унифицированный вызов дизеринга по имени метода (jarvis/stucki)
+- **Config migration v2→v3**: автомиграция dither_method→export_mode, global step_mm→per-machine, laser_80w gamma/fb перекалибровка
+- **Frontend: exportMode prop** в StepSelector, export_mode ParamToggle, step_mm ParamRange в config-schema
+
+### 🐛 Исправления
+
+- **test_config_api.py: 403 на PUT /api/config**: `_validate_path_containment()` отклонял tmp_path (вне _PROJECT_ROOT) — добавлен monkeypatch обхода в тестах
+- **Dither preview: hardcoded jarvis + laser_80w-only**: теперь читает dither_method_1bit из конфига, доступен для всех станков
+- **schemas.py DitherPreviewRequest**: regex `^(laser_80w)$` → `^(laser_standard|laser_80w|impact)$`
+- **_params_to_overrides()**: step_mm записывается в per-machine конфиг, а не в глобальный machine.step_mm
+
+### 📚 Документация
+
+- **config.md**: обновлена сводная таблица (gamma=1.0, fb=160/180, export_mode, step_mm, dither_method_1bit), секция laser_80w, секция export, секция machine
+- **pipeline.md**: шаг 11 (BMP экспорт) и dither-preview обновлены для v3 export_mode
+- **style-guide-laser-80w.md**: яркость лица 190–210 → 160–180
+- **laser.md**: яркость laser_80w 190–210 → 160–180
+- **Docstrings**: обновлены в config.py, export.py, pipeline.py, process.py, config.py router
+
+### 🧪 Тестирование
+
+- 482 автотестов (было 478), 0 failed
+- Новые тесты: export_mode routing, DPI в BMP, миграция v2→v3, per-machine step_mm, Pydantic MachineConfig
+
 ## [6.0.0] - 2026-05-12
 
 ### Breaking Changes

@@ -37,12 +37,12 @@
 | `glow_opacity_min` | 30 | 10 | 60 |
 | `glow_opacity_max` | 40 | 20 | 80 |
 | `glow_style` | `"outer"` | `"outer"` | `"outer"` |
-| `stone_gamma` | 0.88 | 0.85 | 0.90 |
+| `stone_gamma` | 0.88 | 1.0 | 0.90 |
 | `unsharp_threshold` | 3 | 3 | 2 |
 | `shadow_floor` | 5 | 5 | 8 |
 | `target_pre_fb` | 180 | 150 | 160 |
-| `face_brightness_target_min` | 230 | 190 | 200 |
-| `face_brightness_target_max` | 245 | 210 | 225 |
+| `face_brightness_target_min` | 230 | 160 | 200 |
+| `face_brightness_target_max` | 245 | 180 | 225 |
 | `white_ceiling` | 250 | 235 | 240 |
 | `face_region_top` | 0.45 | 0.45 | 0.45 |
 | `highlight_start` | 200 | 195 | 200 |
@@ -50,7 +50,10 @@
 | `shadow_noise_min` | — | — | 5 |
 | `shadow_noise_max` | — | — | 15 |
 | `shadow_noise_threshold` | — | — | 30 |
-| `dither_method` | `"none"` | `"jarvis"` | `"none"` |
+| `export_mode` | `"8bit"` | `"8bit"` | `"8bit"` |
+| `step_mm` | 0.300 | 0.250 | 0.300 |
+| `dither_method_1bit` | `"jarvis"` | `"jarvis"` | `"stucki"` |
+| `dither_method` | `"none"` | `"none"` | `"none"` |
 
 > Параметры, отмеченные `—`, не определены для данного станка (используется значение по умолчанию из `MachineConfig`).
 
@@ -96,19 +99,23 @@
 | `glow_opacity_min` | int | 10 | 10–100 | Минимальная opacity Glow (%) |
 | `glow_opacity_max` | int | 20 | 10–100 | Максимальная opacity Glow (%) |
 | `glow_style` | toggle | `"outer"` | `"inner"` / `"outer"` | Стиль glow |
-| `stone_gamma` | float | 0.85 | 0.5–1.5 | Поправочная гамма для камня |
-| `face_brightness_target_min` | int | 190 | 80–255 | Минимальная целевая яркость лица |
-| `face_brightness_target_max` | int | 210 | 80–255 | Максимальная целевая яркость лица |
+| `stone_gamma` | float | 1.0 | 0.5–1.5 | Поправочная гамма для камня. При export_mode='8bit' Engrave сам управляет яркостью |
+| `face_brightness_target_min` | int | 160 | 80–255 | Минимальная целевая яркость лица (перекалибровка для gamma=1.0) |
+| `face_brightness_target_max` | int | 180 | 80–255 | Максимальная целевая яркость лица |
+| `export_mode` | toggle | `"8bit"` | `"8bit"` / `"1bit"` | Режим экспорта BMP. 8bit=grayscale (Engrave растрирует сам), 1bit=дизеринг |
+| `step_mm` | float | 0.250 | 0.10–0.50 | Шаг ЧПУ (мм). Для лазера: 0.125–0.250 (по мануалу САУНО) |
+| `dither_method_1bit` | toggle | `"jarvis"` | `"jarvis"` / `"stucki"` | Метод дизеринга при export_mode='1bit' |
 | `white_ceiling` | int | 235 | 200–255 | Потолок белой точки (строже для мощного лазера — пережог критичнее) |
 
 ### Особенности laser 80W
 
 - Минимальный glow (15–25px, 10–20%) — мощный лазер сам создаёт контраст, усиление не нужно
-- Лицо умеренной яркости (190–210) — потолок 235, запас для Face Brightness correction
+- Лицо пониженной яркости (160–180) — при gamma=1.0 и 8-bit Engrave сам управляет яркостью через Р-графики
 - Тёмные волосы с мягкими бликами — при мощном лазере яркие блики пережигаются
 - Морщины сохраняются как мягкие тональные переходы — в отличие от laser_standard (абсолютная гладь)
-- Формат экспорта по умолчанию: **BMP 1-bit с Jarvis дизерингом** (лазер 80W+ работает в бинарном режиме)
-- **Предпросмотр дизеринга** — кнопка «Просмотр дизеринга» в StepSelector. Без Numba — 30-120 сек с подтверждением
+- Формат экспорта по умолчанию: **BMP 8-bit grayscale** — Engrave модулирует мощность лазера по яркости (алгоритмы Р1–Р5)
+- Переключение на 1-bit: export_mode='1bit' + dither_method_1bit='jarvis' — для станков без Engrave
+- **Предпросмотр дизеринга** — кнопка «Просмотр дизеринга» в StepSelector для всех машин. Без Numba — 30-120 сек с подтверждением
 
 ---
 
@@ -144,11 +151,11 @@
 
 ## machine
 
-Параметры станка для расчёта разрешения экспорта.
+Глобальные параметры станка. Начиная с v3, `step_mm` задаётся **per-machine** в секции `processing.{machine}.step_mm`. Глобальный `machine.step_mm` сохранён как fallback (обратная совместимость).
 
 | Параметр | Тип | Default | Описание |
 |----------|-----|---------|----------|
-| `step_mm` | float | 0.300 | Шаг гравировки (мм), для расчёта BMP resolution |
+| `step_mm` | float | 0.300 | Шаг гравировки (мм), fallback если не задан per-machine |
 
 ---
 
@@ -216,9 +223,9 @@ ellipse_right = W + (W × horizontal_oversize)
 
 | Пресет | Описание | Основные параметры |
 |--------|----------|--------------------|
-| `laser-default` | Канонический для `laser_standard` | target: 230–245, ceiling: 250, gamma: 0.88, no dither |
-| `laser-80w-default` | Канонический для `laser_80w` | target: 190–210, ceiling: 235, gamma: 0.85, jarvis dither |
-| `impact-default` | Канонический для `impact` | target: 200–225, ceiling: 240, gamma: 0.90, shadow_floor: 8 |
+| `laser-default` | Канонический для `laser_standard` | target: 230–245, ceiling: 250, gamma: 0.88, export_mode: 8bit |
+| `laser-80w-default` | Канонический для `laser_80w` | target: 160–180, ceiling: 235, gamma: 1.0, export_mode: 8bit |
+| `impact-default` | Канонический для `impact` | target: 200–225, ceiling: 240, gamma: 0.90, export_mode: 8bit |
 
 > [!NOTE]
 > Ключ `brightness` объявлен **deprecated** и автоматически мигрирует в `stone_gamma = 1 / brightness`. Используйте `stone_gamma` в новых пресетах.
@@ -263,15 +270,18 @@ Pipeline автоматически выполняет преданализ из
 
 ## export
 
-По умолчанию пайплайн экспортирует **BMP** — стандартный формат для ЧПУ станков. Формат зависит от machine_type:
+По умолчанию пайплайн экспортирует **BMP** — стандартный формат для ЧПУ станков. Начиная с v3, формат определяется по `export_mode` из per-machine конфига:
 
-| Machine type | Формат по умолчанию | Описание |
-|---|---|---|
-| `laser_standard` | BMP 8-bit grayscale | 256 оттенков, палитра R=G=B. Стандарт для лазерной гравировки в полутоновом режиме |
-| `laser_80w` | BMP 1-bit (Jarvis) | Монохромный с Jarvis дизерингом. Лазер 80W+ работает в бинарном режиме |
-| `impact` | BMP 8-bit grayscale | 256 оттенков серого. Ударная гравировка использует 256 уровней силы удара |
+| Machine type | export_mode | Формат по умолчанию | Описание |
+|---|---|---|---|
+| `laser_standard` | `8bit` | BMP 8-bit grayscale | 256 оттенков, палитра R=G=B. Engrave растрирует алгоритмами Р1–Р5 |
+| `laser_80w` | `8bit` | BMP 8-bit grayscale | Engrave модулирует мощность лазера по яркости пикселей |
+| `impact` | `8bit` | BMP 8-bit grayscale | 256 уровней силы удара ударного станка |
+| любая | `1bit` | BMP 1-bit (dithered) | Монохромный с Jarvis/Stucki дизерингом — для станков без Engrave |
 
-Дополнительно всегда сохраняется PNG для визуальной проверки.
+DPI в заголовке BMP вычисляется из `step_mm`: `dpi = 25.4 / step_mm`. Engrave НЕ использует DPI из заголовка, но предупреждает при несоответствии.
+
+Дополнительно сохраняется PNG для визуальной проверки (при `save_png_preview=True`).
 
 | Параметр | Тип | Default | Описание |
 |----------|-----|---------|----------|
@@ -279,8 +289,10 @@ Pipeline автоматически выполняет преданализ из
 | `--overwrite` | flag | — | Перезаписать выходной файл без подтверждения. Без флага — exit(1) если файл существует (D.7) |
 
 Форматы:
-- `bmp` — автоматический выбор по machine_type (8-bit для laser_standard/impact, 1-bit для laser_80w)
+- `bmp` — автоматический выбор по export_mode из конфига (по умолчанию 8-bit для всех машин)
 - `bmp_8bit` — принудительно 8-bit grayscale BMP
 - `bmp_1bit` — принудительно 1-bit монохромный BMP с Jarvis/Stucki дизерингом
 - `png` — PNG (для предпросмотра / совместимости)
 - `tiff` — TIFF с LZW-сжатием (legacy, для совместимости со старыми станками)
+
+**Миграция v2→v3:** `dither_method=jarvis` → `export_mode=1bit, dither_method_1bit=jarvis`. `dither_method=none` → `export_mode=8bit`. Миграция идемпотентна.
