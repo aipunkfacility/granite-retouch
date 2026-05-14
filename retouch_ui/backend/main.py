@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from retouch import __version__
 
-from .routers import config, presets, process
+from .routers import config, material, presets, process
 from .schemas import HealthResponse
 
 logging.basicConfig(
@@ -96,6 +96,7 @@ app.add_middleware(
 app.include_router(process.router)
 app.include_router(config.router)
 app.include_router(presets.router)
+app.include_router(material.router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

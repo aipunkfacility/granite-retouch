@@ -3,25 +3,29 @@ import { ImageUpload } from "./components/image-upload";
 import { BeforeAfter } from "./components/before-after";
 import { StepSelector } from "./components/step-selector";
 import { ParamsPanel } from "./components/params-panel";
-import { MachineSwitch } from "./components/machine-switch";
-import type { MachineType, ConfigTree } from "./lib/types";
+import { MachineSelector } from "./components/machine-selector";
+import { ModuleSwitch } from "./components/module-switch";
+import { MaterialSelector } from "./components/material-selector";
 import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
+import { usePresetMaterial } from "./hooks/use-preset-material";
+import type { MachineType, MaterialType, ConfigTree } from "./lib/types";
 import type { VignetteParams } from "./lib/vignette-geometry";
 import type { FaceOvalParams } from "./lib/face-oval-geometry";
+import { deepMerge } from "./lib/utils";
 
 /** Extract vignette params from config, with defaults */
 function getVignetteParams(config: ConfigTree): VignetteParams {
-  const v = config.vignette ?? {};
+  const v = (config.vignette ?? {}) as Record<string, unknown>;
   return {
-    vertical_offset: v.vertical_offset ?? 0.1,
-    vertical_diameter: v.vertical_diameter ?? 0.5,
-    blur_radius: v.blur_radius ?? 60,
-    headroom: v.headroom ?? 0.6,
-    horizontal_oversize: v.horizontal_oversize ?? 0.2,
+    vertical_offset: (v.vertical_offset as number) ?? 0.1,
+    vertical_diameter: (v.vertical_diameter as number) ?? 0.5,
+    blur_radius: (v.blur_radius as number) ?? 60,
+    headroom: (v.headroom as number) ?? 0.6,
+    horizontal_oversize: (v.horizontal_oversize as number) ?? 0.2,
   };
 }
 
@@ -41,7 +45,6 @@ export default function App() {
   // State
   const [fileId, setFileId] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-  const [machineType, setMachineType] = useState<MachineType>("laser_standard");
   const [selectedStep, setSelectedStep] = useState("final");
   const [backendDown, setBackendDown] = useState(false);
   const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
@@ -57,10 +60,9 @@ export default function App() {
   // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
+  const pm = usePresetMaterial();
 
-  // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state.
-  // Когда overlay выключен И овал не закреплён (Pin OFF) — обновляем из автодетекции.
-  // Pin ON — блокирует автообновление, овал фиксируется.
+  // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state
   useEffect(() => {
     if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled && !faceOvalPinned) {
       setFaceOval(previewResult.diagnostics.face_oval);
@@ -110,23 +112,38 @@ export default function App() {
     (newFileId: string, previewUrl: string) => {
       setFileId(newFileId);
       setOriginalUrl(previewUrl);
-      // Reset face oval to default on new image, unpin
       setFaceOval({ ...DEFAULT_FACE_OVAL });
       setFaceOvalPinned(false);
       setDitherImageUrl(null);
-      // Auto-preview after upload
-      requestPreview(newFileId, machineType, config, faceOvalOverlayEnabled ? faceOval : null);
+      requestPreview(newFileId, pm.machineType, config, faceOvalOverlayEnabled ? faceOval : null);
     },
-    [machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval],
+    [pm.machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval],
   );
 
-  const handleMachineChange = useCallback(
-    (type: MachineType) => {
-      setMachineType(type);
-      setDitherImageUrl(null);
-      if (fileId) requestPreviewWithOval(fileId, type, config);
+  // Обработка выбора пресета из MachineSelector
+  const handlePresetSelect = useCallback(
+    (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => {
+      pm.selectPreset(presetKey, presetConfig);
+      // Обновить конфиг из пресета
+      const merged = deepMerge(config as Record<string, unknown>, presetConfig as Record<string, unknown>) as unknown as ConfigTree;
+      updateConfig(merged);
+      if (fileId) requestPreviewWithOval(fileId, machineType, merged);
     },
-    [fileId, config, requestPreviewWithOval],
+    [config, pm, updateConfig, fileId, requestPreviewWithOval],
+  );
+
+  // Обработка выбора материала
+  const handleMaterialSelect = useCallback(
+    async (mat: MaterialType, currentConfig?: ConfigTree): Promise<boolean> => {
+      const success = await pm.selectMaterial(mat, currentConfig);
+      if (success) {
+        // Применить config_patch к текущему конфигу
+        // Это будет сделано через materialChanges + автоматическое обновление
+        if (fileId) requestPreviewWithOval(fileId, pm.machineType, config as ConfigTree);
+      }
+      return success;
+    },
+    [pm, config, fileId, requestPreviewWithOval],
   );
 
   const handleConfigChangeByPath = useCallback(
@@ -135,41 +152,42 @@ export default function App() {
       let obj: ConfigTree = newConfig;
       for (let i = 0; i < path.length - 1; i++) {
         if (!obj[path[i]]) obj[path[i]] = {};
-        obj = obj[path[i]];
+        obj = obj[path[i]] as ConfigTree;
       }
       obj[path[path.length - 1]] = value;
-      updateConfig(newConfig);
-      if (fileId) requestPreviewWithOval(fileId, machineType, newConfig);
+      updateConfig(newConfig as ConfigTree);
+      // Отметить параметр как overridden
+      pm.markOverridden(path.join("."));
+      if (fileId) requestPreviewWithOval(fileId, pm.machineType, newConfig);
     },
-    [config, fileId, machineType, updateConfig, requestPreviewWithOval],
+    [config, fileId, pm.machineType, updateConfig, requestPreviewWithOval, pm],
   );
 
   const handleConfigChangeFull = useCallback(
     (newConfig: ConfigTree) => {
       updateConfig(newConfig);
-      if (fileId) requestPreviewWithOval(fileId, machineType, newConfig);
+      if (fileId) requestPreviewWithOval(fileId, pm.machineType, newConfig);
     },
-    [fileId, machineType, updateConfig, requestPreviewWithOval],
+    [fileId, pm.machineType, updateConfig, requestPreviewWithOval],
   );
 
   const handleReset = useCallback(
     (defaults: ConfigTree) => {
       resetConfig(defaults);
-      if (fileId) requestPreviewWithOval(fileId, machineType, defaults);
+      if (fileId) requestPreviewWithOval(fileId, pm.machineType, defaults);
     },
-    [fileId, machineType, resetConfig, requestPreviewWithOval],
+    [fileId, pm.machineType, resetConfig, requestPreviewWithOval],
   );
 
   const handleFaceOvalChange = useCallback(
     (newOval: FaceOvalParams) => {
       setFaceOval(newOval);
-      // Auto-pin on manual drag (source → "manual")
       if (newOval.source === "manual" && !faceOvalPinned) {
         setFaceOvalPinned(true);
       }
-      if (fileId) requestPreview(fileId, machineType, config, newOval);
+      if (fileId) requestPreview(fileId, pm.machineType, config, newOval);
     },
-    [fileId, machineType, config, requestPreview, faceOvalPinned],
+    [fileId, pm.machineType, config, requestPreview, faceOvalPinned],
   );
 
   const handleFaceOvalPinToggle = useCallback(() => {
@@ -180,7 +198,6 @@ export default function App() {
   const handleRequestDitherPreview = useCallback(async () => {
     if (!fileId) return;
 
-    // Warn if no Numba
     if (previewResult?.diagnostics && !previewResult.diagnostics.numba_available) {
       const ok = window.confirm(
         "Без Numba дизеринг занимает 30-120 сек. Продолжить?"
@@ -191,7 +208,6 @@ export default function App() {
     setDitherLoading(true);
     setDitherImageUrl(null);
 
-    // Cancel previous request
     ditherAbortRef.current?.abort();
     const ac = new AbortController();
     ditherAbortRef.current = ac;
@@ -199,7 +215,7 @@ export default function App() {
     try {
       const body: Record<string, unknown> = {
         file_id: fileId,
-        machine: machineType,
+        machine: pm.machineType,
       };
       if (config) {
         body.params = { ...config, face_oval: faceOvalOverlayEnabled ? faceOval : null };
@@ -228,9 +244,9 @@ export default function App() {
     } finally {
       setDitherLoading(false);
     }
-  }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult]);
+  }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult, pm.machineType]);
 
-  // Compute available steps (add "dithered" if we have a dither image)
+  // Compute available steps
   const availableSteps = useMemo(
     () =>
       previewResult
@@ -239,7 +255,16 @@ export default function App() {
     [previewResult, ditherImageUrl],
   );
 
-  // Layout: sidebar left (params) + main area (image) right
+  // Комби-пресеты для текущего combo_group
+  const comboPresets = useMemo(() => {
+    if (!pm.selectedPreset || !pm.catalog[pm.selectedPreset]?.combo_group) return [];
+    const cg = pm.catalog[pm.selectedPreset]!.combo_group!;
+    return Object.entries(pm.catalog)
+      .filter(([, e]) => e.combo_group === cg)
+      .map(([key, entry]) => ({ key, entry }));
+  }, [pm.selectedPreset, pm.catalog]);
+
+  // Layout
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
       {/* Backend down banner */}
@@ -257,11 +282,53 @@ export default function App() {
           Granite Retouch
         </h1>
         <div className="flex gap-4 items-center">
-          <MachineSwitch value={machineType} onChange={handleMachineChange} />
-          {/* AUDIT-3.1: faceOval всегда передаётся в export — либо пользовательский, либо авто-детектированный */}
-          <ExportButtons fileId={fileId} machineType={machineType} config={config} faceOval={faceOval} />
+          <MachineSelector
+            groups={pm.catalogLoading ? [] : (() => {
+              const comboGroups: { title: string; type: "combo" | "brand" | "technology"; presets: { key: string; entry: import("./lib/types").PresetCatalogEntry }[] }[] = [];
+              const brandGroups: typeof comboGroups = [];
+              let techGroup: typeof comboGroups[0] | null = null;
+
+              const BRAND_LABELS: Record<string, string> = { sauno: "САУНО", mirtels: "Mirtels", stanzone: "Stanzone", stonegraf: "STONE-ГРАФ" };
+
+              for (const [key, entry] of Object.entries(pm.catalog)) {
+                if (entry.combo_group) {
+                  let g = comboGroups.find(g => g.title === (BRAND_LABELS[entry.combo_group!] || entry.combo_group));
+                  if (!g) { g = { title: BRAND_LABELS[entry.combo_group!] || entry.combo_group, type: "combo", presets: [] }; comboGroups.push(g); }
+                  g.presets.push({ key, entry });
+                } else if (entry.category === "technology") {
+                  if (!techGroup) techGroup = { title: "По технологии", type: "technology", presets: [] };
+                  techGroup.presets.push({ key, entry });
+                } else if (entry.brand) {
+                  let g = brandGroups.find(g => g.title === (BRAND_LABELS[entry.brand!] || entry.brand));
+                  if (!g) { g = { title: BRAND_LABELS[entry.brand!] || entry.brand, type: "brand", presets: [] }; brandGroups.push(g); }
+                  g.presets.push({ key, entry });
+                }
+              }
+              return [...comboGroups, ...brandGroups, ...(techGroup ? [techGroup] : [])];
+            })()}
+            selectedPreset={pm.selectedPreset}
+            machineType={pm.machineType}
+            onSelect={handlePresetSelect}
+          />
+          <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} />
         </div>
       </header>
+
+      {/* ModuleSwitch (только для комби-станков) */}
+      {comboPresets.length > 1 && (
+        <div className="px-6 py-2 border-b border-border bg-bg-card/50">
+          <span className="text-xs text-text-muted mr-2">
+            {pm.catalog[pm.selectedPreset!]?.brand === "sauno" ? "САУНО" :
+             pm.catalog[pm.selectedPreset!]?.brand === "stanzone" ? "Stanzone" :
+             pm.catalog[pm.selectedPreset!]?.brand === "mirtels" ? "Mirtels" : ""} — модуль:
+          </span>
+          <ModuleSwitch
+            comboPresets={comboPresets}
+            selectedPreset={pm.selectedPreset}
+            onSelect={handlePresetSelect}
+          />
+        </div>
+      )}
 
       {/* Config warnings banner */}
       {configWarnings.length > 0 && (
@@ -290,8 +357,20 @@ export default function App() {
             <ImageUpload onImageUploaded={handleImageUploaded} />
           ) : (
             <>
+              {/* Material selector */}
+              <MaterialSelector
+                material={pm.material}
+                machineType={pm.machineType}
+                profiles={pm.profiles}
+                materialChanges={pm.materialChanges}
+                validationWarnings={pm.validationWarnings}
+                activeHint={pm.activeHint}
+                onSelect={handleMaterialSelect}
+                currentConfig={config}
+              />
+
               <ParamsPanel
-                machineType={machineType}
+                machineType={pm.machineType}
                 config={config}
                 onConfigChange={handleConfigChangeByPath}
                 vignetteOverlayEnabled={vignetteOverlayEnabled}
@@ -300,6 +379,26 @@ export default function App() {
                 onFaceOvalOverlayToggle={setFaceOvalOverlayEnabled}
                 faceOvalPinned={faceOvalPinned}
                 onFaceOvalPinToggle={handleFaceOvalPinToggle}
+                overriddenKeys={pm.overriddenKeys}
+                presetBaseline={pm.presetBaseline}
+                onResetParam={(key: string) => {
+                  const baseline = pm.resetParam(key);
+                  if (baseline) {
+                    // Сбросить параметр к значению пресета
+                    const newConfig = structuredClone(config);
+                    const parts = key.split(".");
+                    let obj: Record<string, unknown> = newConfig as Record<string, unknown>;
+                    let baselineObj: Record<string, unknown> = baseline as Record<string, unknown>;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                      obj = (obj[parts[i]] as Record<string, unknown>) || {};
+                      baselineObj = (baselineObj[parts[i]] as Record<string, unknown>) || {};
+                    }
+                    if (baselineObj[parts[parts.length - 1]] !== undefined) {
+                      obj[parts[parts.length - 1]] = baselineObj[parts[parts.length - 1]];
+                      updateConfig(newConfig as ConfigTree);
+                    }
+                  }
+                }}
               />
               <div className="border-t border-border pt-4">
                 <ConfigActions
@@ -340,8 +439,8 @@ export default function App() {
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 availableSteps={Object.keys(availableSteps)}
-                machineType={machineType}
-                exportMode={config?.processing?.[machineType]?.export_mode}
+                machineType={pm.machineType}
+                exportMode={(config?.processing as Record<string, Record<string, unknown>>)?.[pm.machineType]?.export_mode as string | undefined}
                 onRequestDitherPreview={handleRequestDitherPreview}
                 ditherLoading={ditherLoading}
               />

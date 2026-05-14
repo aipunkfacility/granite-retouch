@@ -32,11 +32,17 @@ class PreviewParams(BaseModel):
 
     face_oval: FaceOvalParams | None = Field(None,
                                                 description="Овал зоны лица (нормализованный)")
+    material: str | None = Field(None,
+                                    pattern="^(granite|marble|gabbro|basalt|acrylic)$",
+                                    description="Тип материала (заменяет stone_type)")
     stone_type: str | None = Field(None,
-                                      pattern="^(granite|marble|gabbro|basalt)$",
-                                      description="Тип камня")
+                                      pattern="^(granite|marble|gabbro|basalt|acrylic)$",
+                                      description="DEPRECATED: используйте material")
     step_mm: float | None = Field(None, ge=0.10, le=0.50,
                                      description="Шаг ЧПУ (мм)")
+    preset: str | None = Field(None,
+                                  pattern="^[a-zA-Z0-9_-]+$",
+                                  description="Ключ пресета из PRESET_CATALOG")
 
 
 # ─── Запросы ──────────────────────────────────────────────────────────
@@ -118,6 +124,14 @@ class PreviewResponse(BaseModel):
     )
     diagnostics: PreviewDiagnostics = Field(default_factory=PreviewDiagnostics)
     warnings: list[str] = Field(default_factory=list)
+    material_changes: list[dict] | None = Field(
+        None,
+        description="Автокоррекции material overrides (если запрос включал material/preset)",
+    )
+    validation_warnings: list[str] | None = Field(
+        None,
+        description="Валидационные предупреждения станок+материал",
+    )
 
 
 class ConfigResponse(BaseModel):

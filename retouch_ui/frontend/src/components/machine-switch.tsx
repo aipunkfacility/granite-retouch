@@ -1,4 +1,12 @@
-/** Machine type switcher: laser_standard / laser_80w / impact */
+/** Machine type switcher: laser_standard / laser_80w / impact
+ * @deprecated Use MachineSelector from machine-selector.tsx instead.
+ * This component is kept for backward compatibility only.
+ */
+
+console.warn(
+  "[granite-retouch] machine-switch.tsx is deprecated. " +
+  "Use MachineSelector from machine-selector.tsx instead."
+);
 
 import type { MachineType } from "../lib/types";
 

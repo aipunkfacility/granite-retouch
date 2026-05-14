@@ -27,3 +27,49 @@ export type ConfigValue = number | string | ConfigTree;
 export interface ConfigTree {
   [key: string]: ConfigValue;
 }
+
+/** Preset catalog entry — matches backend PRESET_CATALOG item */
+export interface PresetCatalogEntry {
+  label: string;
+  category: "technology" | "machine";
+  machine_type: MachineType;
+  brand?: string;
+  combo_group?: string;
+  alert?: string;
+}
+
+/** Material profile — matches backend MATERIAL_PROFILES item */
+export interface MaterialProfile {
+  step_mm_range: [number, number];
+  stone_gamma_range: [number, number];
+  shadow_floor: number;
+  white_ceiling_offset: number;
+  notes?: string;
+  hints?: Partial<Record<MachineType, string>>;
+  export_mode_override?: string;
+  dither_method_override?: string;
+  incompatible_machine_types?: MachineType[];
+}
+
+/** Material auto-correction change */
+export interface MaterialChange {
+  param: string;
+  old: number | string;
+  new: number | string;
+  reason?: string;
+}
+
+/** Result of POST /api/material/apply */
+export interface MaterialApplyResult {
+  config_patch: ConfigTree;
+  changes: MaterialChange[];
+  validation_warnings: string[];
+  active_hint: string | null;
+}
+
+/** Grouped catalog entry for MachineSelector */
+export interface CatalogGroup {
+  title: string;
+  type: "combo" | "brand" | "technology";
+  presets: { key: string; entry: PresetCatalogEntry }[];
+}

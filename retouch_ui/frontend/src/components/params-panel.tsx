@@ -13,6 +13,9 @@ interface Props {
   onFaceOvalOverlayToggle: (enabled: boolean) => void;
   faceOvalPinned: boolean;
   onFaceOvalPinToggle: () => void;
+  overriddenKeys?: Set<string>;
+  presetBaseline?: ConfigTree | null;
+  onResetParam?: (key: string) => void;
 }
 
 /** Type guard for ParamToggle */
@@ -35,30 +38,50 @@ export function ParamsPanel({
   onFaceOvalOverlayToggle,
   faceOvalPinned,
   onFaceOvalPinToggle,
+  overriddenKeys,
+  presetBaseline,
+  onResetParam,
 }: Props) {
   const [activeTab, setActiveTab] = useState<string>("common");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const renderSlider = (path: string[], param: ParamRange, value: number) => (
-    <div key={path.join(".")} className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <label className="text-text-secondary">{param.label}</label>
-        <span className="text-text-muted font-mono text-xs">
-          {value}
-          {param.unit ? ` ${param.unit}` : ""}
-        </span>
+  const renderSlider = (path: string[], param: ParamRange, value: number) => {
+    const pathKey = path.join(".");
+    const isOverridden = overriddenKeys?.has(pathKey) ?? false;
+    return (
+      <div key={pathKey} className="space-y-1">
+        <div className="flex justify-between text-sm items-center">
+          <label className={`text-text-secondary ${isOverridden ? "font-semibold text-accent-orange" : ""}`}>
+            {param.label}
+          </label>
+          <div className="flex items-center gap-1">
+            <span className="text-text-muted font-mono text-xs">
+              {value}
+              {param.unit ? ` ${param.unit}` : ""}
+            </span>
+            {isOverridden && onResetParam && (
+              <button
+                onClick={() => onResetParam(pathKey)}
+                className="text-xs text-accent-orange hover:text-accent-orange/80 transition-colors"
+                title="Сбросить к значению пресета"
+              >
+                ↩
+              </button>
+            )}
+          </div>
+        </div>
+        <input
+          type="range"
+          min={param.min}
+          max={param.max}
+          step={param.step}
+          value={value}
+          onChange={(e) => onConfigChange(path, parseFloat(e.target.value))}
+          className="w-full"
+        />
       </div>
-      <input
-        type="range"
-        min={param.min}
-        max={param.max}
-        step={param.step}
-        value={value}
-        onChange={(e) => onConfigChange(path, parseFloat(e.target.value))}
-        className="w-full"
-      />
-    </div>
-  );
+    );
+  };
 
   const renderToggle = (path: string[], param: ParamToggle, value: string) => (
     <div key={path.join(".")} className="space-y-1">

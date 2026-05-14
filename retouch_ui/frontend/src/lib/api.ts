@@ -1,6 +1,7 @@
-import type { MachineType, ConfigTree } from "./types";
+import type { MachineType, MaterialType, ConfigTree } from "./types";
 import type { FaceOvalParams } from "./face-oval-geometry";
 import type { VignetteParams } from "./vignette-geometry";
+import type { MaterialApplyResult, PresetCatalogEntry, MaterialProfile } from "./types";
 
 const API_BASE = "/api";
 
@@ -23,6 +24,8 @@ export interface PreviewResult {
   images: Record<string, string>;
   diagnostics: DiagnosticsData;
   warnings: string[];
+  material_changes?: import("./types").MaterialChange[];
+  validation_warnings?: string[];
 }
 
 /** Параметры предпросмотра — соответствует backend PreviewParams.
@@ -33,8 +36,10 @@ export interface PreviewResult {
  */
 export interface PreviewParams {
   face_oval?: FaceOvalParams | null;
-  stone_type?: string | null;
+  material?: MaterialType | null;
+  stone_type?: string | null;  // DEPRECATED: use material
   step_mm?: number | null;
+  preset?: string | null;
   [key: string]: unknown;  // позволяет передавать вложенные секции конфига
 }
 
@@ -209,6 +214,43 @@ export async function createPreset(name: string, config: ConfigTree) {
 /** Delete preset */
 export async function deletePreset(name: string) {
   const res = await fetch(`${API_BASE}/presets/${name}`, { method: "DELETE" });
+  return res.json();
+}
+
+/** Preset catalog — GET /api/presets/catalog */
+export async function fetchPresetCatalog(): Promise<{ catalog: Record<string, PresetCatalogEntry> }> {
+  const res = await fetch(`${API_BASE}/presets/catalog`);
+  return res.json();
+}
+
+/** Material profiles — GET /api/material/profiles */
+export async function fetchMaterialProfiles(): Promise<{ profiles: Record<string, MaterialProfile> }> {
+  const res = await fetch(`${API_BASE}/material/profiles`);
+  return res.json();
+}
+
+/** Apply material overrides — POST /api/material/apply */
+export async function fetchMaterialApply(
+  material: MaterialType,
+  machineType: MachineType,
+  config?: ConfigTree,
+): Promise<MaterialApplyResult> {
+  const body: Record<string, unknown> = {
+    material,
+    machine_type: machineType,
+  };
+  if (config) {
+    body.config = config;
+  }
+  const res = await fetch(`${API_BASE}/material/apply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Material apply failed: ${err}`);
+  }
   return res.json();
 }
 

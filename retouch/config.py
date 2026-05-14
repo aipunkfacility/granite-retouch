@@ -44,6 +44,9 @@ MATERIAL_PROFILES = {
         "shadow_floor": 8,
         "white_ceiling_offset": 0,
         "notes": "Крупнозернистый — «съедает» контраст. Переконтрастированная ретушь.",
+        "hints": {
+            "laser_80w": "white_ceiling \u2264 235 — при 80W значения > 235 пережигаются",
+        },
     },
     "gabbro": {
         "heterogeneity": 1.0,
@@ -70,6 +73,9 @@ MATERIAL_PROFILES = {
         "white_ceiling_offset": -5,
         "notes": "Мягкий, хрупкий. Лазер предпочтительнее ударного. "
                  "Точки сливаются при мелком шаге — увеличивать step_mm.",
+        "hints": {
+            "impact": "Мрамор хрупкий — лазер предпочтительнее ударного",
+        },
         "warnings": ["impact+marble"],
     },
     "acrylic": {
@@ -82,6 +88,10 @@ MATERIAL_PROFILES = {
         "dither_method_override": "jarvis",
         "notes": "Лазерная гравировка акрила: BMP 1-bit + Jarvis/Diffusion. "
                  "200 dpi, скорость 300 мм/с. Затирка белой краской.",
+        "hints": {
+            "laser_80w": "BMP 1-bit + Jarvis, 200 dpi, 300 мм/с (мануал Mirtels)",
+            "laser_standard": "BMP 1-bit + Jarvis, 200 dpi, 300 мм/с (мануал Mirtels)",
+        },
         "incompatible_machine_types": ["impact"],
     },
 }

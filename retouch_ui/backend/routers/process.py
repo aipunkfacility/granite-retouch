@@ -220,9 +220,11 @@ def _params_to_overrides(params: PreviewParams | None,
 
     Поддерживает два формата:
     1. Полный конфиг от UI: {processing: {laser_80w: {...}}, vignette: {...}, ...}
-    2. Плоские параметры: {face_oval: {...}, stone_type: "granite", step_mm: 0.3}
+    2. Плоские параметры: {face_oval: {...}, material: "granite", step_mm: 0.3}
 
     E.2: Поддерживает face_oval → передача в pipeline.
+
+    v4: Поддерживает material (замена stone_type) и preset.
 
     step_mm при наличии machine_type записывается в per-machine конфиг
     (processing.{machine_type}.step_mm), а не в глобальный machine.step_mm.
@@ -240,10 +242,19 @@ def _params_to_overrides(params: PreviewParams | None,
     # face_oval → отдельный параметр (не в конфиг)
     face_oval = p.pop("face_oval", None)
 
-    # stone_type → в секцию stone
+    # material → в секцию stone (приоритет над stone_type)
+    material = p.pop("material", None)
     stone_type = p.pop("stone_type", None)
-    if stone_type:
-        overrides["stone"] = {"type": stone_type}
+
+    # material имеет приоритет над stone_type (v4)
+    effective_material = material or stone_type
+    if effective_material:
+        overrides["stone"] = {"material": effective_material, "type": effective_material}
+
+    # preset → загрузить YAML-пресет, deep_merge в overrides ДО material overrides
+    preset_key = p.pop("preset", None)
+    if preset_key:
+        _apply_preset_to_overrides(overrides, preset_key, machine_type)
 
     # step_mm → per-machine (при наличии machine_type) или глобальный fallback
     step_mm = p.pop("step_mm", None)
@@ -266,6 +277,38 @@ def _params_to_overrides(params: PreviewParams | None,
                 overrides[key] = value
 
     return overrides, face_oval
+
+
+def _apply_preset_to_overrides(overrides: dict, preset_key: str,
+                                machine_type: str | None = None) -> None:
+    """Загрузить YAML-пресет и deep_merge в overrides.
+
+    Пресет загружается ДО material overrides — так apply_material_overrides
+    может корректировать параметры пресета под материал.
+    """
+    from retouch.config import find_config_path
+
+    config_path = find_config_path()
+    if config_path is None:
+        return
+
+    preset_path = config_path.parent / "presets" / f"{preset_key}.yaml"
+    if not preset_path.exists():
+        logger.warning("Пресет не найден: %s", preset_path)
+        return
+
+    try:
+        import yaml
+        with open(preset_path, "r", encoding="utf-8") as f:
+            preset_config = yaml.safe_load(f) or {}
+        if isinstance(preset_config, dict):
+            # Deep merge пресета в overrides (пресет = базовые значения)
+            merged = deep_merge(preset_config, overrides)
+            overrides.clear()
+            overrides.update(merged)
+            logger.info("Пресет '%s' применён", preset_key)
+    except Exception as exc:
+        logger.warning("Ошибка загрузки пресета %s: %s", preset_key, exc)
 
 
 @router.post("/process/preview", response_model=PreviewResponse)
