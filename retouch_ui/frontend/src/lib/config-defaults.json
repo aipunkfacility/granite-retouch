@@ -1,5 +1,5 @@
 {
-  "config_version": 3,
+  "config_version": 4,
   "processing": {
     "blue_threshold": 30,
     "min_blue_ratio": 0.15,
@@ -78,6 +78,7 @@
   },
   "stone": {
     "type": "granite",
+    "material": "granite",
     "heterogeneity": null
   },
   "vignette": {

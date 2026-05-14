@@ -52,6 +52,13 @@ def _ensure_presets_dir() -> Path:
     return d
 
 
+@router.get("/presets/catalog")
+async def get_presets_catalog():
+    """Вернуть PRESET_CATALOG — UI-метаданные (бренд, категория, alert)."""
+    from retouch.presets_catalog import PRESET_CATALOG
+    return {"catalog": PRESET_CATALOG}
+
+
 @router.get("/presets", response_model=PresetsListResponse)
 async def list_presets():
     """Получить список всех пресетов."""

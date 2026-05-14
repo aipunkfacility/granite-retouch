@@ -1,7 +1,5 @@
-# Канонический пресет для ударной гравировки (impact)
-# Явно дублирует DEFAULTS — для прозрачности и защиты от случайных изменений DEFAULTS
-description: "Стандартные параметры для ударного станка (Sauno, Zubr, Mirtels). \
-  Пиксель-точка — игла бьёт с силой пропорционально яркости (256 уровней)."
+# STONE-ГРАФ ударный. DPI в BMP критичен — станок не распознаёт файл при некорректном DPI.
+description: "STONE-ГРАФ ударный. DPI в BMP критичен — станок не распознаёт файл при некорректном DPI."
 
 processing:
   impact:
@@ -29,7 +27,3 @@ vignette:
   blur_radius: 60
   headroom: 0.60
   horizontal_oversize: 0.20
-
-stone:
-  material: granite
-  type: granite               # deprecated, для старых версий пайплайна

@@ -2,6 +2,35 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.2.0] - 2026-05-14
+
+### Added
+- Пресеты станков по производителю: 8 новых YAML (Mirtels, САУНО, Stanzone, STONE-ГРАФ)
+- Пресет `stanzone-laser-1bit` — критичный: Stanzone лазер работает ТОЛЬКО в 1-bit
+- `MATERIAL_PROFILES` (бывший `STONE_PROFILES`): step_mm_range, stone_gamma_range, shadow_floor по материалу
+- `acrylic` добавлен как `material` — автопереключение в 1-bit + Jarvis (мануал Mirtels)
+- `presets_catalog.py` — реестр пресетов с метаданными для UI (бренд, категория, alert)
+- `apply_material_overrides()` — автокоррекция параметров при смене материала (логгинг + changes для UI)
+- `validate_machine_material()` — валидация несовместимых комбинаций станок+материал
+- CLI: `--preset`, `--material`, `--stone` (deprecated alias), `--list-presets`
+- API: `GET /api/presets/catalog` — доступ к PRESET_CATALOG для фронтенда
+- Миграция v3→v4: `stone.type` → `material` с backward compatibility
+
+### Changed
+- `stone.type` → `material`: переименование с backward compatibility (deprecated в v4, удаление в v5)
+- `STONE_PROFILES` → `MATERIAL_PROFILES`: переименование, `STONE_PROFILES` = alias
+- `apply_stone_overrides()` → `apply_material_overrides()`: переименование, alias сохранён
+- `laser-80w-default.yaml`: добавлено предупреждение о Stanzone
+- Пресет `mirtels-impact`: название «Mirtels (ударный, все модели)» — явно указывает на все модели
+- `StoneConfig` Pydantic: поле `type` deprecated, добавлено `material` с acrylic
+- `types.ts`: добавлен `MaterialType`, `StoneType` = deprecated alias
+- `config.yaml`: `config_version: 4`, добавлен `stone.material`
+
+### Fixed
+- Stanzone лазерный модуль: теперь корректно экспортирует 1-bit BMP
+- Mirtels ударный: step_mm=0.24 (105.8 dpi по мануалу) вместо 0.30
+- Акрил + ударный: валидация блокирует некорректную комбинацию
+
 ## [6.1.0] - 2026-05-14
 
 ### 💥 Breaking Changes

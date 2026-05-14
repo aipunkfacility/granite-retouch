@@ -1,7 +1,5 @@
-# Канонический пресет для мощных лазеров (80W+)
-description: "Мощные CO2/диодные лазеры (80W+). 8-bit grayscale BMP — \
-  Engrave модулирует мощность по яркости. \
-  ⚠️ НЕ подходит для Stanzone (нужен stanzone-laser-1bit)."
+# САУНО График-3КЛД, диод 80W. Стандартные параметры laser_80w.
+description: "САУНО График-3КЛД, диод 80W. Стандартные параметры laser_80w."
 
 processing:
   laser_80w:
@@ -26,7 +24,3 @@ vignette:
   blur_radius: 60
   headroom: 0.60
   horizontal_oversize: 0.20
-
-stone:
-  material: granite
-  type: granite               # deprecated, для старых версий пайплайна

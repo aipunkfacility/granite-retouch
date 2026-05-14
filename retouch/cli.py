@@ -2,12 +2,14 @@
 """granite-retouch — единая точка входа CLI.
 
 Команды:
-  python -m retouch process -i ... -o ... -m laser_standard   # Pillow-обработка
+  python -m retouch process -i ... -o ... --preset stanzone-laser-1bit  # Pillow-обработка с пресетом
+  python -m retouch process -i ... -o ... -m laser_80w --material gabbro  # С указанием материала
   python -m retouch validate -i ai.png                # Валидация изображения
   python -m retouch gimp -i ... -o ... -m impact      # GIMP-обработка (experimental)
   python -m retouch order list                         # Список заказов
   python -m retouch order validate ORD-2026-001        # Валидация заказа
   python -m retouch order create ORD-2026-042          # Создать заказ из шаблона
+  python -m retouch --list-presets                     # Список доступных пресетов
 """
 
 import argparse
@@ -19,14 +21,52 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from retouch.config import load_config
+from retouch.config import load_config, find_config_path
+from retouch.presets_catalog import PRESET_CATALOG
 from retouch.validation.image import ValidationError
 from retouch.validation.order import validate_order, OrderValidationError
+
+
+def _load_preset_config(preset_name: str):
+    """Загрузить конфиг из пресета по имени."""
+    try:
+        import yaml
+    except ImportError:
+        print("Error: PyYAML required for --preset. Install: uv pip install PyYAML", file=sys.stderr)
+        sys.exit(1)
+
+    config_path = find_config_path()
+    if config_path:
+        presets_dir = config_path.parent / "presets"
+    else:
+        presets_dir = Path.cwd() / "presets"
+
+    preset_file = presets_dir / f"{preset_name}.yaml"
+    if not preset_file.is_file():
+        print(f"Error: пресет '{preset_name}' не найден: {preset_file}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(preset_file, "r", encoding="utf-8") as f:
+        preset_config = yaml.safe_load(f) or {}
+
+    return preset_config
+
+
+def cmd_list_presets(args):
+    """Показать список доступных пресетов."""
+    for name, meta in PRESET_CATALOG.items():
+        category_label = "Технология" if meta["category"] == "technology" else "Станок"
+        machine_type = meta["machine_type"]
+        line = f"{category_label}: {meta['label']} \u2192 {name} [{machine_type}]"
+        if meta.get("alert"):
+            line += f" \u26a0 {meta['alert']}"
+        print(line)
 
 
 def cmd_process(args):
     """Pillow-обработка портрета."""
     from retouch.processing.pipeline import process
+    from retouch.config import deep_merge, apply_material_overrides, validate_machine_material
 
     # D.7: Проверка перезаписи выходного файла
     if os.path.isfile(args.output) and not args.overwrite:
@@ -34,18 +74,68 @@ def cmd_process(args):
               f"Используйте --overwrite для перезаписи.", file=sys.stderr)
         sys.exit(1)
 
+    # Определить material (из --material или --stone)
+    material = getattr(args, "material", None)
+    stone_arg = getattr(args, "stone", None)
+    if stone_arg and not material:
+        import warnings
+        warnings.warn("--stone is deprecated, use --material instead", DeprecationWarning, stacklevel=2)
+        material = stone_arg
+
+    # Загрузить базовый конфиг
     config = load_config(args.config)
+
+    # Если указан --preset — наложить пресет поверх конфига
+    if args.preset:
+        preset_config = _load_preset_config(args.preset)
+        config = deep_merge(config, preset_config)
+        # Определить machine_type из пресета
+        for mt in ("laser_standard", "laser_80w", "impact"):
+            if mt in preset_config.get("processing", {}):
+                config["machine_type"] = mt
+                break
+
+    # Если указан -m — переопределить machine_type
+    if args.machine:
+        config["machine_type"] = args.machine
+
+    # Если указан материал — применить overrides
+    if material:
+        config["stone"]["material"] = material
+        config["stone"]["type"] = material  # backward compat
+        machine_type = config.get("machine_type", "laser_standard")
+        config, changes = apply_material_overrides(config, material)
+
+        # Валидация совместимости станок+материал
+        warnings_list = validate_machine_material(machine_type, material)
+        for w in warnings_list:
+            if w.startswith("ERROR:"):
+                print(f"\u041e\u0428\u0418\u0411\u041a\u0410: {w[7:]}", file=sys.stderr)
+                sys.exit(1)
+            else:
+                print(f"\u041f\u0440\u0435\u0434\u0443\u043f\u0440\u0435\u0436\u0434\u0435\u043d\u0438\u0435: {w[9:]}", file=sys.stderr)
+
+        # Показать автокоррекции
+        if changes:
+            for c in changes:
+                if "reason" in c:
+                    print(f"  {c['param']}: {c['old']} \u2192 {c['new']} ({c['reason']})", file=sys.stderr)
+                else:
+                    print(f"  {c['param']}: {c['old']} \u2192 {c['new']}", file=sys.stderr)
+
+    # Определить machine_type для pipeline
+    machine_type = config.get("machine_type", args.machine or "laser_standard")
 
     try:
         process(
             args.input, args.output,
-            machine_type=args.machine,
+            machine_type=machine_type,
             glow_size_override=args.glow_size,
             glow_opacity_override=args.glow_opacity,
             config=config,
             fmt=getattr(args, 'format', 'bmp'),
             overwrite=args.overwrite,
-            no_validate=args.no_validate,  # AUDIT-2.1: теперь пробрасывается напрямую
+            no_validate=args.no_validate,
         )
     except ValidationError as e:
         print(f"VALIDATION ERROR: {e}", file=sys.stderr)
@@ -249,13 +339,21 @@ def main():
         prog="retouch",
         description="granite-retouch — AI-ретушь портретов для гравировки"
     )
+    parser.add_argument("--list-presets", action="store_true",
+                        help="Показать список доступных пресетов")
+
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # --- process ---
     p_process = subparsers.add_parser("process", help="Pillow-обработка портрета")
     p_process.add_argument("--input", "-i", required=True, help="Входной PNG (с хромакеем)")
     p_process.add_argument("--output", "-o", required=True, help="Выходной BMP/PNG")
-    p_process.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
+    p_process.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default=None)
+    p_process.add_argument("--preset", help="Имя пресета (напр. stanzone-laser-1bit)")
+    p_process.add_argument("--material", choices=["granite", "marble", "gabbro", "basalt", "acrylic"],
+                           help="Тип материала (камень/акрил)")
+    p_process.add_argument("--stone", choices=["granite", "marble", "gabbro", "basalt", "acrylic"],
+                           help="Deprecated: используйте --material")
     p_process.add_argument("--format", "-f", choices=["bmp", "bmp_1bit", "bmp_8bit", "png"], default="bmp", help="Формат экспорта (по умолчанию: bmp)")
     p_process.add_argument("--glow-size", type=int, help="Переопределить размер Inner Glow (px)")
     p_process.add_argument("--glow-opacity", type=int, help="Переопределить opacity Inner Glow (%%)")
@@ -302,6 +400,12 @@ def main():
     p_ocreate.set_defaults(func=cmd_order_create)
 
     args = parser.parse_args()
+
+    # --list-presets как глобальный флаг
+    if args.list_presets:
+        cmd_list_presets(args)
+        return
+
     _warmup_numba_if_needed(args)  # AUDIT-8.4: прогрев Numba JIT
     args.func(args)
 

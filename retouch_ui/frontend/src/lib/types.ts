@@ -3,6 +3,12 @@
 /** Machine type — matches backend schema regex: ^(laser_standard|laser_80w|impact)$ */
 export type MachineType = "laser_standard" | "laser_80w" | "impact";
 
+/** Material type — matches backend StoneConfig.material pattern (v4) */
+export type MaterialType = "granite" | "marble" | "gabbro" | "basalt" | "acrylic";
+
+/** @deprecated Use MaterialType instead. Alias for backward compatibility. */
+export type StoneType = MaterialType;
+
 /** Face oval params — matches backend FaceOvalParams schema (E.1) */
 export interface FaceOvalParams {
   cx: number;    // центр X (0–1)

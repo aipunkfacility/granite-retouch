@@ -1,6 +1,5 @@
-# Канонический пресет для стандартной лазерной гравировки (CO2 40-60W)
-description: "Стандартные параметры для CO2 лазера (гравировка в оттенках серого). \
-  Используется 8-bit grayscale BMP — Engrave сам растрирует алгоритмами Р1-Р5."
+# САУНО График-3КЛ, CO2 40W. Стандартные параметры laser_standard.
+description: "САУНО График-3КЛ, CO2 40W. Стандартные параметры laser_standard."
 
 processing:
   laser_standard:
@@ -25,7 +24,3 @@ vignette:
   blur_radius: 60
   headroom: 0.60
   horizontal_oversize: 0.20
-
-stone:
-  material: granite
-  type: granite               # deprecated, для старых версий пайплайна

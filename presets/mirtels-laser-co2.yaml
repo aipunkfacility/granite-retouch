@@ -1,6 +1,5 @@
-# Канонический пресет для стандартной лазерной гравировки (CO2 40-60W)
-description: "Стандартные параметры для CO2 лазера (гравировка в оттенках серого). \
-  Используется 8-bit grayscale BMP — Engrave сам растрирует алгоритмами Р1-Р5."
+# Mirtels CO2 лазер. step_mm=0.300 (200 dpi для акрила по мануалу).
+description: "Mirtels CO2 лазер. step_mm=0.300 (200 dpi для акрила по мануалу)."
 
 processing:
   laser_standard:
@@ -11,7 +10,7 @@ processing:
     highlight_start: 200
     shadow_floor: 5
     export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
-    step_mm: 0.300              # шаг ЧПУ для laser_standard
+    step_mm: 0.300              # шаг ЧПУ для Mirtels CO2 (200 dpi)
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
     glow_size_min: 40
     glow_size_max: 80
@@ -25,7 +24,3 @@ vignette:
   blur_radius: 60
   headroom: 0.60
   horizontal_oversize: 0.20
-
-stone:
-  material: granite
-  type: granite               # deprecated, для старых версий пайплайна

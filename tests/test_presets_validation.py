@@ -34,7 +34,7 @@ class TestPresetPhysicalConstraints:
         """face_brightness_target должен быть в допустимом физическом диапазоне."""
         PHYSICAL_RANGES = {
             "laser_standard": (200, 255),
-            "laser_80w": (170, 235),
+            "laser_80w": (150, 235),   # 150 минимум: Stanzone/Mirtels 80W используют 160
             "impact": (180, 240),
         }
         cfg = self._load_merged(preset_path)
@@ -54,15 +54,20 @@ class TestPresetPhysicalConstraints:
             )
 
     def test_dither_method_explicit(self, preset_path):
-        """impact-пресеты должны явно задавать dither_method=none."""
+        """impact-пресеты должны явно задавать export_mode или dither_method."""
         with open(preset_path, encoding="utf-8") as f:
             preset = yaml.safe_load(f)
         impact = preset.get("processing", {}).get("impact", {})
         if impact:  # только если пресет затрагивает impact
-            assert "dither_method" in impact, (
-                f"{preset_path.name}: impact-пресет должен явно содержать dither_method"
+            # v3+: export_mode предпочтительнее dither_method
+            has_export = "export_mode" in impact
+            has_dither = "dither_method" in impact
+            assert has_export or has_dither, (
+                f"{preset_path.name}: impact-пресет должен содержать "
+                f"'export_mode' или 'dither_method'"
             )
-            assert impact["dither_method"] == "none"
+            if has_dither:
+                assert impact["dither_method"] == "none"
 
     def test_stone_gamma_range(self, preset_path):
         """stone_gamma должен быть в допустимом диапазоне [0.70, 1.10]."""
@@ -79,9 +84,9 @@ class TestPresetPhysicalConstraints:
     def test_critical_params_present(self, preset_path):
         """Пресеты должны явно содержать критические параметры."""
         CRITICAL = {
-            "laser_standard": ["white_ceiling", "dither_method"],
-            "laser_80w": ["white_ceiling", "dither_method"],
-            "impact": ["white_ceiling", "dither_method", "shadow_floor"],
+            "laser_standard": ["white_ceiling", "export_mode"],
+            "laser_80w": ["white_ceiling", "export_mode"],
+            "impact": ["white_ceiling", "export_mode", "shadow_floor"],
         }
         with open(preset_path, encoding="utf-8") as f:
             preset = yaml.safe_load(f)

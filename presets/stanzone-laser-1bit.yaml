@@ -1,0 +1,28 @@
+# Stanzone лазерный модуль — ТОЛЬКО 1-bit (форум graverstone.ru)
+# Все точки одинакового размера, яркость — плотностью точек.
+description: "Stanzone лазерный модуль — ТОЛЬКО 1-bit (форум graverstone.ru). \
+  Все точки одинакового размера, яркость — плотностью точек."
+
+processing:
+  laser_80w:
+    export_mode: 1bit
+    dither_method_1bit: jarvis
+    step_mm: 0.250
+    stone_gamma: 1.0
+    face_brightness_target_min: 160
+    face_brightness_target_max: 180
+    white_ceiling: 225
+    highlight_start: 195
+    shadow_floor: 5
+    glow_size_min: 15
+    glow_size_max: 25
+    glow_opacity_min: 10
+    glow_opacity_max: 20
+    glow_style: outer
+
+vignette:
+  vertical_offset: 0.10
+  vertical_diameter: 0.50
+  blur_radius: 60
+  headroom: 0.60
+  horizontal_oversize: 0.20

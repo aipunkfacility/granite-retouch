@@ -1,7 +1,7 @@
-# Канонический пресет для ударной гравировки (impact)
-# Явно дублирует DEFAULTS — для прозрачности и защиты от случайных изменений DEFAULTS
-description: "Стандартные параметры для ударного станка (Sauno, Zubr, Mirtels). \
-  Пиксель-точка — игла бьёт с силой пропорционально яркости (256 уровней)."
+# Mirtels (ударный, все модели). step_mm=0.24 (105.8 dpi по мануалу).
+# Комбинированный режим — настройка MTGCAM, не свойство станка.
+description: "Mirtels (ударный, все модели). step_mm=0.24 (105.8 dpi по мануалу). \
+  Комбинированный режим — настройка MTGCAM, не свойство станка."
 
 processing:
   impact:
@@ -15,7 +15,7 @@ processing:
     shadow_noise_max: 15
     shadow_noise_threshold: 30
     export_mode: 8bit           # 8-bit grayscale — 256 уровней силы удара
-    step_mm: 0.300              # шаг ЧПУ для impact
+    step_mm: 0.24               # шаг ЧПУ для Mirtels (105.8 dpi)
     dither_method_1bit: stucki  # метод дизеринга если оператор переключит на 1bit
     glow_size_min: 10
     glow_size_max: 25
@@ -29,7 +29,3 @@ vignette:
   blur_radius: 60
   headroom: 0.60
   horizontal_oversize: 0.20
-
-stone:
-  material: granite
-  type: granite               # deprecated, для старых версий пайплайна
