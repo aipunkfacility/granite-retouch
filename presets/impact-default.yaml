@@ -14,7 +14,9 @@ processing:
     shadow_noise_min: 5
     shadow_noise_max: 15
     shadow_noise_threshold: 30
-    dither_method: none      # 8-bit grayscale: 256 уровней силы удара
+    export_mode: 8bit           # 8-bit grayscale — 256 уровней силы удара
+    step_mm: 0.300              # шаг ЧПУ для impact
+    dither_method_1bit: stucki  # метод дизеринга если оператор переключит на 1bit
     glow_size_min: 10
     glow_size_max: 25
     glow_opacity_min: 60

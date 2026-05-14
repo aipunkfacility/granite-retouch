@@ -63,71 +63,96 @@ class TestJarvisDithering:
 
 
 class TestDitherMethodConfig:
-    """Выбор алгоритма дизеринга из конфига."""
+    """Выбор алгоритма дизеринга и режима экспорта из конфига."""
 
-    def test_impact_dither_method_is_none(self):
-        """Impact: dither_method=none → 8-bit grayscale (256 уровней силы удара).
+    def test_impact_export_mode_is_8bit(self):
+        """Impact: export_mode=8bit → 8-bit grayscale (256 уровней силы удара).
 
         Ударные станки требуют BMP 8-bit grayscale. dither_method=stucki
         давал 1-bit файл — все полутона лица терялись при дизеринге.
         """
         config = load_config()
-        method = config["processing"]["impact"].get("dither_method", "")
-        assert method == "none", (
-            f"impact.dither_method='{method}', ожидается 'none' (8-bit grayscale для ударных станков)"
+        mode = config["processing"]["impact"].get("export_mode", "")
+        assert mode == "8bit", (
+            f"impact.export_mode='{mode}', ожидается '8bit' (8-bit grayscale для ударных станков)"
         )
 
-    def test_laser_80w_has_dither_method(self):
-        """Laser 80W: dither_method = jarvis."""
+    def test_laser_80w_export_mode_is_8bit(self):
+        """Laser 80W: export_mode=8bit (Engrave сам растрирует алгоритмами Р1-Р5)."""
         config = load_config()
-        method = config["processing"]["laser_80w"].get("dither_method", "")
-        assert method == "jarvis", f"laser_80w dither_method должен быть jarvis, got {method}"
+        mode = config["processing"]["laser_80w"].get("export_mode", "")
+        assert mode == "8bit", f"laser_80w export_mode должен быть 8bit, got {mode}"
 
-    def test_laser_standard_has_no_dither(self):
-        """Laser standard: нет 1-bit дизеринга (8-bit BMP)."""
+    def test_laser_standard_export_mode_is_8bit(self):
+        """Laser standard: export_mode=8bit."""
         config = load_config()
-        method = config["processing"]["laser_standard"].get("dither_method", "none")
-        assert method == "none", f"laser_standard не должен иметь dither, got {method}"
+        mode = config["processing"]["laser_standard"].get("export_mode", "")
+        assert mode == "8bit", f"laser_standard export_mode должен быть 8bit, got {mode}"
+
+    def test_laser_80w_stone_gamma_is_1(self):
+        """Laser 80W: stone_gamma=1.0 при 8bit (Engrave сам управляет яркостью)."""
+        config = load_config()
+        gamma = config["processing"]["laser_80w"].get("stone_gamma", 0)
+        assert gamma == 1.0, f"laser_80w stone_gamma должен быть 1.0, got {gamma}"
+
+    def test_laser_80w_step_mm_is_025(self):
+        """Laser 80W: step_mm=0.250 (по мануалу САУНО: 0.125-0.250 мм для лазера)."""
+        config = load_config()
+        step = config["processing"]["laser_80w"].get("step_mm", 0)
+        assert step == 0.250, f"laser_80w step_mm должен быть 0.250, got {step}"
 
 
 class TestExportFormatByMachine:
-    """Проверка формата BMP по machine_type — impact=8bit, laser_80w=1bit, laser_standard=8bit."""
+    """Проверка формата BMP по machine_type — все станки = 8bit по умолчанию (v3)."""
 
-    def test_impact_produces_8bit_not_1bit(self, tmp_path):
-        """impact + dither_method=none → BMP 8-bit grayscale, не 1-bit."""
+    def test_impact_produces_8bit(self, tmp_path):
+        """impact + export_mode=8bit → BMP 8-bit grayscale."""
         from retouch.processing.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "impact.bmp")
-        export_result(img, out, machine_type="impact", fmt="bmp", dither_method="none")
+        export_result(img, out, machine_type="impact", fmt="bmp",
+                      export_mode="8bit", step_mm=0.300)
         with Image.open(out) as bmp:
             assert bmp.mode != "1", f"Impact даёт 1-bit! mode={bmp.mode} — нужен 8-bit grayscale"
             assert bmp.mode in ("L", "P"), f"Ожидался L/P, получили {bmp.mode}"
 
     def test_impact_stucki_produces_1bit(self, tmp_path):
-        """impact + dither_method=stucki → 1-bit (подтверждение что баг был)."""
+        """impact + fmt='bmp_1bit' → 1-bit (явный запрос дизеринга)."""
         from retouch.processing.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "impact_stucki.bmp")
-        export_result(img, out, machine_type="impact", fmt="bmp", dither_method="stucki")
+        export_result(img, out, machine_type="impact", fmt="bmp_1bit",
+                      dither_method_1bit="stucki")
         with Image.open(out) as bmp:
             assert bmp.mode == "1", f"Stucki должен давать 1-bit, got {bmp.mode}"
 
-    def test_laser_80w_produces_1bit(self, tmp_path):
-        """laser_80w + dither_method=jarvis → 1-bit BMP."""
+    def test_laser_80w_produces_8bit_by_default(self, tmp_path):
+        """laser_80w + export_mode=8bit → 8-bit BMP (НЕ 1-bit)."""
         from retouch.processing.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "laser80w.bmp")
         export_result(img, out, machine_type="laser_80w", fmt="bmp",
-                      dither_method="jarvis")
+                      export_mode="8bit", step_mm=0.250)
+        with Image.open(out) as bmp:
+            assert bmp.mode in ("L", "P"), f"8-bit expected, got {bmp.mode}"
+
+    def test_laser_80w_1bit_mode_with_dithering(self, tmp_path):
+        """laser_80w + export_mode=1bit → 1-bit BMP с Jarvis."""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 180)
+        out = str(tmp_path / "laser80w_1bit.bmp")
+        export_result(img, out, machine_type="laser_80w", fmt="bmp",
+                      export_mode="1bit", dither_method_1bit="jarvis")
         with Image.open(out) as bmp:
             assert bmp.mode == "1"
 
     def test_laser_standard_produces_8bit(self, tmp_path):
-        """laser_standard + dither_method=none → 8-bit BMP."""
+        """laser_standard + export_mode=8bit → 8-bit BMP."""
         from retouch.processing.export import export_result
         img = Image.new("L", (100, 100), 200)
         out = str(tmp_path / "laser_std.bmp")
-        export_result(img, out, machine_type="laser_standard", fmt="bmp", dither_method="none")
+        export_result(img, out, machine_type="laser_standard", fmt="bmp",
+                      export_mode="8bit", step_mm=0.300)
         with Image.open(out) as bmp:
             assert bmp.mode in ("L", "P")
 
@@ -344,6 +369,96 @@ class TestBMPValidation:
 
         assert 35 < white_pct < 65, \
             f"При grayscale=128 редирект FS→jarvis даёт примерно 50% белого, got {white_pct:.1f}%"
+
+
+class TestDPIInBMPHeader:
+    """DPI в заголовке BMP из step_mm — чтобы Engrave не ругался."""
+
+    def test_save_bmp_8bit_writes_dpi_from_step_mm(self, tmp_path):
+        """8-bit BMP содержит DPI из step_mm в заголовке"""
+        from retouch.processing.export import save_bmp_8bit
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "dpi_test.bmp")
+        save_bmp_8bit(img, out, step_mm=0.250)
+        with Image.open(out) as saved:
+            dpi_x, dpi_y = saved.info.get("dpi", (0, 0))
+            assert dpi_x == pytest.approx(101.6, abs=0.5)
+
+    def test_save_bmp_8bit_dpi_step_030(self, tmp_path):
+        """step_mm=0.300 → DPI=84.7"""
+        from retouch.processing.export import save_bmp_8bit
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "dpi_030.bmp")
+        save_bmp_8bit(img, out, step_mm=0.300)
+        with Image.open(out) as saved:
+            dpi_x, _ = saved.info.get("dpi", (0, 0))
+            assert dpi_x == pytest.approx(84.7, abs=0.5)
+
+    def test_save_bmp_8bit_without_step_mm(self, tmp_path):
+        """8-bit BMP без step_mm — DPI не пишем"""
+        from retouch.processing.export import save_bmp_8bit
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "no_dpi.bmp")
+        save_bmp_8bit(img, out)
+        with Image.open(out) as saved:
+            assert saved.mode in ("L", "P")
+
+    def test_export_result_8bit_dpi_in_header(self, tmp_path):
+        """export_mode=8bit + step_mm → DPI в заголовке BMP"""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "dpi.bmp")
+        path = export_result(img, out, export_mode="8bit", step_mm=0.250)
+        with Image.open(path) as saved:
+            dpi_x, _ = saved.info.get("dpi", (0, 0))
+            assert dpi_x == pytest.approx(101.6, abs=0.5)
+
+
+class TestExportModeRouting:
+    """export_mode routing в export_result()."""
+
+    def test_export_mode_8bit(self, tmp_path):
+        """export_mode='8bit' → 8-bit BMP, дизеринг не вызывается"""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "mode8bit.bmp")
+        path = export_result(img, out, export_mode="8bit", step_mm=0.300)
+        with Image.open(path) as saved:
+            assert saved.mode in ("L", "P")
+
+    def test_export_mode_1bit(self, tmp_path):
+        """export_mode='1bit' → 1-bit BMP с дизерингом"""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "mode1bit.bmp")
+        path = export_result(img, out, export_mode="1bit", dither_method_1bit="jarvis")
+        with Image.open(path) as saved:
+            assert saved.mode == "1"
+
+    def test_explicit_fmt_overrides_export_mode(self, tmp_path):
+        """fmt='bmp_8bit' перекрывает export_mode='1bit'"""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "override.bmp")
+        path = export_result(img, out, fmt="bmp_8bit",
+                              export_mode="1bit", step_mm=0.300)
+        with Image.open(path) as saved:
+            assert saved.mode in ("L", "P")  # 8-bit выиграл
+
+    def test_backward_compat_dither_method(self, tmp_path):
+        """export_mode=None + dither_method=jarvis → 1-bit (старый путь)"""
+        from retouch.processing.export import export_result
+        img = Image.new("L", (100, 100), 128)
+        out = str(tmp_path / "compat.bmp")
+        path = export_result(img, out, fmt="bmp", dither_method="jarvis")
+        with Image.open(path) as saved:
+            assert saved.mode == "1"
+
+    def test_dpi_calculation_formula(self):
+        """Проверка формулы DPI = 25.4 / step_mm"""
+        assert 25.4 / 0.300 == pytest.approx(84.67, abs=0.1)
+        assert 25.4 / 0.250 == pytest.approx(101.6, abs=0.1)
+        assert 25.4 / 0.200 == pytest.approx(127.0, abs=0.1)
 
 
 class TestValidateExport:

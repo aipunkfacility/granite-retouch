@@ -1,16 +1,19 @@
 # Канонический пресет для мощных лазеров (80W+)
-description: "Параметры для мощных CO2 лазеров. Требует дизеринга (Jarvis) \
-  для имитации полутонов на 1-bit BMP."
+description: "Параметры для мощных CO2 лазеров (САУНО Engrave). \
+  8-bit grayscale BMP — Engrave модулирует мощность лазера по яркости пикселя \
+  алгоритмами Р1-Р5. Для не-САУНО лазеров переключите export_mode на 1bit."
 
 processing:
   laser_80w:
-    stone_gamma: 0.85
-    face_brightness_target_min: 190
-    face_brightness_target_max: 210
+    stone_gamma: 1.0                # при 8bit Engrave сам управляет яркостью через Р-график
+    face_brightness_target_min: 160  # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 180  # перекалибровка: gamma=1.0 вместо 0.85
     white_ceiling: 235
     highlight_start: 195
     shadow_floor: 5
-    dither_method: jarvis
+    export_mode: 8bit           # 8-bit grayscale — Engrave модулирует мощность по яркости
+    step_mm: 0.250              # по мануалу САУНО: 0.125-0.250 мм для лазера
+    dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
     glow_size_min: 15
     glow_size_max: 25
     glow_opacity_min: 10

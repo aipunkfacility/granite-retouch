@@ -1,5 +1,5 @@
 {
-  "config_version": 2,
+  "config_version": 3,
   "processing": {
     "blue_threshold": 30,
     "min_blue_ratio": 0.15,
@@ -25,7 +25,9 @@
       "face_region_top": 0.45,
       "highlight_start": 200,
       "face_skin_threshold": 100,
-      "dither_method": "none"
+      "export_mode": "8bit",
+      "step_mm": 0.3,
+      "dither_method_1bit": "jarvis"
     },
     "laser_80w": {
       "glow_size_min": 15,
@@ -33,17 +35,19 @@
       "glow_opacity_min": 10,
       "glow_opacity_max": 20,
       "glow_style": "outer",
-      "stone_gamma": 0.85,
+      "stone_gamma": 1.0,
       "unsharp_threshold": 3,
       "shadow_floor": 5,
       "target_pre_fb": 150,
-      "face_brightness_target_min": 190,
-      "face_brightness_target_max": 210,
+      "face_brightness_target_min": 160,
+      "face_brightness_target_max": 180,
       "white_ceiling": 235,
       "face_region_top": 0.45,
       "highlight_start": 195,
       "face_skin_threshold": 100,
-      "dither_method": "jarvis"
+      "export_mode": "8bit",
+      "step_mm": 0.25,
+      "dither_method_1bit": "jarvis"
     },
     "impact": {
       "glow_size_min": 10,
@@ -64,7 +68,9 @@
       "shadow_noise_max": 15,
       "shadow_noise_threshold": 30,
       "shadow_floor": 8,
-      "dither_method": "none"
+      "export_mode": "8bit",
+      "step_mm": 0.3,
+      "dither_method_1bit": "stucki"
     }
   },
   "machine": {

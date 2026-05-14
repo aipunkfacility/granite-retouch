@@ -35,6 +35,9 @@ export interface MachineParams {
   white_ceiling: ParamRange;
   glow_style: ParamToggle;  // "outer"/"inner" — сегментный контрол
   unsharp_threshold: ParamRange;  // Advanced — порог резкости
+  export_mode: ParamToggle;       // "8bit"/"1bit" — режим экспорта BMP
+  step_mm: ParamRange;            // шаг ЧПУ в мм
+  dither_method_1bit: ParamToggle; // метод дизеринга для 1-bit режима
 }
 
 /** Impact-specific extra parameters */
@@ -88,6 +91,8 @@ export const ADVANCED_PARAMS = new Set([
   "unsharp_threshold",
   "mask_soft_sigma",
   "contour_smooth_epsilon",
+  "step_mm",
+  "dither_method_1bit",
 ]);
 
 /** Parameters removed from UI entirely (dev-only or deprecated) */
@@ -119,6 +124,9 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
       glow_style: { type: "toggle", options: [{ value: "outer", label: "Outer" }, { value: "inner", label: "Inner" }], label: "Стиль Glow" },
       unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
+      export_mode: { type: "toggle", options: [{ value: "8bit", label: "8-bit (Engrave)" }, { value: "1bit", label: "1-bit (дизеринг)" }], label: "Режим экспорта" },
+      step_mm: { min: 0.10, max: 0.50, step: 0.005, label: "Шаг ЧПУ", unit: "мм" },
+      dither_method_1bit: { type: "toggle", options: [{ value: "jarvis", label: "Jarvis" }, { value: "stucki", label: "Stucki" }], label: "Метод дизеринга (1-bit)" },
     },
     laser_80w: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -133,6 +141,9 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       white_ceiling: { min: 200, max: 255, step: 1, label: "Потолок белизны", unit: "" },
       glow_style: { type: "toggle", options: [{ value: "outer", label: "Outer" }, { value: "inner", label: "Inner" }], label: "Стиль Glow" },
       unsharp_threshold: { min: 0, max: 20, step: 1, label: "Порог резкости", unit: "" },
+      export_mode: { type: "toggle", options: [{ value: "8bit", label: "8-bit (Engrave)" }, { value: "1bit", label: "1-bit (дизеринг)" }], label: "Режим экспорта" },
+      step_mm: { min: 0.10, max: 0.50, step: 0.005, label: "Шаг ЧПУ", unit: "мм" },
+      dither_method_1bit: { type: "toggle", options: [{ value: "jarvis", label: "Jarvis" }, { value: "stucki", label: "Stucki" }], label: "Метод дизеринга (1-bit)" },
     },
     impact: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
@@ -151,6 +162,9 @@ export const CONFIG_SCHEMA: ConfigSchema = {
       shadow_noise_max: { min: 0, max: 30, step: 1, label: "Шум теней: макс", unit: "" },
       shadow_noise_threshold: { min: 10, max: 80, step: 1, label: "Порог шума теней", unit: "" },
       shadow_floor: { min: 0, max: 30, step: 1, label: "Тень: мин. яркость", unit: "" },
+      export_mode: { type: "toggle", options: [{ value: "8bit", label: "8-bit (Engrave)" }, { value: "1bit", label: "1-bit (дизеринг)" }], label: "Режим экспорта" },
+      step_mm: { min: 0.10, max: 0.50, step: 0.005, label: "Шаг ЧПУ", unit: "мм" },
+      dither_method_1bit: { type: "toggle", options: [{ value: "jarvis", label: "Jarvis" }, { value: "stucki", label: "Stucki" }], label: "Метод дизеринга (1-bit)" },
     },
   },
   vignette: {

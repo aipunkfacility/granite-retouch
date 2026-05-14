@@ -341,6 +341,7 @@ export default function App() {
                 onStepChange={setSelectedStep}
                 availableSteps={Object.keys(availableSteps)}
                 machineType={machineType}
+                exportMode={config?.processing?.[machineType]?.export_mode}
                 onRequestDitherPreview={handleRequestDitherPreview}
                 ditherLoading={ditherLoading}
               />

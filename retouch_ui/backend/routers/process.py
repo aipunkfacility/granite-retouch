@@ -1,4 +1,10 @@
-"""Роутер обработки изображений: загрузка, предпросмотр, экспорт."""
+"""Роутер обработки изображений: загрузка, предпросмотр, экспорт.
+
+Экспорт BMP (v3): формат определяется по export_mode из per-machine конфига.
+  - export_mode='8bit' (по умолчанию): 8-bit grayscale BMP с DPI из step_mm
+  - export_mode='1bit': 1-bit BMP с дизерингом (dither_method_1bit)
+  - Явный format='bmp_8bit'/'bmp_1bit' в запросе перекрывает export_mode
+"""
 
 from __future__ import annotations
 
@@ -208,7 +214,8 @@ async def upload_image(file: UploadFile = File(...)):
     )
 
 
-def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | None]:
+def _params_to_overrides(params: PreviewParams | None,
+                         machine_type: str | None = None) -> tuple[dict, dict | None]:
     """Преобразовать PreviewParams в dict для deep_merge в конфиг.
 
     Поддерживает два формата:
@@ -216,6 +223,10 @@ def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | Non
     2. Плоские параметры: {face_oval: {...}, stone_type: "granite", step_mm: 0.3}
 
     E.2: Поддерживает face_oval → передача в pipeline.
+
+    step_mm при наличии machine_type записывается в per-machine конфиг
+    (processing.{machine_type}.step_mm), а не в глобальный machine.step_mm.
+    Без machine_type — fallback на machine.step_mm (обратная совместимость).
 
     Returns:
         tuple: (overrides_dict, face_oval_dict или None)
@@ -234,10 +245,13 @@ def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | Non
     if stone_type:
         overrides["stone"] = {"type": stone_type}
 
-    # step_mm → в секцию machine
+    # step_mm → per-machine (при наличии machine_type) или глобальный fallback
     step_mm = p.pop("step_mm", None)
     if step_mm:
-        overrides["machine"] = {"step_mm": step_mm}
+        if machine_type:
+            overrides.setdefault("processing", {}).setdefault(machine_type, {})["step_mm"] = step_mm
+        else:
+            overrides["machine"] = {"step_mm": step_mm}
 
     # Вложенные секции конфига от UI (processing, vignette, stone, machine)
     # передаём напрямую — они содержат glow_size_min/max и др.
@@ -245,7 +259,11 @@ def _params_to_overrides(params: PreviewParams | None) -> tuple[dict, dict | Non
     for key in CONFIG_SECTIONS:
         value = p.pop(key, None)
         if value is not None and isinstance(value, dict):
-            overrides[key] = value
+            if key in overrides and isinstance(overrides[key], dict):
+                # Merge: не затираем уже записанные подклюи (например processing.{machine}.step_mm)
+                overrides[key] = deep_merge(overrides[key], value)
+            else:
+                overrides[key] = value
 
     return overrides, face_oval
 
@@ -274,7 +292,7 @@ async def preview_image(
 
     # Собрать конфиг: загрузить полный, затем наложить params
     full_config = load_config()
-    overrides_data = _params_to_overrides(request.params)
+    overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
     overrides, face_oval_dict = overrides_data
 
     if overrides:
@@ -384,7 +402,13 @@ async def export_image(
     request: ExportRequest,
     background_tasks: BackgroundTasks,
 ):
-    """Экспорт обработанного изображения в полном разрешении (BMP/PNG/TIFF)."""
+    """Экспорт обработанного изображения в полном разрешении (BMP/PNG/TIFF).
+
+    Формат BMP определяется по export_mode из per-machine конфига (v3):
+    - export_mode='8bit' → 8-bit grayscale BMP (по умолчанию для всех станков)
+    - export_mode='1bit' → 1-bit BMP с дизерингом (dither_method_1bit)
+    DPI в заголовке BMP вычисляется из step_mm: dpi = 25.4 / step_mm.
+    """
 
     # Найти загруженный файл
     entry = _uploaded_files.get(request.file_id)
@@ -395,7 +419,7 @@ async def export_image(
 
     # Собрать конфиг
     full_config = load_config()
-    overrides_data = _params_to_overrides(request.params)
+    overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
     overrides, face_oval_dict = overrides_data
 
     if overrides:
@@ -452,15 +476,22 @@ async def export_image(
 
     try:
         if fmt in ("bmp", "bmp_1bit", "bmp_8bit"):
-            # Передаём dither_method из machine_cfg
+            # Читаем export_mode, step_mm, dither_method_1bit из per-machine конфига
             proc_cfg = full_config.get("processing", {})
             machine_cfg = proc_cfg.get(request.machine, {})
-            dither_method = machine_cfg.get("dither_method", "none")
+            export_mode = machine_cfg.get("export_mode", "8bit")
+            step_mm = machine_cfg.get("step_mm", full_config.get("machine", {}).get("step_mm", 0.300))
+            dither_method_1bit = machine_cfg.get("dither_method_1bit",
+                                                  machine_cfg.get("dither_method", "jarvis"))
+            dither_method = machine_cfg.get("dither_method", "none")  # deprecated fallback
 
             actual_path = export_result(
                 result.img_final, tmp_name,
                 machine_type=request.machine, fmt=fmt,
-                dither_method=dither_method,
+                export_mode=export_mode,
+                step_mm=step_mm,
+                dither_method=dither_method,  # deprecated fallback
+                dither_method_1bit=dither_method_1bit,
             )
             # export_result может вернуть другой путь (с другим расширением)
             # Если путь не совпадает — читаем из actual_path
@@ -494,15 +525,15 @@ async def export_image(
 
 @router.post("/process/dither-preview", response_model=DitherPreviewResponse)
 async def dither_preview(request: DitherPreviewRequest):
-    """Предпросмотр Jarvis дизеринга для laser_80w.
+    """Предпросмотр дизеринга для любой машины.
 
+    Метод дизеринга берётся из конфига станка (dither_method_1bit).
+    Доступен для всех станков — не только laser_80w. Показывает результат
+    1-bit растрирования, чтобы оператор мог оценить переключение с 8-bit.
     Вызывается ОТДЕЛЬНО от /process/preview — по кнопке в UI.
     Без Numba: 30-120 сек + предупреждение.
     С Numba: ~1-2 сек.
     """
-    if request.machine != "laser_80w":
-        raise HTTPException(400, "Дизеринг доступен только для laser_80w")
-
     # Найти загруженный файл
     entry = _uploaded_files.get(request.file_id)
     if entry is None:
@@ -512,13 +543,21 @@ async def dither_preview(request: DitherPreviewRequest):
 
     # Собрать конфиг
     full_config = load_config()
-    overrides_data = _params_to_overrides(request.params)
+    overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
     overrides, face_oval_dict = overrides_data
 
     if overrides:
         full_config = deep_merge(full_config, overrides)
 
     face_oval = face_oval_dict
+
+    # Прочитать метод дизеринга из конфига станка
+    proc_cfg = full_config.get("processing", {})
+    machine_cfg = proc_cfg.get(request.machine, {})
+    dither_method_name = machine_cfg.get(
+        "dither_method_1bit",
+        machine_cfg.get("dither_method", "jarvis"),
+    )
 
     # Предупреждение о Numba
     numba_available = _get_numba_available()
@@ -550,19 +589,19 @@ async def dither_preview(request: DitherPreviewRequest):
 
     _ref_dec(request.file_id)
 
-    # Применить Jarvis дизеринг для предпросмотра
+    # Применить дизеринг методом из конфига станка (dither_method_1bit)
     try:
-        from retouch.processing.export import jarvis_dither
+        from retouch.processing.export import _apply_dither
         dithered = await asyncio.wait_for(
-            asyncio.to_thread(jarvis_dither, result.img_final),
+            asyncio.to_thread(_apply_dither, result.img_final, dither_method_name),
             timeout=120.0 if not numba_available else 10.0,
         )
     except asyncio.TimeoutError:
         result.release_intermediates()
-        raise HTTPException(408, "Превышено время Jarvis дизеринга")
+        raise HTTPException(408, f"Превышено время дизеринга ({dither_method_name})")
     except Exception as exc:
         result.release_intermediates()
-        logger.exception("Ошибка Jarvis дизеринга: %s", exc)
+        logger.exception("Ошибка дизеринга (%s): %s", dither_method_name, exc)
         raise HTTPException(500, f"Ошибка дизеринга: {exc}")
 
     # Кодируем в base64

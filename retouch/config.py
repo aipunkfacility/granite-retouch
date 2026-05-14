@@ -1,4 +1,18 @@
-"""Загрузка и валидация конфигурации из config.yaml."""
+"""Загрузка и валидация конфигурации из config.yaml.
+
+Схема конфига (v3):
+  - config_version: 3 — для цепочки миграций (v0→v1→v2→v3)
+  - processing.{machine}.export_mode: "8bit" | "1bit" — режим экспорта BMP
+  - processing.{machine}.step_mm: шаг ЧПУ в мм (per-machine, с v3)
+  - processing.{machine}.dither_method_1bit: метод дизеринга для 1-bit режима
+  - processing.{machine}.dither_method: DEPRECATED, заменён на export_mode + dither_method_1bit
+  - machine.step_mm: 0.300 — глобальный fallback (обратная совместимость)
+
+Миграции:
+  v0→v1: face_brightness_target list→min/max, laser→laser_standard, brightness→stone_gamma
+  v1→v2: добавление config_version=2
+  v2→v3: dither_method→export_mode, global step_mm→per-machine, laser_80w gamma/fb
+"""
 
 import copy
 from pathlib import Path
@@ -22,7 +36,7 @@ STONE_PROFILES = {
 }
 
 DEFAULTS = {
-    "config_version": 2,  # Версия схемы конфига — для цепочки миграций
+    "config_version": 3,  # Версия схемы конфига — для цепочки миграций
     "processing": {
         "blue_threshold": 30,
         "min_blue_ratio": 0.15,
@@ -46,23 +60,27 @@ DEFAULTS = {
             "face_region_top": 0.45,
             "highlight_start": 200,
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
-            "dither_method": "none",  # FIX #9: 8-bit BMP, без дизеринга
+            "export_mode": "8bit",  # 8-bit grayscale BMP — Engrave делает растрирование сам
+            "step_mm": 0.300,  # шаг ЧПУ для laser_standard
+            "dither_method_1bit": "jarvis",  # метод дизеринга если оператор переключит на 1bit
         },
         "laser_80w": {
             "glow_size_min": 15, "glow_size_max": 25,
             "glow_opacity_min": 10, "glow_opacity_max": 20,
             "glow_style": "outer",
-            "stone_gamma": 0.85,  # FIX #8: SOP 5.1
+            "stone_gamma": 1.0,  # при 8bit Engrave сам управляет яркостью через Р-график
             "unsharp_threshold": 3,  # FIX #11: SOP 3.1
             "shadow_floor": 5,  # FIX #12: SOP 5.1
             "target_pre_fb": 150,
-            "face_brightness_target_min": 190,
-            "face_brightness_target_max": 210,
+            "face_brightness_target_min": 160,  # перекалибровка: gamma=1.0 вместо 0.85
+            "face_brightness_target_max": 180,
             "white_ceiling": 235,
             "face_region_top": 0.45,
             "highlight_start": 195,
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
-            "dither_method": "jarvis",  # FIX #9: SOP 4.1
+            "export_mode": "8bit",  # 8-bit grayscale — Engrave модулирует мощность по яркости
+            "step_mm": 0.250,  # по мануалу САУНО: 0.125–0.250 мм для лазера
+            "dither_method_1bit": "jarvis",  # метод дизеринга если оператор переключит на 1bit
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
@@ -81,7 +99,9 @@ DEFAULTS = {
             "shadow_noise_max": 15,
             "shadow_noise_threshold": 30,  # A.1: порог для shadow noise
             "shadow_floor": 8,  # A.2: минимальная яркость для impact
-            "dither_method": "none",  # FIX #9: 8-bit BMP, без дизеринга
+            "export_mode": "8bit",  # 8-bit grayscale — 256 уровней силы удара
+            "step_mm": 0.300,  # шаг ЧПУ для impact
+            "dither_method_1bit": "stucki",  # метод дизеринга если оператор переключит на 1bit
         },
     },
     "machine": {
@@ -166,7 +186,10 @@ try:
         shadow_noise_max: int = Field(15, ge=0, le=50)
         shadow_noise_threshold: int = Field(30, ge=5, le=80)
         shadow_floor: int = Field(5, ge=0, le=30)  # FIX #12: default 5 (SOP 5.1)
-        dither_method: str = Field("none", pattern="^(none|floyd_steinberg|jarvis|stucki)$")  # FIX #9
+        dither_method: str = Field("none", pattern="^(none|floyd_steinberg|jarvis|stucki)$")  # DEPRECATED: use export_mode + dither_method_1bit
+        export_mode: str = Field("8bit", pattern="^(8bit|1bit)$")  # 8-bit grayscale or 1-bit dithered
+        step_mm: float = Field(0.300, ge=0.10, le=0.50)  # per-machine CNC step in mm
+        dither_method_1bit: str = Field("jarvis", pattern="^(none|jarvis|stucki)$")  # dithering for 1bit mode
         # Backward compat: accept old list format
         face_brightness_target: list[int] | None = Field(None, exclude=True)
 
@@ -179,18 +202,21 @@ try:
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
             glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,
             face_brightness_target_min=230, face_brightness_target_max=245,
-            white_ceiling=250, highlight_start=200, dither_method="none"))
+            white_ceiling=250, highlight_start=200, dither_method="none",
+            export_mode="8bit", step_mm=0.300, dither_method_1bit="jarvis"))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            glow_style="outer", stone_gamma=0.85, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
-            face_brightness_target_min=190, face_brightness_target_max=210,
-            white_ceiling=235, highlight_start=195, dither_method="jarvis"))
+            glow_style="outer", stone_gamma=1.0, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
+            face_brightness_target_min=160, face_brightness_target_max=180,
+            white_ceiling=235, highlight_start=195, dither_method="none",
+            export_mode="8bit", step_mm=0.250, dither_method_1bit="jarvis"))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
             glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=200,
-            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="none"))
+            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="none",
+            export_mode="8bit", step_mm=0.300, dither_method_1bit="stucki"))
 
     class MachineGlobalConfig(BaseModel):
         step_mm: float = Field(0.300, ge=0.10, le=0.50)
@@ -306,10 +332,55 @@ def _migrate_v1_to_v2(config: dict) -> dict:
     return config
 
 
+def _migrate_v2_to_v3(config: dict) -> dict:
+    """Миграция v2 → v3: dither_method → export_mode, global step_mm → per-machine, laser_80w gamma/fb.
+
+    Изменения:
+    - dither_method="none" → export_mode="8bit"
+    - dither_method="jarvis"/"stucki" → export_mode="1bit", dither_method_1bit сохраняется
+    - Глобальный machine.step_mm копируется в per-machine (если не задан)
+    - laser_80w: stone_gamma 0.85→1.0, face_brightness перекалибровка
+    """
+    proc = config.get("processing", {})
+
+    for machine in MACHINE_TYPES:
+        mc = proc.get(machine, {})
+
+        # dither_method → export_mode
+        if "export_mode" not in mc and "dither_method" in mc:
+            dm = mc.pop("dither_method")
+            if dm in ("none",):
+                mc["export_mode"] = "8bit"
+            else:
+                mc["export_mode"] = "1bit"
+                mc["dither_method_1bit"] = dm  # сохранить для 1bit режима
+
+        # Per-machine step_mm из глобального (если не задан)
+        if "step_mm" not in mc:
+            mc["step_mm"] = config.get("machine", {}).get("step_mm", 0.300)
+
+        # dither_method_1bit по умолчанию — если не задан
+        if "dither_method_1bit" not in mc:
+            mc["dither_method_1bit"] = "jarvis" if machine != "impact" else "stucki"
+
+    # laser_80w: stone_gamma 0.85→1.0 + face_brightness recalibration
+    mc_80w = proc.get("laser_80w", {})
+    if mc_80w.get("stone_gamma") == 0.85:
+        mc_80w["stone_gamma"] = 1.0
+    if mc_80w.get("face_brightness_target_min") == 190:
+        mc_80w["face_brightness_target_min"] = 160
+    if mc_80w.get("face_brightness_target_max") == 210:
+        mc_80w["face_brightness_target_max"] = 180
+
+    config["config_version"] = 3
+    return config
+
+
 # Реестр миграций: version → функция миграции до version+1
 _MIGRATIONS = {
     0: _migrate_v0_to_v1,
     1: _migrate_v1_to_v2,
+    2: _migrate_v2_to_v3,
 }
 
 

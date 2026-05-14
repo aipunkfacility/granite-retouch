@@ -176,8 +176,8 @@ class VignetteMaskResponse(BaseModel):
 class DitherPreviewRequest(BaseModel):
     """Запрос POST /api/process/dither-preview."""
     file_id: str = Field(..., description="UUID загруженного файла")
-    machine: str = Field("laser_80w", pattern="^(laser_80w)$",
-                         description="Тип станка (только laser_80w)")
+    machine: str = Field("laser_80w", pattern="^(laser_standard|laser_80w|impact)$",
+                         description="Тип станка")
     params: PreviewParams | None = Field(None,
                                           description="Валидированные параметры обработки")
 

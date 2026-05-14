@@ -339,7 +339,7 @@ def process_steps(
         config=config,
         machine_cfg=machine_cfg,
         stone_type=config.get("stone", {}).get("type", "granite"),
-        step_mm=config.get("machine", {}).get("step_mm", 0.300),
+        step_mm=machine_cfg.get("step_mm", config.get("machine", {}).get("step_mm", 0.300)),
         warnings=validation_warnings,
     )
 
@@ -631,17 +631,19 @@ def process_export(
 ) -> PipelineResult:
     """Полная обработка + сохранение BMP/PNG.
 
-    Вызывает process_steps(), затем сохраняет результат.
-    Формат BMP зависит от dither_method в конфиге станка:
-    - laser_standard: dither_method='none' → 8-bit grayscale
-    - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-    - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
+    Вызывает process_steps(), затем сохраняет результат через export_result().
+    Формат BMP определяется по export_mode из per-machine конфига (v3):
+    - Все машины по умолчанию: export_mode='8bit' → 8-bit grayscale BMP
+    - При export_mode='1bit': 1-bit BMP с дизерингом (dither_method_1bit)
+    - Явный fmt='bmp_8bit'/'bmp_1bit' перекрывает export_mode
+
+    DPI в заголовке BMP вычисляется из per-machine step_mm: dpi = 25.4 / step_mm.
     Промежуточные изображения освобождаются для экономии памяти.
 
     Args:
         input_path: путь к входному изображению
         output_path: путь к выходному файлу
-        machine_type: тип станка
+        machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
         config: конфигурация (None = загрузить из config.yaml)
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
         overwrite: D.7 — если False и файл существует, выбрасывает FileExistsError.
@@ -667,16 +669,22 @@ def process_export(
     )
 
     # Сохранение BMP + PNG через export_result
-    # Передаём dither_method из machine_cfg —
-    # без этого export_result() не знает какой метод дизеринга использовать
+    # Читаем export_mode, step_mm, dither_method_1bit из per-machine конфига
     proc_cfg = config.get("processing", {}) if config else {}
     machine_cfg = proc_cfg.get(machine_type, {})
-    dither_method = machine_cfg.get("dither_method", "none")
+    export_mode = machine_cfg.get("export_mode", "8bit")
+    step_mm = machine_cfg.get("step_mm", config.get("machine", {}).get("step_mm", 0.300))
+    dither_method_1bit = machine_cfg.get("dither_method_1bit",
+                                          machine_cfg.get("dither_method", "jarvis"))
+    dither_method = machine_cfg.get("dither_method", "none")  # deprecated fallback
 
     actual_path = export_result(
         result.img_final, output_path,
         machine_type=machine_type, fmt=fmt,
-        dither_method=dither_method,
+        export_mode=export_mode,
+        step_mm=step_mm,
+        dither_method=dither_method,  # deprecated fallback
+        dither_method_1bit=dither_method_1bit,
         save_png_preview=True,  # CLI/WebUI ожидают PNG рядом с BMP
     )
 
@@ -694,7 +702,8 @@ def _validate_export(output_path: str, machine_type: str, fmt: str):
     """F.3: Пост-сохранная валидация BMP.
 
     Проверяет что файл можно открыть, mode и size соответствуют ожиданиям.
-    fmt='bmp' может давать как 8-bit (laser_standard), так и 1-bit (laser_80w/impact).
+    fmt='bmp' использует export_mode из конфига: по умолчанию 8-bit для всех машин,
+    но при export_mode='1bit' — 1-bit BMP с дизерингом.
     """
     try:
         with Image.open(output_path) as img:

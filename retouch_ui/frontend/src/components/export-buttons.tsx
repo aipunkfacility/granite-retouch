@@ -18,7 +18,7 @@ interface Props {
 /** Default export format per machine type */
 function defaultFormat(machineType: MachineType): ExportFormat {
   switch (machineType) {
-    case "laser_80w": return "bmp_1bit";
+    case "laser_80w": return "bmp_8bit";
     case "impact": return "bmp_8bit";
     default: return "bmp";
   }

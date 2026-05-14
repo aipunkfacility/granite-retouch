@@ -19,23 +19,27 @@ processing:
     shadow_noise_max: 15
     shadow_noise_threshold: 30
     shadow_floor: 8
-    dither_method: none           # 8-bit grayscale для ударных станков (256 уровней силы удара)
+    export_mode: 8bit           # 8-bit grayscale — 256 уровней силы удара
+    step_mm: 0.300              # шаг ЧПУ для impact
+    dither_method_1bit: stucki  # метод дизеринга если оператор переключит на 1bit
   laser_80w:
-    stone_gamma: 0.85                 # FIX #8: SOP 5.1
+    stone_gamma: 1.0                  # при 8bit Engrave сам управляет яркостью
     unsharp_threshold: 3
     shadow_floor: 5
-    target_pre_fb: 150                # default из config.py
-    face_brightness_target_min: 190   # default / документация: 190
-    face_brightness_target_max: 210   # default / документация: 210
-    white_ceiling: 235                # default / документация: 235
+    target_pre_fb: 150
+    face_brightness_target_min: 160   # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 180   # перекалибровка: gamma=1.0 вместо 0.85
+    white_ceiling: 235
     face_region_top: 0.45
-    glow_opacity_max: 20                  # AUDIT-9.1: приведено к DEFAULTS
+    glow_opacity_max: 20
     glow_opacity_min: 10
-    glow_size_max: 25                      # AUDIT-9.1: приведено к DEFAULTS
+    glow_size_max: 25
     glow_size_min: 15
     glow_style: outer
     highlight_start: 195
-    dither_method: jarvis          # FIX #9: SOP 4.1
+    export_mode: 8bit           # 8-bit grayscale — Engrave модулирует мощность по яркости
+    step_mm: 0.250              # по мануалу САУНО: 0.125–0.250 мм для лазера
+    dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   laser_standard:
     stone_gamma: 0.88
     unsharp_threshold: 3
@@ -50,7 +54,9 @@ processing:
     glow_size_min: 40
     glow_style: outer
     highlight_start: 200
-    dither_method: none
+    export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
+    step_mm: 0.300              # шаг ЧПУ для laser_standard
+    dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   min_blue_ratio: 0.15
   min_resolution: 512
   max_resolution: 4096       # Защита от OOM

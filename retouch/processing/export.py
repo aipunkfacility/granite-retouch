@@ -1,20 +1,21 @@
 """Экспорт результатов пайплайна в форматы BMP для ЧПУ станков.
 
 Поддерживаемые форматы:
-- BMP 8-bit grayscale (256 оттенков, R=G=B палитра) — для laser_standard
-- BMP 1-bit monochrome (dithered) — для laser_80w
+- BMP 8-bit grayscale (256 оттенков, R=G=B палитра) — ПО УМОЛЧАНИЮ для всех машин
+  - SAUNO Engrave: модулирует мощность лазера по яркости (алгоритмы Р1–Р5)
+  - Ударные станки: 256 уровней силы удара
+- BMP 1-bit monochrome (dithered) — опционально через export_mode='1bit'
   - Jarvis: плавные переходы, лучший для CO2 (SOP 4.1)
+  - Stucki: улучшенный микроконтраст, для ударной гравировки
 - PNG — для предпросмотра (обратно совместимый)
 
-Формат BMP выбирается по dither_method из конфига станка:
-  - laser_standard: dither_method='none' → 8-bit grayscale
-  - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-  - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
+Формат BMP определяется по export_mode из конфига станка (v3):
+  - laser_standard: export_mode='8bit' → 8-bit grayscale
+  - laser_80w: export_mode='8bit' → 8-bit grayscale (Engrave сам растрирует)
+  - impact: export_mode='8bit' → 8-bit grayscale (256 уровней силы удара)
+  - Любая машина: export_mode='1bit' → 1-bit BMP с дизерингом (dither_method_1bit)
 
-FIX #9: Добавлены Stucki и Jarvis dithering
-FIX #10: REMOVED — dither_upsample was broken (NEAREST downsample on 1-bit is no-op)
-PERF: Numba @njit для дизеринга — 50-200x ускорение
-BREAKING: Floyd-Steinberg удалён, floyd_steinberg редиректит на jarvis
+DEPRECATED: dither_method → используйте export_mode + dither_method_1bit
 """
 
 import logging
@@ -205,16 +206,21 @@ def _apply_dither(img_gray, method='jarvis') -> Image.Image:
         return jarvis_dither(img_gray)
 
 
-def save_bmp_8bit(img, output_path, machine_type=None) -> None:
+def save_bmp_8bit(img, output_path, machine_type=None, step_mm=None) -> None:
     """Сохранить изображение как 8-bit grayscale BMP с палитрой R=G=B.
 
     Формат: BMP, 8-bit indexed, палитра 256 записей (0,0,0)...(255,255,255).
     Это стандартный формат для ударной гравировки и лазерной в полутоновом режиме.
 
+    DPI в заголовке вычисляется из step_mm: dpi = 25.4 / step_mm.
+    Engrave НЕ использует DPI из заголовка, но показывает предупреждение
+    при несоответствии — поэтому пишем корректное значение.
+
     Args:
         img: PIL.Image (RGB или L)
         output_path: путь к выходному BMP-файлу
         machine_type: тип станка (для логирования)
+        step_mm: шаг ЧПУ в мм — для записи DPI в заголовок BMP (None = не писать DPI)
     """
     # Конвертируем в grayscale если нужно
     if img.mode == 'RGB':
@@ -228,15 +234,22 @@ def save_bmp_8bit(img, output_path, machine_type=None) -> None:
     else:
         img_gray = img
 
+    # DPI из step_mm (чтобы Engrave не ругался)
+    save_kwargs = {'format': 'BMP'}
+    if step_mm and step_mm > 0:
+        dpi = round(25.4 / step_mm, 1)
+        save_kwargs['dpi'] = (dpi, dpi)
+
     # Создаём 8-bit BMP с палитрой R=G=B
     # PIL автоматически создаёт правильную grayscale палитру при сохранении L как BMP
-    img_gray.save(output_path, format='BMP')
+    img_gray.save(output_path, **save_kwargs)
 
     path = Path(output_path)
     size_kb = path.stat().st_size / 1024
+    dpi_str = f", DPI={save_kwargs['dpi'][0]:.1f}" if 'dpi' in save_kwargs else ""
     logger.info(
-        "BMP 8-bit saved: %s (%dx%d, %.0f KB, machine=%s)",
-        output_path, img_gray.width, img_gray.height, size_kb, machine_type,
+        "BMP 8-bit saved: %s (%dx%d, %.0f KB, machine=%s%s)",
+        output_path, img_gray.width, img_gray.height, size_kb, machine_type, dpi_str,
     )
 
 
@@ -282,27 +295,31 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None) -> No
 
 
 def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
-                  dither_method=None, save_png_preview=False) -> str:
+                  dither_method=None, export_mode=None, step_mm=None,
+                  dither_method_1bit=None,
+                  save_png_preview=False) -> str:
     """Экспорт результата пайплайна в нужном формате.
 
-    Логика выбора формата:
-    - fmt='png' → PNG (предпросмотр)
-    - fmt='bmp_1bit' → 1-bit BMP с дизерингом (любой станок)
-    - fmt='bmp' + dither_method != 'none' → 1-bit BMP с дизерингом из конфига
-    - fmt='bmp' + dither_method == 'none' → 8-bit grayscale BMP
+    Логика выбора формата (приоритет от высшего к низшему):
+    1. Явный fmt='bmp_8bit' или fmt='bmp_1bit' — перекрывает export_mode
+    2. export_mode='8bit' → 8-bit grayscale BMP (БЕЗ дизеринга)
+    3. export_mode='1bit' → 1-bit BMP с дизерингом (dither_method_1bit)
+    4. export_mode=None → fallback на dither_method (обратная совместимость)
 
-    Машины по умолчанию:
-    - laser_standard: dither_method='none' → 8-bit grayscale
-    - laser_80w: dither_method='jarvis' → 1-bit BMP с Jarvis dithering
-    - impact: dither_method='none' → 8-bit grayscale (256 уровней силы удара)
+    Машины по умолчанию (v3):
+    - laser_standard: export_mode='8bit' → 8-bit grayscale
+    - laser_80w: export_mode='8bit' → 8-bit grayscale (Engrave сам растрирует)
+    - impact: export_mode='8bit' → 8-bit grayscale (256 уровней силы удара)
 
     Args:
         img: PIL.Image (RGB или L) — финальное изображение от пайплайна
         output_path: путь к выходному файлу (расширение будет заменено на .bmp)
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
-        dither_method: алгоритм дизеринга ('jarvis', 'stucki', 'floyd_steinberg' (deprecated), 'none')
-            None = авто (из конфига станка)
+        dither_method: DEPRECATED — алгоритм дизеринга, используйте export_mode
+        export_mode: режим экспорта ('8bit' | '1bit') — определяет формат BMP
+        step_mm: шаг ЧПУ в мм — для записи DPI в заголовок BMP
+        dither_method_1bit: алгоритм дизеринга для 1-bit режима ('jarvis' | 'stucki')
         save_png_preview: bool — сохранить PNG-дубликат рядом с BMP (по умолчанию False)
 
     Returns:
@@ -324,22 +341,28 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
     bmp_path = str(output.with_suffix(".bmp"))
 
     if fmt == "bmp_8bit":
-        # Явный запрос 8-bit grayscale
-        save_bmp_8bit(img, bmp_path, machine_type=machine_type)
+        # Явный запрос 8-bit grayscale — перекрывает export_mode
+        save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
     elif fmt == "bmp_1bit":
         # Явный запрос 1-bit — дизеринг обязателен
-        method = dither_method if dither_method and dither_method != "none" else "jarvis"
+        method = dither_method_1bit or dither_method or "jarvis"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=method)
+    elif export_mode == "1bit":
+        # Конфиг станка: 1-bit режим → дизеринг
+        method = dither_method_1bit or dither_method or "jarvis"
+        save_bmp_1bit(img, bmp_path, machine_type=machine_type,
+                      dither_method=method)
+    elif export_mode == "8bit":
+        # Конфиг станка: 8-bit режим → grayscale BMP
+        save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
     elif fmt == "bmp" and dither_method and dither_method != "none":
-        # Конфиг станка требует дизеринг → 1-bit BMP
-        # laser_80w (jarvis dithering)
+        # Fallback: старый путь через dither_method (обратная совместимость)
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=dither_method)
     else:
-        # fmt='bmp' + dither_method='none' → 8-bit grayscale
-        # laser_standard
-        save_bmp_8bit(img, bmp_path, machine_type=machine_type)
+        # Default: 8-bit grayscale
+        save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
 
     # PNG preview — только по явному запросу (save_png_preview=True)
     if save_png_preview:

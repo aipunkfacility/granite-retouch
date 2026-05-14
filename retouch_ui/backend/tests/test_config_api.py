@@ -38,6 +38,8 @@ def test_put_config_uses_tmp(tmp_path, monkeypatch):
     from retouch import config as cfg_module
     monkeypatch.setattr(cfg_module, "find_config_path", _fake_path)
     monkeypatch.setattr(config_router_module, "find_config_path", _fake_path)
+    # Bypass path-containment check: tmp_path is outside _PROJECT_ROOT
+    monkeypatch.setattr(config_router_module, "_validate_path_containment", lambda p: p)
 
     from fastapi.testclient import TestClient
     from retouch_ui.backend.main import app
@@ -64,6 +66,8 @@ def test_put_config_deep_merge(tmp_path, monkeypatch):
     from retouch import config as cfg_module
     monkeypatch.setattr(cfg_module, "find_config_path", _fake_path)
     monkeypatch.setattr(config_router_module, "find_config_path", _fake_path)
+    # Bypass path-containment check: tmp_path is outside _PROJECT_ROOT
+    monkeypatch.setattr(config_router_module, "_validate_path_containment", lambda p: p)
 
     from fastapi.testclient import TestClient
     from retouch_ui.backend.main import app
@@ -93,6 +97,8 @@ def test_put_config_returns_warnings(tmp_path, monkeypatch):
     from retouch import config as cfg_module
     monkeypatch.setattr(cfg_module, "find_config_path", _fake_path)
     monkeypatch.setattr(config_router_module, "find_config_path", _fake_path)
+    # Bypass path-containment check: tmp_path is outside _PROJECT_ROOT
+    monkeypatch.setattr(config_router_module, "_validate_path_containment", lambda p: p)
 
     from fastapi.testclient import TestClient
     from retouch_ui.backend.main import app
@@ -118,6 +124,8 @@ def test_put_config_brightness_migration(tmp_path, monkeypatch):
     from retouch import config as cfg_module
     monkeypatch.setattr(cfg_module, "find_config_path", _fake_path)
     monkeypatch.setattr(config_router_module, "find_config_path", _fake_path)
+    # Bypass path-containment check: tmp_path is outside _PROJECT_ROOT
+    monkeypatch.setattr(config_router_module, "_validate_path_containment", lambda p: p)
 
     from fastapi.testclient import TestClient
     from retouch_ui.backend.main import app

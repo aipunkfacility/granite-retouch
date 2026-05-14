@@ -1,6 +1,6 @@
 # Канонический пресет для стандартной лазерной гравировки (CO2 40-60W)
 description: "Стандартные параметры для CO2 лазера (гравировка в оттенках серого). \
-  Используется 8-bit grayscale BMP без дизеринга."
+  Используется 8-bit grayscale BMP — Engrave сам растрирует алгоритмами Р1-Р5."
 
 processing:
   laser_standard:
@@ -10,7 +10,9 @@ processing:
     white_ceiling: 250
     highlight_start: 200
     shadow_floor: 5
-    dither_method: none
+    export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
+    step_mm: 0.300              # шаг ЧПУ для laser_standard
+    dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
     glow_size_min: 40
     glow_size_max: 80
     glow_opacity_min: 30
