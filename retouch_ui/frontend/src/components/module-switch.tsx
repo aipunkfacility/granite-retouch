@@ -29,7 +29,8 @@ export function ModuleSwitch({ comboPresets, selectedPreset, presetsCache, onSel
           <button
             key={key}
             onClick={() => handleSwitch(key, entry)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border
+            aria-pressed={isActive}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border
               ${isActive
                 ? `${colors.bg} ${colors.border} text-text-primary`
                 : "bg-bg-input border-border text-text-muted hover:text-text-secondary"
@@ -38,7 +39,7 @@ export function ModuleSwitch({ comboPresets, selectedPreset, presetsCache, onSel
             <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
             {colors.label}
             {entry.alert && (
-              <span className="text-xs text-yellow-600" title={entry.alert}>⚠️</span>
+              <span className="text-xs text-accent-orange" title={entry.alert}><i className="ri-error-warning-line text-xs" /></span>
             )}
           </button>
         );

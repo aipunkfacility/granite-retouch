@@ -266,14 +266,14 @@ export function VignetteOverlay({
           <text
             x={-geo.hOversizePx / 2} y={geo.cy - 8}
             fill="var(--vignette-stroke, #4488ff)" fontSize={11} textAnchor="middle"
-            fontFamily="monospace"
+            fontFamily="'JetBrains Mono', monospace"
           >
             {(vignetteParams.horizontal_oversize * 100).toFixed(0)}%
           </text>
           <text
             x={imageWidth + geo.hOversizePx / 2} y={geo.cy - 8}
             fill="var(--vignette-stroke, #4488ff)" fontSize={11} textAnchor="middle"
-            fontFamily="monospace"
+            fontFamily="'JetBrains Mono', monospace"
           >
             {(vignetteParams.horizontal_oversize * 100).toFixed(0)}%
           </text>
@@ -359,7 +359,7 @@ function DragHandle({ x, y, active, cursor, label, onPointerDown }: DragHandlePr
         fill="var(--vignette-stroke, #4488ff)"
         fontSize={9}
         textAnchor="middle"
-        fontFamily="monospace"
+        fontFamily="'JetBrains Mono', monospace"
         opacity={0.7}
       >
         {label}

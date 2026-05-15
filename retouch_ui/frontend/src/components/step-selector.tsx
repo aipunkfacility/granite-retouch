@@ -35,7 +35,8 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps, expor
         <button
           key={step}
           onClick={() => onStepChange(step)}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors
+          aria-current={step === selectedStep ? "step" : undefined}
+          className={`px-3 py-1.5 text-sm rounded-lg transition-colors
             ${
               step === selectedStep
                 ? "bg-accent-blue text-white"
@@ -47,31 +48,33 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps, expor
       ))}
       {/* Dither preview button — available for any machine (shows how 1-bit would look) */}
       {onRequestDitherPreview && (
-        <button
-          onClick={onRequestDitherPreview}
-          disabled={ditherLoading}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors border border-dashed
-            ${
-              ditherLoading
-                ? "border-accent-orange/50 text-accent-orange/60 cursor-wait"
-                : "border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10"
-            }`}
-          title={exportMode === "1bit"
-            ? "Предпросмотр дизеринга (может быть медленно без Numba)"
-            : "Переключите экспорт в 1-bit режим для дизеринга"}
-        >
-          {ditherLoading ? (
-            <span className="flex items-center gap-1">
-              <i className="ri-loader-4-line animate-spin" />
-              Дизеринг...
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <i className="ri-contrast-2-line" />
-              Просмотр дизеринга
-            </span>
-          )}
-        </button>
+        <div className="border-l border-border pl-2 ml-2">
+          <button
+            onClick={onRequestDitherPreview}
+            disabled={ditherLoading}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors border border-dashed
+              ${
+                ditherLoading
+                  ? "border-accent-orange/50 text-accent-orange/60 cursor-wait"
+                  : "border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10"
+              }`}
+            title={exportMode === "1bit"
+              ? "Предпросмотр дизеринга (может быть медленно без Numba)"
+              : "Переключите экспорт в 1-bit режим для дизеринга"}
+          >
+            {ditherLoading ? (
+              <span className="flex items-center gap-1">
+                <i className="ri-loader-4-line animate-spin" />
+                Дизеринг...
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <i className="ri-contrast-2-line" />
+                Просмотр дизеринга
+              </span>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );

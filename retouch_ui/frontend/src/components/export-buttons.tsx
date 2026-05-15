@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import { fetchExport } from "../lib/api";
 import type { MachineType, ConfigTree } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
+import { useToast } from "./toast-provider";
 
 type ExportFormat = "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff";
 
@@ -47,13 +48,8 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownIndex, setDropdownIndex] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
   const dropdownBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }, []);
+  const { showToast } = useToast();
 
   const handleExport = useCallback(async (format: ExportFormat) => {
     if (!fileId) return;
@@ -70,7 +66,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      showToast(`Ошибка экспорта: ${msg}`);
+      showToast(`Ошибка экспорта: ${msg}`, { type: 'error', duration: 3000 });
     } finally {
       setExporting(false);
       setExportFormat(null);
@@ -126,7 +122,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       <button
         onClick={() => handleExport(primaryFormat)}
         disabled={!fileId || exporting}
-        className="px-4 py-1.5 bg-accent-blue text-white text-sm rounded hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1"
+        className="px-4 py-1.5 bg-accent-blue text-white text-sm rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1"
         title={`Экспорт ${formatLabel(primaryFormat)} (по умолчанию для ${machineType})`}
       >
         {exporting && exportFormat === primaryFormat ? (
@@ -141,7 +137,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       <button
         onClick={() => handleExport("png")}
         disabled={!fileId || exporting}
-        className="px-4 py-1.5 bg-bg-card text-text-primary text-sm rounded hover:bg-bg-hover disabled:opacity-50 transition-colors flex items-center gap-1"
+        className="px-4 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors flex items-center gap-1"
         title="PNG для предпросмотра"
       >
         {exporting && exportFormat === "png" ? (
@@ -156,7 +152,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       <div className="relative">
         <button
           disabled={!fileId || exporting}
-          className="px-2 py-1.5 bg-bg-card text-text-primary text-sm rounded hover:bg-bg-hover disabled:opacity-50 transition-colors"
+          className="px-2 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors"
           title="Другие форматы"
           onClick={() => {
             setDropdownOpen((prev) => !prev);
@@ -171,7 +167,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
           <i className="ri-arrow-down-s-line" />
         </button>
         {dropdownOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded shadow-lg z-50 min-w-[140px]">
+          <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded-lg shadow-lg z-50 min-w-[140px]">
             {DROPDOWN_FORMATS.map((fmt, idx) => (
               <button
                 key={fmt}
@@ -187,13 +183,6 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
           </div>
         )}
       </div>
-
-      {/* Toast notification */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-card border border-border text-text-primary px-5 py-3 rounded-lg shadow-lg z-50 text-sm max-w-md">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }

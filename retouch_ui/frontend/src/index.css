@@ -2,6 +2,7 @@
 @import "@fontsource/outfit/600.css";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
+@import "@fontsource/jetbrains-mono/400.css";
 @import "tailwindcss";
 
 @theme {
@@ -15,7 +16,7 @@
   /* Text */
   --color-text-primary: #f0f0f0;
   --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
+  --color-text-muted: #888888;
 
   /* Accents — Labradorite palette */
   --color-accent-blue: #7C8CF8;            /* Labradorite dark */
@@ -31,6 +32,7 @@
   /* Fonts */
   --font-heading: "Outfit", sans-serif;
   --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 /* Base styles */
@@ -60,6 +62,28 @@ h1, h2, h3, h4, h5, h6 {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
+}
+
+/* Focus-visible ring */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 4px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Range input styling for dark theme */

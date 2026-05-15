@@ -104,7 +104,7 @@ export function BeforeAfter({
         <p className="text-text-secondary text-sm mb-1 font-heading font-semibold">До</p>
         <div className="bg-bg-secondary rounded-lg overflow-hidden flex items-center justify-center min-h-[200px]">
           {originalUrl ? (
-            <img src={originalUrl} alt="Original" className="max-h-[500px] object-contain" />
+            <img src={originalUrl} alt="Original" className="max-h-[min(70vh,600px)] object-contain" />
           ) : (
             <span className="text-text-muted text-sm">Нет изображения</span>
           )}
@@ -124,7 +124,7 @@ export function BeforeAfter({
               ref={resultImgRef}
               src={images[selectedStep]}
               alt={`Step: ${stepLabel}`}
-              className="max-h-[500px] object-contain"
+              className="max-h-[min(70vh,600px)] object-contain"
               onLoad={handleImgLoad}
             />
           ) : (

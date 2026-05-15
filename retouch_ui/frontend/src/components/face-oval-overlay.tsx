@@ -138,7 +138,7 @@ export function FaceOvalOverlay({
         fill="var(--face-oval-stroke, #ffb400)"
         fontSize={10}
         textAnchor="middle"
-        fontFamily="monospace"
+        fontFamily="'JetBrains Mono', monospace"
         opacity={0.8}
       >
         {faceOval.source === "manual" ? "manual" : "auto"}
@@ -151,6 +151,7 @@ export function FaceOvalOverlay({
         y={cyPx}
         active={dragging === "center"}
         cursor="move"
+        label="center"
         onPointerDown={(e) => handleDragStart("center", e)}
       />
 
@@ -160,6 +161,7 @@ export function FaceOvalOverlay({
         y={cyPx - ryPx}
         active={dragging === "top"}
         cursor="ns-resize"
+        label="top"
         onPointerDown={(e) => handleDragStart("top", e)}
       />
 
@@ -169,6 +171,7 @@ export function FaceOvalOverlay({
         y={cyPx + ryPx}
         active={dragging === "bottom"}
         cursor="ns-resize"
+        label="bottom"
         onPointerDown={(e) => handleDragStart("bottom", e)}
       />
 
@@ -178,6 +181,7 @@ export function FaceOvalOverlay({
         y={cyPx}
         active={dragging === "left"}
         cursor="ew-resize"
+        label="left"
         onPointerDown={(e) => handleDragStart("left", e)}
       />
 
@@ -187,6 +191,7 @@ export function FaceOvalOverlay({
         y={cyPx}
         active={dragging === "right"}
         cursor="ew-resize"
+        label="right"
         onPointerDown={(e) => handleDragStart("right", e)}
       />
     </svg>
@@ -200,10 +205,11 @@ interface OvalHandleProps {
   y: number;
   active: boolean;
   cursor: string;
+  label: string;
   onPointerDown: (e: React.PointerEvent) => void;
 }
 
-function OvalHandle({ x, y, active, cursor, onPointerDown }: OvalHandleProps) {
+function OvalHandle({ x, y, active, cursor, label, onPointerDown }: OvalHandleProps) {
   const RADIUS = 6;
   return (
     <g className="pointer-events-auto" style={{ cursor }}>
@@ -219,6 +225,17 @@ function OvalHandle({ x, y, active, cursor, onPointerDown }: OvalHandleProps) {
         strokeWidth={2}
         onPointerDown={onPointerDown}
       />
+      {/* Label */}
+      <text
+        x={x} y={y - RADIUS - 6}
+        fill="var(--face-oval-stroke, #ffb400)"
+        fontSize={9}
+        textAnchor="middle"
+        fontFamily="'JetBrains Mono', monospace"
+        opacity={0.7}
+      >
+        {label}
+      </text>
     </g>
   );
 }

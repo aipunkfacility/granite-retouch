@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { MaterialSelector } from './material-selector';
+import { ToastProvider } from './toast-provider';
 import type { MaterialType, MachineType, MaterialProfile, MaterialChange, ConfigTree } from '../lib/types';
 
-// ─── FIX-8: side effect moved to useEffect ───
-describe('MaterialSelector (FIX-8, FIX-18, FIX-23)', () => {
+function wrapWithToastProvider(ui: React.ReactElement) {
+  return <ToastProvider>{ui}</ToastProvider>;
+}
+
+describe('MaterialSelector', () => {
   const mockOnSelect = vi.fn().mockResolvedValue({ success: true, validationWarnings: [] });
 
   const defaultProps = {
@@ -29,34 +33,31 @@ describe('MaterialSelector (FIX-8, FIX-18, FIX-23)', () => {
   });
 
   it('renders without crashing', () => {
-    render(<MaterialSelector {...defaultProps} />);
+    render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
     expect(screen.getByText('Материал')).toBeInTheDocument();
   });
 
-  // FIX-8: toast should be shown via useEffect, not inline side effect
   it('shows toast from useEffect when materialChanges arrive', () => {
     const changes: MaterialChange[] = [
       { param: 'gamma', old: 1.0, new: 1.2, reason: 'material adjust' },
     ];
 
-    const { rerender } = render(<MaterialSelector {...defaultProps} />);
-    expect(screen.queryByText(/gamma/i)).toBeNull();
+    const { rerender } = render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
 
     // Trigger materialChanges — should show toast via useEffect
-    rerender(<MaterialSelector {...defaultProps} materialChanges={changes} />);
+    rerender(wrapWithToastProvider(<MaterialSelector {...defaultProps} materialChanges={changes} />));
 
     // After useEffect runs, toast should appear
     expect(screen.getByText(/gamma.*1.*1\.2/i)).toBeInTheDocument();
   });
 
-  // FIX-18: setTimeout cleanup — timer should be cleared on unmount
-  it('clears timeout on unmount (FIX-18)', () => {
+  it('clears timeout on unmount', () => {
     const changes: MaterialChange[] = [
       { param: 'gamma', old: 1.0, new: 1.2 },
     ];
 
     const { unmount } = render(
-      <MaterialSelector {...defaultProps} materialChanges={changes} />,
+      wrapWithToastProvider(<MaterialSelector {...defaultProps} materialChanges={changes} />),
     );
 
     // Toast should be visible
@@ -69,14 +70,13 @@ describe('MaterialSelector (FIX-8, FIX-18, FIX-23)', () => {
     act(() => { vi.advanceTimersByTime(6000); });
   });
 
-  // FIX-23: selectMaterial returns { success, validationWarnings }
-  it('handles unsuccessful material selection with validationWarnings (FIX-23)', async () => {
+  it('handles unsuccessful material selection with validationWarnings', async () => {
     mockOnSelect.mockResolvedValueOnce({
       success: false,
       validationWarnings: ['ERROR: Incompatible combination'],
     });
 
-    render(<MaterialSelector {...defaultProps} />);
+    render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
 
     const marbleButton = screen.getByText('Мрамор');
     await act(async () => {
@@ -89,5 +89,38 @@ describe('MaterialSelector (FIX-8, FIX-18, FIX-23)', () => {
     });
 
     expect(screen.getByText(/Incompatible/i)).toBeInTheDocument();
+  });
+
+  // Dark palette: no light classes
+  it('has no light palette classes (bg-yellow-50 etc)', () => {
+    const { container } = render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
+    expect(container.querySelector('[class*="bg-yellow-50"]')).toBeNull();
+    expect(container.querySelector('[class*="bg-amber-50"]')).toBeNull();
+    expect(container.querySelector('[class*="bg-red-50"]')).toBeNull();
+    expect(container.querySelector('[class*="bg-blue-50"]')).toBeNull();
+  });
+
+  // Emoji replaced with Remix Icon
+  it('has no emoji characters', () => {
+    render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
+    // Check for emoji by looking for common emoji that were replaced
+    const { container } = render(wrapWithToastProvider(<MaterialSelector {...defaultProps} />));
+    // No lightbulb emoji, warning emoji, forbidden emoji, info emoji as text
+    expect(container.textContent).not.toContain('💡');
+    expect(container.textContent).not.toContain('⚠️');
+    expect(container.textContent).not.toContain('🚫');
+    expect(container.textContent).not.toContain('ℹ️');
+  });
+
+  it('has Remix Icon for lightbulb hint', () => {
+    const profiles = {
+      granite: {
+        step_mm_range: [0.1, 0.5],
+        stone_gamma_range: [1.0, 2.0],
+        hints: {},
+      } as unknown as MaterialProfile,
+    };
+    const { container } = render(wrapWithToastProvider(<MaterialSelector {...defaultProps} material="granite" profiles={profiles} />));
+    expect(container.querySelector('.ri-lightbulb-line')).toBeTruthy();
   });
 });

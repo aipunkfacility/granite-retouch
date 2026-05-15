@@ -2,8 +2,9 @@
  * Подсказки из MATERIAL_PROFILES, автокоррекция через POST /api/material/apply.
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import type { MaterialType, MachineType, MaterialProfile, MaterialChange, ConfigTree } from "../lib/types";
+import { useToast } from "./toast-provider";
 
 /** Материалы в порядке отображения */
 const MATERIAL_ORDER: MaterialType[] = ["granite", "gabbro", "basalt", "marble", "acrylic"];
@@ -37,21 +38,15 @@ export function MaterialSelector({
   onSelect,
   currentConfig,
 }: Props) {
-  const [toast, setToast] = useState<string | null>(null);
-  const [toastType, setToastType] = useState<"info" | "warning" | "error">("info");
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
 
   const handleSelect = useCallback(async (mat: MaterialType) => {
     const { success, validationWarnings: warnings } = await onSelect(mat, currentConfig);
     if (!success) {
-      // Выбор заблокирован (ERROR) — показываем красный тост
       const errorMsg = warnings.find(w => w.startsWith("ERROR:"))?.replace("ERROR: ", "") || "Несовместимая комбинация";
-      setToast(errorMsg);
-      setToastType("error");
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+      showToast(errorMsg, { type: 'error', duration: 4000 });
     }
-  }, [onSelect, currentConfig]);
+  }, [onSelect, currentConfig, showToast]);
 
   // Показать тост с автокоррекциями при изменении materialChanges
   const formatChangesToast = useCallback((changes: MaterialChange[], mat: MaterialType): string | null => {
@@ -67,22 +62,13 @@ export function MaterialSelector({
 
   // Автопоказ при изменении materialChanges
   useEffect(() => {
-    if (materialChanges.length > 0 && !toast) {
+    if (materialChanges.length > 0) {
       const msg = formatChangesToast(materialChanges, material);
       if (msg) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-show toast on material change notification
-        setToast(msg);
-        setToastType("info");
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+        showToast(msg, { type: 'info', duration: 5000 });
       }
     }
-  }, [materialChanges, material, toast, formatChangesToast]);
-
-  // Cleanup toast timer on unmount
-  useEffect(() => {
-    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
-  }, []);
+  }, [materialChanges, material, formatChangesToast, showToast]);
 
   const profile = profiles[material];
 
@@ -105,18 +91,20 @@ export function MaterialSelector({
             <button
               key={mat}
               onClick={() => handleSelect(mat)}
+              aria-pressed={isActive}
+              aria-label={`Материал: ${MATERIAL_LABELS[mat]}`}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border
                 ${isActive
                   ? "bg-accent-blue text-white border-accent-blue"
                   : isAlert
-                    ? "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100"
+                    ? "bg-accent-orange/10 text-accent-orange border-accent-orange/30 hover:bg-accent-orange/20"
                     : isWarning
-                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                      ? "bg-accent-orange/10 text-accent-orange border-accent-orange/30 hover:bg-accent-orange/20"
                       : "bg-bg-input text-text-secondary border-border hover:bg-bg-hover hover:text-text-primary"
                 }`}
             >
               {MATERIAL_LABELS[mat]}
-              {isAlert && mat === "acrylic" && <span className="ml-1">⚠️</span>}
+              {isAlert && mat === "acrylic" && <i className="ri-alert-line ml-1 text-xs" />}
             </button>
           );
         })}
@@ -126,7 +114,7 @@ export function MaterialSelector({
       {profile && (
         <div className="text-xs text-text-muted space-y-0.5">
           <div>
-            💡 {MATERIAL_LABELS[material]}: step {profile.step_mm_range[0].toFixed(3)}–{profile.step_mm_range[1].toFixed(3)},
+            <i className="ri-lightbulb-line mr-0.5" /> {MATERIAL_LABELS[material]}: step {profile.step_mm_range[0].toFixed(3)}–{profile.step_mm_range[1].toFixed(3)},
             gamma {profile.stone_gamma_range[0].toFixed(2)}–{profile.stone_gamma_range[1].toFixed(2)}
           </div>
           {profile.notes && (
@@ -137,23 +125,12 @@ export function MaterialSelector({
 
       {/* Контекстная подсказка */}
       {activeHint && (
-        <div className={`text-xs px-2 py-1 rounded border
+        <div className={`text-xs px-2 py-1 rounded-lg border
           ${isIncompatible
-            ? "bg-red-50 text-red-700 border-red-200"
-            : "bg-yellow-50 text-yellow-700 border-yellow-200"
+            ? "bg-accent-red/10 text-accent-red border-accent-red/30"
+            : "bg-accent-orange/10 text-accent-orange border-accent-orange/30"
           }`}>
-          {isIncompatible ? "🚫" : "⚠️"} {activeHint}
-        </div>
-      )}
-
-      {/* Тост автокоррекций */}
-      {toast && (
-        <div className={`text-xs px-2 py-1.5 rounded border
-          ${toastType === "error"
-            ? "bg-red-50 text-red-700 border-red-200"
-            : "bg-blue-50 text-blue-700 border-blue-200"
-          }`}>
-          {toastType === "error" ? "🚫" : "ℹ️"} {toast}
+          <i className={isIncompatible ? "ri-forbid-line mr-0.5" : "ri-alert-line mr-0.5"} /> {activeHint}
         </div>
       )}
     </div>

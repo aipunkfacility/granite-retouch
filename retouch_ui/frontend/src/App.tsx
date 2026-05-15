@@ -9,6 +9,7 @@ import { MaterialSelector } from "./components/material-selector";
 import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
+import { useToast } from "./components/toast-provider";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
 import { usePresetMaterial } from "./hooks/use-preset-material";
@@ -50,9 +51,7 @@ function getExportMode(config: ConfigTree | null, machineType: MT): string | und
 }
 
 export default function App() {
-  // Toast state
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
 
   // State
   const [fileId, setFileId] = useState<string | null>(null);
@@ -256,18 +255,11 @@ export default function App() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("Dither preview error:", err);
-      setToast(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+      showToast(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`, { type: 'error', duration: 3000 });
     } finally {
       setDitherLoading(false);
     }
-  }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult, pm.machineType]);
-
-  // Cleanup toast timer on unmount
-  useEffect(() => {
-    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
-  }, []);
+  }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult, pm.machineType, showToast]);
 
   // Compute available steps
   const availableSteps = useMemo(
@@ -297,9 +289,9 @@ export default function App() {
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
       {/* Backend down banner */}
       {backendDown && (
-        <div className="bg-yellow-500/90 text-yellow-950 px-6 py-2 text-sm font-medium text-center border-b border-yellow-600">
+        <div className="bg-accent-orange/90 text-white px-6 py-2 text-sm font-medium text-center border-b border-accent-orange">
           <i className="ri-error-warning-line mr-1" />
-          Backend не запущен. Запустите: <code className="bg-yellow-600/20 px-1 rounded">make ui-backend</code>
+          Backend не запущен. Запустите: <code className="bg-white/20 px-1 rounded-sm">make ui-backend</code>
         </div>
       )}
 
@@ -349,9 +341,9 @@ export default function App() {
 
       {/* Numba not available banner */}
       {previewResult?.diagnostics && !previewResult.diagnostics.numba_available && (
-        <div className="bg-yellow-500/10 text-yellow-700 px-6 py-2 text-sm border-b border-yellow-500/20 flex items-center gap-2">
+        <div className="bg-accent-orange/10 text-accent-orange px-6 py-2 text-sm border-b border-accent-orange/20 flex items-center gap-2">
           <i className="ri-speed-line" />
-          Дизеринг без Numba — медленно (30–120 сек). Установите: <code className="bg-yellow-500/20 px-1 rounded">uv sync --extra fast</code>
+          Дизеринг без Numba — медленно (30–120 сек). Установите: <code className="bg-accent-orange/20 px-1 rounded-sm">uv sync --extra fast</code>
         </div>
       )}
 
@@ -474,9 +466,10 @@ export default function App() {
                   <span>Обработка...</span>
                 </div>
               ) : (
-                <div className="text-center">
-                  <i className="ri-image-line text-4xl block mb-2 text-text-muted/50" />
-                  <span>Загрузите изображение для предпросмотра</span>
+                <div className="text-center space-y-3">
+                  <i className="ri-image-line text-5xl text-text-muted/30" />
+                  <p className="text-text-secondary">Загрузите изображение для обработки</p>
+                  <p className="text-text-muted text-xs">PNG, TIFF, BMP — перетащите в панель слева или нажмите для выбора</p>
                 </div>
               )}
             </div>
@@ -490,12 +483,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* Toast notification */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-card border border-border text-text-primary px-5 py-3 rounded-lg shadow-lg z-50 text-sm max-w-md">
-          {toast}
-        </div>
-      )}
+
     </div>
   );
 }

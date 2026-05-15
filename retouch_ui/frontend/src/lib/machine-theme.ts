@@ -9,7 +9,7 @@ export interface MachineTheme {
 }
 
 export const MACHINE_THEME: Record<MachineType, MachineTheme> = {
-  impact: { bg: "bg-orange-50", border: "border-orange-200", dot: "bg-orange-400", icon: "ri-contrast-2-line", label: "Ударный" },
-  laser_standard: { bg: "bg-green-50", border: "border-green-200", dot: "bg-green-400", icon: "ri-flashlight-line", label: "CO2 40W" },
-  laser_80w: { bg: "bg-red-50", border: "border-red-200", dot: "bg-red-400", icon: "ri-flashlight-fill", label: "Диод 80W" },
+  impact: { bg: "bg-accent-orange/10", border: "border-accent-orange/30", dot: "bg-accent-orange", icon: "ri-contrast-2-line", label: "Ударный" },
+  laser_standard: { bg: "bg-accent-green/10", border: "border-accent-green/30", dot: "bg-accent-green", icon: "ri-flashlight-line", label: "CO2 40W" },
+  laser_80w: { bg: "bg-accent-red/10", border: "border-accent-red/30", dot: "bg-accent-red", icon: "ri-flashlight-fill", label: "Диод 80W" },
 };

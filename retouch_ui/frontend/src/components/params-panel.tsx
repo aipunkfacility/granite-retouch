@@ -2,6 +2,7 @@ import { CONFIG_SCHEMA, PARAM_GROUPS, ADVANCED_PARAMS, HIDDEN_PARAMS, getMachine
 import type { ParamRange, ParamToggle, ParamDef } from "../lib/config-schema";
 import type { MachineType, ConfigTree } from "../lib/types";
 import { useState } from "react";
+import { Slider } from "./slider";
 
 interface Props {
   machineType: MachineType;
@@ -47,37 +48,18 @@ export function ParamsPanel({
     const pathKey = path.join(".");
     const isOverridden = overriddenKeys?.has(pathKey) ?? false;
     return (
-      <div key={pathKey} className="space-y-1">
-        <div className="flex justify-between text-sm items-center">
-          <label className={`text-text-secondary ${isOverridden ? "font-semibold text-accent-orange" : ""}`}>
-            {param.label}
-          </label>
-          <div className="flex items-center gap-1">
-            <span className="text-text-muted font-mono text-xs">
-              {value}
-              {param.unit ? ` ${param.unit}` : ""}
-            </span>
-            {isOverridden && onResetParam && (
-              <button
-                onClick={() => onResetParam(pathKey)}
-                className="text-xs text-accent-orange hover:text-accent-orange/80 transition-colors"
-                title="Сбросить к значению пресета"
-              >
-                ↩
-              </button>
-            )}
-          </div>
-        </div>
-        <input
-          type="range"
-          min={param.min}
-          max={param.max}
-          step={param.step}
-          value={value}
-          onChange={(e) => onConfigChange(path, parseFloat(e.target.value))}
-          className="w-full"
-        />
-      </div>
+      <Slider
+        key={pathKey}
+        label={param.label}
+        value={value}
+        min={param.min}
+        max={param.max}
+        step={param.step}
+        unit={param.unit}
+        overridden={isOverridden}
+        onChange={(v) => onConfigChange(path, v)}
+        onReset={onResetParam ? () => onResetParam(pathKey) : undefined}
+      />
     );
   };
 
@@ -89,12 +71,13 @@ export function ParamsPanel({
           <button
             key={opt.value}
             onClick={() => onConfigChange(path, opt.value)}
-            className={`px-3 py-1 text-sm rounded-md transition-colors
+            className={`px-3 py-1 text-sm rounded-lg transition-colors
               ${
                 value === opt.value
                   ? "bg-accent-blue text-white"
                   : "bg-bg-input text-text-muted hover:bg-bg-hover"
               }`}
+            aria-pressed={value === opt.value}
           >
             {opt.label}
           </button>
@@ -158,11 +141,15 @@ export function ParamsPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border" role="tablist">
         {visibleTabs.map((g) => (
           <button
             key={g.key}
             onClick={() => setActiveTab(g.key)}
+            role="tab"
+            aria-selected={effectiveTab === g.key}
+            aria-controls={`tabpanel-${g.key}`}
+            id={`tab-${g.key}`}
             className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors
               ${
                 effectiveTab === g.key
@@ -206,7 +193,7 @@ export function ParamsPanel({
           </label>
           <button
             onClick={onFaceOvalPinToggle}
-            className={`text-sm px-2 py-1 rounded transition-colors
+            className={`text-sm px-2 py-1 rounded-lg transition-colors
               ${
                 faceOvalPinned
                   ? "text-accent-orange bg-accent-orange/10"
@@ -224,7 +211,7 @@ export function ParamsPanel({
       )}
 
       {/* Sliders */}
-      <div className="space-y-3 max-h-[min(60vh,40rem)] overflow-y-auto pr-1">
+      <div className="space-y-3 max-h-[min(60vh,40rem)] overflow-y-auto pr-1" role="tabpanel" id={`tabpanel-${effectiveTab}`} aria-labelledby={`tab-${effectiveTab}`}>
         {visibleTabs
           .filter((g) => g.key === effectiveTab)
           .map((g) =>

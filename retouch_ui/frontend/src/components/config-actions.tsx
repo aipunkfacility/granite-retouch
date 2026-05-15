@@ -44,6 +44,7 @@ export function ConfigActions({ config, presetsCache, onConfigReset, onConfigCha
   }, [config]);
 
   const handleReset = useCallback(async () => {
+    if (!window.confirm("Сбросить все параметры к значениям по умолчанию?")) return;
     try {
       const result = await fetchDefaults();
       onConfigReset(result.defaults);
@@ -63,6 +64,7 @@ export function ConfigActions({ config, presetsCache, onConfigReset, onConfigCha
   }, [presetName, config, showToast]);
 
   const handleDeletePreset = useCallback(async (name: string) => {
+    if (!window.confirm(`Удалить пресет «${name}»?`)) return;
     try {
       await deletePreset(name);
       setDeletedPresets(prev => {
@@ -82,13 +84,13 @@ export function ConfigActions({ config, presetsCache, onConfigReset, onConfigCha
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 px-3 py-2 bg-accent-blue text-white rounded text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="flex-1 px-3 py-2 bg-accent-blue text-white rounded-lg text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {saving ? "Сохранение..." : "Сохранить config.yaml"}
         </button>
         <button
           onClick={handleReset}
-          className="px-3 py-2 bg-bg-card text-text-secondary rounded text-sm hover:bg-bg-hover transition-colors"
+          className="px-3 py-2 bg-bg-card text-text-secondary rounded-lg text-sm hover:bg-bg-hover transition-colors"
         >
           Сброс
         </button>
@@ -120,7 +122,7 @@ export function ConfigActions({ config, presetsCache, onConfigReset, onConfigCha
                   const cfg = presetsCache[name];
                   if (cfg) onConfigChange(cfg);
                 }}
-                className="flex-1 text-left px-2 py-1.5 text-sm bg-bg-card rounded hover:bg-bg-hover transition-colors text-text-secondary"
+                className="flex-1 text-left px-2 py-1.5 text-sm bg-bg-card rounded-lg hover:bg-bg-hover transition-colors text-text-secondary"
               >
                 {name}
               </button>
@@ -140,14 +142,14 @@ export function ConfigActions({ config, presetsCache, onConfigReset, onConfigCha
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
               placeholder="Имя пресета"
-              className="flex-1 bg-bg-input text-sm px-2 py-1.5 rounded text-text-primary"
+              className="flex-1 bg-bg-input text-sm px-2 py-1.5 rounded-lg text-text-primary"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreatePreset();
               }}
             />
             <button
               onClick={handleCreatePreset}
-              className="px-2 py-1.5 text-sm bg-bg-card rounded hover:bg-bg-hover transition-colors text-text-secondary"
+              className="px-2 py-1.5 text-sm bg-bg-card rounded-lg hover:bg-bg-hover transition-colors text-text-secondary"
               title="Создать пресет"
             >
               <i className="ri-add-line" />

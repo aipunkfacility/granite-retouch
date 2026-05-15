@@ -10,13 +10,13 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-8">
+        <div className="min-h-screen flex items-center justify-center bg-bg-primary p-8">
           <div className="max-w-md text-center">
-            <i className="ri-error-warning-line text-5xl text-red-400 mb-4 block" />
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Что-то пошло не так</h2>
-            <p className="text-sm text-gray-600 mb-4">{this.state.error?.message || "Неожиданная ошибка"}</p>
+            <i className="ri-error-warning-line text-5xl text-accent-red mb-4 block" />
+            <h2 className="text-lg font-semibold text-text-primary mb-2">Что-то пошло не так</h2>
+            <p className="text-sm text-text-secondary mb-4">{this.state.error?.message || "Неожиданная ошибка"}</p>
             <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Перезагрузить</button>
+              className="px-4 py-2 bg-accent-blue text-white rounded-lg text-sm hover:opacity-90">Перезагрузить</button>
           </div>
         </div>
       );

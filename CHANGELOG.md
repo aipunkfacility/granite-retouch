@@ -8,6 +8,36 @@
 
 Исправлены 9 ошибок компиляции, 7 логических проблем, 14 дополнительных проблем.
 
+### UI/UX Audit Fixes
+
+#### Fixed
+- Тёмная палитра: `machine-theme.ts`, `MachineSelector`, `MaterialSelector`, `App.tsx` — заменены светлые классы `*-50`/`*-200` на `accent-*/N` с opacity
+- Эмодзи → Remix Icon: `💡` → `ri-lightbulb-line`, `⚠️` → `ri-alert-line`/`ri-error-warning-line`, `🚫` → `ri-forbid-line`, `ℹ️` → `ri-information-line`
+- Контраст `text-muted`: `#666666` → `#888888` (4.6:1 — WCAG AA)
+- Единый border-radius: `rounded`/`rounded-md` → `rounded-lg` (8px)
+
+#### Added
+- JetBrains Mono (weight 400) — `--font-mono` для моноширинного текста
+- Focus-visible стили — `outline: 2px solid var(--color-border-focus)` для кнопок, ссылок, инпутов
+- ARIA-атрибуты — `aria-expanded`, `aria-haspopup`, `aria-pressed`, `aria-selected`, `aria-current`, `role="listbox"`/`option`/`tablist`/`tab`/`tabpanel`
+- Клавиатурная навигация в MachineSelector — ArrowDown/Up, Enter, Escape
+- Диалоги подтверждения на «Сброс» и «Удалить пресет» (`window.confirm`)
+- Единый toast-провайдер (`components/toast-provider.tsx`) — `showToast(msg, opts?)` через контекст
+- Кастомный Slider (`components/slider.tsx`) — заполнение трека, иконка сброса `ri-arrow-go-back-line`, ARIA
+- Визуальные индикаторы в DiagnosticsPanel — `text-accent-green`/`text-accent-orange`/`text-accent-red` для brightness delta и black_ratio
+- Клиентская валидация файлов — форматы (.png/.jpg/.jpeg/.tif/.tiff/.bmp), макс. 50 MB
+- Labels на face-oval handles — `<text>` SVG элементы с шрифтом JetBrains Mono
+- Tooltip-описания для DiagnosticsPanel — `title` атрибуты на каждой строке
+- Спиннер при загрузке изображения — `ri-loader-4-line animate-spin`
+- Empty state с иконкой `ri-image-line` и подсказкой форматов
+- Адаптивная высота before-after — `max-h-[min(70vh,600px)]`
+- Разделитель кнопки дизеринга — `border-l border-border`
+
+#### Removed
+- `machine-switch.tsx` — заменён на `module-switch.tsx`
+- Локальный toast state из `App.tsx`, `export-buttons.tsx`, `material-selector.tsx`
+- Устаревший `MACHINE_COLORS` → `MACHINE_THEME`
+
 #### Удалённые пропсы
 - `presetBaseline` из `ParamsPanel`
 - `machineType` из `StepSelector`

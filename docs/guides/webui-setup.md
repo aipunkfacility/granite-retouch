@@ -73,6 +73,16 @@ Vite автоматически проксирует запросы `/api/*` н�
 - Backend health: http://localhost:8000/api/health → `{"status":"ok","version":"..."}` (версия из `pyproject.toml`)
 - Frontend загружает изображение → preview → экспорт BMP/PNG/TIFF
 
+## Тесты
+
+```bash
+cd retouch_ui/frontend
+npm run test          # интерактивный watch-режим
+npm run test:run      # одиночный прогон (CI)
+```
+
+Тесты используют Vitest + @testing-library/react + jsdom. См. `vitest.config.ts` для конфигурации.
+
 ## Production-режим (один процесс)
 
 ```bash
