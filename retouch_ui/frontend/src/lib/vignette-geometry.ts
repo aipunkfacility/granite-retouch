@@ -5,6 +5,8 @@
  * Используется для мгновенного SVG-оверлея (L1) и обратного расчёта из drag.
  */
 
+import { clamp } from "./utils";
+
 export interface VignetteParams {
   vertical_offset: number;       // 0–0.3
   vertical_diameter: number;     // 0.2–0.8
@@ -82,9 +84,6 @@ export function computeParamsFromDrag(
   imageHeight: number,
   currentParams: VignetteParams,
 ): Partial<VignetteParams> {
-  const clamp = (val: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, val));
-
   switch (handle) {
     case "top": {
       // Drag верхней точки арки — приоритет: headroom
@@ -146,13 +145,9 @@ export function computeParamsFromDrag(
  */
 export function computeParamsFromTopDragShift(
   newPosition: { x: number; y: number },
-  imageWidth: number,
   imageHeight: number,
   currentParams: VignetteParams,
 ): Partial<VignetteParams> {
-  const clamp = (val: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, val));
-
   // archTopY = archBottomY - vDiameter - headroom
   // => vDiameter = archBottomY - headroom - archTopY
   const archBottomY = imageHeight - imageHeight * currentParams.vertical_offset;

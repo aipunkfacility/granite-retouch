@@ -2,7 +2,7 @@
  * Подсказки из MATERIAL_PROFILES, автокоррекция через POST /api/material/apply.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { MaterialType, MachineType, MaterialProfile, MaterialChange, ConfigTree } from "../lib/types";
 
 /** Материалы в порядке отображения */
@@ -24,7 +24,7 @@ interface Props {
   materialChanges: MaterialChange[];
   validationWarnings: string[];
   activeHint: string | null;
-  onSelect: (material: MaterialType, currentConfig?: ConfigTree) => Promise<boolean>;
+  onSelect: (material: MaterialType, currentConfig?: ConfigTree) => Promise<{ success: boolean; validationWarnings: string[] }>;
   currentConfig?: ConfigTree;
 }
 
@@ -33,24 +33,25 @@ export function MaterialSelector({
   machineType,
   profiles,
   materialChanges,
-  validationWarnings,
   activeHint,
   onSelect,
   currentConfig,
 }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"info" | "warning" | "error">("info");
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSelect = useCallback(async (mat: MaterialType) => {
-    const success = await onSelect(mat, currentConfig);
+    const { success, validationWarnings: warnings } = await onSelect(mat, currentConfig);
     if (!success) {
       // Выбор заблокирован (ERROR) — показываем красный тост
-      const errorMsg = validationWarnings.find(w => w.startsWith("ERROR:")) || "Несовместимая комбинация";
-      setToast(errorMsg.replace("ERROR: ", ""));
+      const errorMsg = warnings.find(w => w.startsWith("ERROR:"))?.replace("ERROR: ", "") || "Несовместимая комбинация";
+      setToast(errorMsg);
       setToastType("error");
-      setTimeout(() => setToast(null), 4000);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
     }
-  }, [onSelect, currentConfig, validationWarnings]);
+  }, [onSelect, currentConfig]);
 
   // Показать тост с автокоррекциями при изменении materialChanges
   const formatChangesToast = useCallback((changes: MaterialChange[], mat: MaterialType): string | null => {
@@ -64,20 +65,24 @@ export function MaterialSelector({
     return `Параметры скорректированы под ${MATERIAL_LABELS[mat]}: ${parts.join(", ")}`;
   }, []);
 
-  // Показать тост если есть changes
-  const showToast = useCallback((changes: MaterialChange[], mat: MaterialType) => {
-    const msg = formatChangesToast(changes, mat);
-    if (msg) {
-      setToast(msg);
-      setToastType("info");
-      setTimeout(() => setToast(null), 5000);
-    }
-  }, [formatChangesToast]);
-
   // Автопоказ при изменении materialChanges
-  if (materialChanges.length > 0 && !toast) {
-    showToast(materialChanges, material);
-  }
+  useEffect(() => {
+    if (materialChanges.length > 0 && !toast) {
+      const msg = formatChangesToast(materialChanges, material);
+      if (msg) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-show toast on material change notification
+        setToast(msg);
+        setToastType("info");
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+      }
+    }
+  }, [materialChanges, material, toast, formatChangesToast]);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+  }, []);
 
   const profile = profiles[material];
 

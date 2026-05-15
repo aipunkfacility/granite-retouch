@@ -26,3 +26,9 @@ export function deepMerge(base: Record<string, unknown>, override: Record<string
   }
   return result;
 }
+
+/** Clamp a value between min and max. Shared utility replacing local definitions
+ *  in vignette-geometry.ts and face-oval-geometry.ts. */
+export function clamp(val: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, val));
+}

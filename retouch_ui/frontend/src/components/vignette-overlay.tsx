@@ -137,7 +137,7 @@ export function VignetteOverlay({
 
       let changes: Partial<VignetteParams>;
       if (dragging === "top" && shiftHeld) {
-        changes = computeParamsFromTopDragShift(pos, imageWidth, imageHeight, vignetteParams);
+        changes = computeParamsFromTopDragShift(pos, imageHeight, vignetteParams);
       } else {
         changes = computeParamsFromDrag(dragging, pos, imageWidth, imageHeight, vignetteParams);
       }

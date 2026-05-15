@@ -13,9 +13,11 @@ import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
 import { usePresetMaterial } from "./hooks/use-preset-material";
 import type { MachineType, MaterialType, ConfigTree } from "./lib/types";
+import { isConfigTree } from "./lib/types";
 import type { VignetteParams } from "./lib/vignette-geometry";
 import type { FaceOvalParams } from "./lib/face-oval-geometry";
 import { deepMerge } from "./lib/utils";
+import type { MachineType as MT } from "./lib/types";
 
 /** Extract vignette params from config, with defaults */
 function getVignetteParams(config: ConfigTree): VignetteParams {
@@ -38,9 +40,19 @@ const DEFAULT_FACE_OVAL: FaceOvalParams = {
   source: "heuristic",
 };
 
+/** Safely extract export_mode from config tree */
+function getExportMode(config: ConfigTree | null, machineType: MT): string | undefined {
+  if (!config?.processing) return undefined;
+  const proc = config.processing as Record<string, unknown>;
+  const machine = proc[machineType] as Record<string, unknown> | undefined;
+  if (!machine) return undefined;
+  return typeof machine.export_mode === "string" ? machine.export_mode : undefined;
+}
+
 export default function App() {
   // Toast state
   const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // State
   const [fileId, setFileId] = useState<string | null>(null);
@@ -65,6 +77,7 @@ export default function App() {
   // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state
   useEffect(() => {
     if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled && !faceOvalPinned) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from external server diagnostics
       setFaceOval(previewResult.diagnostics.face_oval);
     }
   }, [previewResult, faceOvalOverlayEnabled, faceOvalPinned]);
@@ -125,7 +138,8 @@ export default function App() {
     (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => {
       pm.selectPreset(presetKey, presetConfig);
       // Обновить конфиг из пресета
-      const merged = deepMerge(config as Record<string, unknown>, presetConfig as Record<string, unknown>) as unknown as ConfigTree;
+      const merged = deepMerge(config as Record<string, unknown>, presetConfig as Record<string, unknown>);
+      if (!isConfigTree(merged)) return;
       updateConfig(merged);
       if (fileId) requestPreviewWithOval(fileId, machineType, merged);
     },
@@ -134,14 +148,14 @@ export default function App() {
 
   // Обработка выбора материала
   const handleMaterialSelect = useCallback(
-    async (mat: MaterialType, currentConfig?: ConfigTree): Promise<boolean> => {
-      const success = await pm.selectMaterial(mat, currentConfig);
-      if (success) {
+    async (mat: MaterialType, currentConfig?: ConfigTree): Promise<{ success: boolean; validationWarnings: string[] }> => {
+      const result = await pm.selectMaterial(mat, currentConfig);
+      if (result.success) {
         // Применить config_patch к текущему конфигу
         // Это будет сделано через materialChanges + автоматическое обновление
         if (fileId) requestPreviewWithOval(fileId, pm.machineType, config as ConfigTree);
       }
-      return success;
+      return result;
     },
     [pm, config, fileId, requestPreviewWithOval],
   );
@@ -151,7 +165,10 @@ export default function App() {
       const newConfig = structuredClone(config);
       let obj: ConfigTree = newConfig;
       for (let i = 0; i < path.length - 1; i++) {
-        if (!obj[path[i]]) obj[path[i]] = {};
+        const child = obj[path[i]];
+        if (!isConfigTree(child)) {
+          obj[path[i]] = {};
+        }
         obj = obj[path[i]] as ConfigTree;
       }
       obj[path[path.length - 1]] = value;
@@ -160,7 +177,7 @@ export default function App() {
       pm.markOverridden(path.join("."));
       if (fileId) requestPreviewWithOval(fileId, pm.machineType, newConfig);
     },
-    [config, fileId, pm.machineType, updateConfig, requestPreviewWithOval, pm],
+    [config, fileId, pm, updateConfig, requestPreviewWithOval],
   );
 
   const handleConfigChangeFull = useCallback(
@@ -240,11 +257,17 @@ export default function App() {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("Dither preview error:", err);
       setToast(`Ошибка дизеринга: ${err instanceof Error ? err.message : err}`);
-      setTimeout(() => setToast(null), 3000);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 3000);
     } finally {
       setDitherLoading(false);
     }
   }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult, pm.machineType]);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+  }, []);
 
   // Compute available steps
   const availableSteps = useMemo(
@@ -257,12 +280,17 @@ export default function App() {
 
   // Комби-пресеты для текущего combo_group
   const comboPresets = useMemo(() => {
-    if (!pm.selectedPreset || !pm.catalog[pm.selectedPreset]?.combo_group) return [];
-    const cg = pm.catalog[pm.selectedPreset]!.combo_group!;
+    if (!pm.selectedPreset) return [];
+    const entry = pm.catalog[pm.selectedPreset];
+    if (!entry?.combo_group) return [];
+    const cg = entry.combo_group;
     return Object.entries(pm.catalog)
       .filter(([, e]) => e.combo_group === cg)
       .map(([key, entry]) => ({ key, entry }));
   }, [pm.selectedPreset, pm.catalog]);
+
+  const selectedEntry = pm.selectedPreset ? pm.catalog[pm.selectedPreset] : null;
+  const brand = selectedEntry?.brand;
 
   // Layout
   return (
@@ -283,31 +311,10 @@ export default function App() {
         </h1>
         <div className="flex gap-4 items-center">
           <MachineSelector
-            groups={pm.catalogLoading ? [] : (() => {
-              const comboGroups: { title: string; type: "combo" | "brand" | "technology"; presets: { key: string; entry: import("./lib/types").PresetCatalogEntry }[] }[] = [];
-              const brandGroups: typeof comboGroups = [];
-              let techGroup: typeof comboGroups[0] | null = null;
-
-              const BRAND_LABELS: Record<string, string> = { sauno: "САУНО", mirtels: "Mirtels", stanzone: "Stanzone", stonegraf: "STONE-ГРАФ" };
-
-              for (const [key, entry] of Object.entries(pm.catalog)) {
-                if (entry.combo_group) {
-                  let g = comboGroups.find(g => g.title === (BRAND_LABELS[entry.combo_group!] || entry.combo_group));
-                  if (!g) { g = { title: BRAND_LABELS[entry.combo_group!] || entry.combo_group, type: "combo", presets: [] }; comboGroups.push(g); }
-                  g.presets.push({ key, entry });
-                } else if (entry.category === "technology") {
-                  if (!techGroup) techGroup = { title: "По технологии", type: "technology", presets: [] };
-                  techGroup.presets.push({ key, entry });
-                } else if (entry.brand) {
-                  let g = brandGroups.find(g => g.title === (BRAND_LABELS[entry.brand!] || entry.brand));
-                  if (!g) { g = { title: BRAND_LABELS[entry.brand!] || entry.brand, type: "brand", presets: [] }; brandGroups.push(g); }
-                  g.presets.push({ key, entry });
-                }
-              }
-              return [...comboGroups, ...brandGroups, ...(techGroup ? [techGroup] : [])];
-            })()}
+            groups={pm.catalogLoading ? [] : pm.groups}
             selectedPreset={pm.selectedPreset}
             machineType={pm.machineType}
+            presetsCache={pm.presetsCache}
             onSelect={handlePresetSelect}
           />
           <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} />
@@ -318,13 +325,12 @@ export default function App() {
       {comboPresets.length > 1 && (
         <div className="px-6 py-2 border-b border-border bg-bg-card/50">
           <span className="text-xs text-text-muted mr-2">
-            {pm.catalog[pm.selectedPreset!]?.brand === "sauno" ? "САУНО" :
-             pm.catalog[pm.selectedPreset!]?.brand === "stanzone" ? "Stanzone" :
-             pm.catalog[pm.selectedPreset!]?.brand === "mirtels" ? "Mirtels" : ""} — модуль:
+            {brand === "sauno" ? "САУНО" : brand === "stanzone" ? "Stanzone" : brand === "mirtels" ? "Mirtels" : ""} — модуль:
           </span>
           <ModuleSwitch
             comboPresets={comboPresets}
             selectedPreset={pm.selectedPreset}
+            presetsCache={pm.presetsCache}
             onSelect={handlePresetSelect}
           />
         </div>
@@ -380,7 +386,6 @@ export default function App() {
                 faceOvalPinned={faceOvalPinned}
                 onFaceOvalPinToggle={handleFaceOvalPinToggle}
                 overriddenKeys={pm.overriddenKeys}
-                presetBaseline={pm.presetBaseline}
                 onResetParam={(key: string) => {
                   const baseline = pm.resetParam(key);
                   if (baseline) {
@@ -390,8 +395,10 @@ export default function App() {
                     let obj: Record<string, unknown> = newConfig as Record<string, unknown>;
                     let baselineObj: Record<string, unknown> = baseline as Record<string, unknown>;
                     for (let i = 0; i < parts.length - 1; i++) {
-                      obj = (obj[parts[i]] as Record<string, unknown>) || {};
-                      baselineObj = (baselineObj[parts[i]] as Record<string, unknown>) || {};
+                      if (!isConfigTree(obj[parts[i]])) obj[parts[i]] = {};
+                      obj = obj[parts[i]] as Record<string, unknown>;
+                      if (!isConfigTree(baselineObj[parts[i]])) baselineObj[parts[i]] = {};
+                      baselineObj = baselineObj[parts[i]] as Record<string, unknown>;
                     }
                     if (baselineObj[parts[parts.length - 1]] !== undefined) {
                       obj[parts[parts.length - 1]] = baselineObj[parts[parts.length - 1]];
@@ -403,6 +410,7 @@ export default function App() {
               <div className="border-t border-border pt-4">
                 <ConfigActions
                   config={config}
+                  presetsCache={pm.presetsCache}
                   onConfigReset={handleReset}
                   onConfigChange={handleConfigChangeFull}
                 />
@@ -439,8 +447,7 @@ export default function App() {
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 availableSteps={Object.keys(availableSteps)}
-                machineType={pm.machineType}
-                exportMode={(config?.processing as Record<string, Record<string, unknown>>)?.[pm.machineType]?.export_mode as string | undefined}
+                exportMode={getExportMode(config, pm.machineType)}
                 onRequestDitherPreview={handleRequestDitherPreview}
                 ditherLoading={ditherLoading}
               />

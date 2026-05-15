@@ -1,4 +1,4 @@
-import { CONFIG_SCHEMA, PARAM_GROUPS, ADVANCED_PARAMS, HIDDEN_PARAMS } from "../lib/config-schema";
+import { CONFIG_SCHEMA, PARAM_GROUPS, ADVANCED_PARAMS, HIDDEN_PARAMS, getMachineParams } from "../lib/config-schema";
 import type { ParamRange, ParamToggle, ParamDef } from "../lib/config-schema";
 import type { MachineType, ConfigTree } from "../lib/types";
 import { useState } from "react";
@@ -14,7 +14,6 @@ interface Props {
   faceOvalPinned: boolean;
   onFaceOvalPinToggle: () => void;
   overriddenKeys?: Set<string>;
-  presetBaseline?: ConfigTree | null;
   onResetParam?: (key: string) => void;
 }
 
@@ -39,7 +38,6 @@ export function ParamsPanel({
   faceOvalPinned,
   onFaceOvalPinToggle,
   overriddenKeys,
-  presetBaseline,
   onResetParam,
 }: Props) {
   const [activeTab, setActiveTab] = useState<string>("common");
@@ -115,8 +113,8 @@ export function ParamsPanel({
       return isParamDef(val) ? val : null;
     }
     if (groupKey === "laser_standard" || groupKey === "laser_80w" || groupKey === "impact") {
-      const machine = CONFIG_SCHEMA.processing[groupKey] as Record<string, ParamDef> | undefined;
-      return machine?.[paramKey] ?? null;
+      const machine = getMachineParams(groupKey as MachineType);
+      return machine[paramKey] ?? null;
     }
     return null;
   };
@@ -242,9 +240,10 @@ export function ParamsPanel({
                       ? ["vignette", paramKey as string]
                       : ["processing", g.key, paramKey as string];
                 if (isParamToggle(def)) {
-                  return renderToggle(path, def, getValue(path));
+                  return renderToggle(path, def, String(getValue(path)));
                 }
-                return renderSlider(path, def, getValue(path));
+                const numVal = getValue(path);
+                return renderSlider(path, def, typeof numVal === "number" ? numVal : parseFloat(String(numVal)) || 0);
               }),
           )}
       </div>

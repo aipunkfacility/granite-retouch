@@ -1,17 +1,18 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { saveConfig, fetchDefaults, fetchPresets, createPreset, deletePreset } from "../lib/api";
-import type { PresetItem } from "../lib/api";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { saveConfig, fetchDefaults, createPreset, deletePreset } from "../lib/api";
 import type { ConfigTree } from "../lib/types";
 
 interface Props {
   config: ConfigTree;
+  presetsCache: Record<string, ConfigTree>;
   onConfigReset: (defaults: ConfigTree) => void;
   onConfigChange: (config: ConfigTree) => void;
   showToast?: (msg: string) => void;
 }
 
-export function ConfigActions({ config, onConfigReset, onConfigChange, showToast }: Props) {
-  const [presets, setPresets] = useState<PresetItem[]>([]);
+export function ConfigActions({ config, presetsCache, onConfigReset, onConfigChange, showToast }: Props) {
+  const [deletedPresets, setDeletedPresets] = useState<Set<string>>(new Set());
+  const presetNames = useMemo(() => Object.keys(presetsCache).filter(n => !deletedPresets.has(n)), [presetsCache, deletedPresets]);
   const [saving, setSaving] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [showPresets, setShowPresets] = useState(false);
@@ -23,12 +24,6 @@ export function ConfigActions({ config, onConfigReset, onConfigChange, showToast
     return () => {
       if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
     };
-  }, []);
-
-  useEffect(() => {
-    fetchPresets()
-      .then((res) => setPresets(res.presets))
-      .catch((e) => showToast?.(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -62,8 +57,6 @@ export function ConfigActions({ config, onConfigReset, onConfigChange, showToast
     try {
       await createPreset(presetName, config);
       setPresetName("");
-      const res = await fetchPresets();
-      setPresets(res.presets);
     } catch (e) {
       showToast?.(e instanceof Error ? e.message : String(e));
     }
@@ -72,7 +65,11 @@ export function ConfigActions({ config, onConfigReset, onConfigChange, showToast
   const handleDeletePreset = useCallback(async (name: string) => {
     try {
       await deletePreset(name);
-      setPresets((prev) => prev.filter((p) => p.name !== name));
+      setDeletedPresets(prev => {
+        const next = new Set(prev);
+        next.add(name);
+        return next;
+      });
     } catch (e) {
       showToast?.(e instanceof Error ? e.message : String(e));
     }
@@ -106,26 +103,29 @@ export function ConfigActions({ config, onConfigReset, onConfigChange, showToast
         onClick={() => setShowPresets(!showPresets)}
         className="w-full text-left text-sm text-text-muted hover:text-text-secondary transition-colors flex items-center justify-between"
       >
-        <span>Пресеты ({presets.length})</span>
+        <span>Пресеты ({presetNames.length})</span>
         <i className={`ri-arrow-down-s-line transition-transform ${showPresets ? "rotate-180" : ""}`} />
       </button>
 
       {/* Presets list */}
       {showPresets && (
         <div className="space-y-2">
-          {presets.length === 0 && (
+          {presetNames.length === 0 && (
             <p className="text-text-muted text-xs">Нет сохранённых пресетов</p>
           )}
-          {presets.map((p) => (
-            <div key={p.name} className="flex items-center gap-2">
+          {presetNames.map((name) => (
+            <div key={name} className="flex items-center gap-2">
               <button
-                onClick={() => onConfigChange(p.config)}
+                onClick={() => {
+                  const cfg = presetsCache[name];
+                  if (cfg) onConfigChange(cfg);
+                }}
                 className="flex-1 text-left px-2 py-1.5 text-sm bg-bg-card rounded hover:bg-bg-hover transition-colors text-text-secondary"
               >
-                {p.name}
+                {name}
               </button>
               <button
-                onClick={() => handleDeletePreset(p.name)}
+                onClick={() => handleDeletePreset(name)}
                 className="text-accent-red text-xs hover:underline px-1"
                 title="Удалить пресет"
               >

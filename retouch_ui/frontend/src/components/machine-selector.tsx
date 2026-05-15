@@ -4,42 +4,18 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { MachineType, CatalogGroup, PresetCatalogEntry, ConfigTree } from "../lib/types";
-import { fetchPresets } from "../lib/api";
-
-// Props interface removed — using MachineSelectorProps directly
-
-/** Цветовая кодировка machine_type */
-const MACHINE_COLORS: Record<MachineType, { bg: string; border: string; dot: string; icon: string }> = {
-  impact: {
-    bg: "bg-orange-50",
-    border: "border-orange-200",
-    dot: "bg-orange-400",
-    icon: "ri-contrast-2-line",
-  },
-  laser_standard: {
-    bg: "bg-green-50",
-    border: "border-green-200",
-    dot: "bg-green-400",
-    icon: "ri-flashlight-line",
-  },
-  laser_80w: {
-    bg: "bg-red-50",
-    border: "border-red-200",
-    dot: "bg-red-400",
-    icon: "ri-flashlight-fill",
-  },
-};
+import { MACHINE_THEME } from "../lib/machine-theme";
 
 interface MachineSelectorProps {
   groups: CatalogGroup[];
   selectedPreset: string | null;
   machineType: MachineType;
+  presetsCache: Record<string, ConfigTree>;
   onSelect: (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => void;
 }
 
-export function MachineSelector({ groups, selectedPreset, machineType, onSelect }: MachineSelectorProps) {
+export function MachineSelector({ groups, selectedPreset, machineType, presetsCache, onSelect }: MachineSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [presetsCache, setPresetsCache] = useState<Record<string, ConfigTree>>({});
   const ref = useRef<HTMLDivElement>(null);
 
   // Закрыть при клике вне
@@ -63,28 +39,13 @@ export function MachineSelector({ groups, selectedPreset, machineType, onSelect 
     return null;
   })();
 
-  const handleSelect = async (presetKey: string, entry: PresetCatalogEntry) => {
-    // Загрузить конфиг пресета если нет в кэше
-    let config = presetsCache[presetKey];
-    if (!config) {
-      try {
-        const data = await fetchPresets();
-        const found = data.presets.find(p => p.name === presetKey);
-        if (found) {
-          config = found.config;
-          setPresetsCache(prev => ({ ...prev, [presetKey]: config! }));
-        }
-      } catch {
-        return;
-      }
-    }
-    if (config) {
-      onSelect(presetKey, config, entry.machine_type);
-    }
+  const handleSelect = (presetKey: string, entry: PresetCatalogEntry) => {
+    const config = presetsCache[presetKey];
+    if (config) onSelect(presetKey, config, entry.machine_type);
     setOpen(false);
   };
 
-  const colors = MACHINE_COLORS[machineType];
+  const colors = MACHINE_THEME[machineType];
 
   return (
     <div ref={ref} className="relative">
@@ -113,7 +74,7 @@ export function MachineSelector({ groups, selectedPreset, machineType, onSelect 
               </div>
               {/* Элементы группы */}
               {group.presets.map(({ key, entry }) => {
-                const itemColors = MACHINE_COLORS[entry.machine_type];
+                const itemColors = MACHINE_THEME[entry.machine_type];
                 const isSelected = key === selectedPreset;
                 return (
                   <button

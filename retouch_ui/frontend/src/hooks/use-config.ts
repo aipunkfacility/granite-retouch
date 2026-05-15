@@ -6,6 +6,7 @@ import type { ConfigTree } from "../lib/types";
 interface UseConfigReturn {
   config: ConfigTree;
   warnings: string[];
+  error: string | null;
   updateConfig: (newConfig: ConfigTree) => void;
   resetConfig: (defaults?: ConfigTree) => void;
 }
@@ -13,6 +14,7 @@ interface UseConfigReturn {
 export function useConfig(): UseConfigReturn {
   const [config, setConfig] = useState<ConfigTree>({});
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchConfig()
@@ -20,8 +22,8 @@ export function useConfig(): UseConfigReturn {
         setConfig(result.config);
         setWarnings(result.warnings);
       })
-      .catch(() => {
-        // Backend unavailable — use empty config
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Ошибка загрузки конфигурации");
       });
   }, []);
 
@@ -42,5 +44,5 @@ export function useConfig(): UseConfigReturn {
     }
   }, []);
 
-  return { config, warnings, updateConfig, resetConfig };
+  return { config, warnings, error, updateConfig, resetConfig };
 }

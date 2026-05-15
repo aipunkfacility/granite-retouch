@@ -9,11 +9,12 @@
  * По аналогии с VignetteOverlay.
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   computeFaceOvalFromDrag,
 } from "../lib/face-oval-geometry";
-import type { FaceOvalParams, FaceOvalHandleType } from "../lib/face-oval-geometry";
+import type { FaceOvalHandleType } from "../lib/face-oval-geometry";
+import type { FaceOvalParams } from "../lib/types";
 
 interface Props {
   /** Размеры изображения в пикселях */
@@ -41,15 +42,26 @@ export function FaceOvalOverlay({
   faceOval,
   onFaceOvalChange,
 }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<FaceOvalHandleType | null>(null);
   const [shiftHeld, setShiftHeld] = useState(false);
 
   // ─── Shift tracking ────────────────────────────────────────────────
-  // Слушаем на window (как VignetteOverlay D.8.1)
-  if (typeof window !== "undefined" && !dragging) {
-    // Lazy attach — не идеально, но работает для оверлея
-  }
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(true); };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(false); };
+    const onBlur = () => setShiftHeld(false);
+    const onPointerDown = (e: PointerEvent) => { setShiftHeld(e.getModifierState("Shift")); };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [setShiftHeld]);
 
   // ─── Координаты овала в пикселях изображения ──────────────────────
   const cxPx = faceOval.cx * imageWidth;
@@ -93,11 +105,8 @@ export function FaceOvalOverlay({
   // ─── Render ────────────────────────────────────────────────────────
   if (renderedWidth === 0 || renderedHeight === 0) return null;
 
-  const svgScale = renderedWidth / imageWidth;
-
   return (
     <svg
-      ref={svgRef}
       viewBox={`0 0 ${imageWidth} ${imageHeight}`}
       width={renderedWidth}
       height={renderedHeight}

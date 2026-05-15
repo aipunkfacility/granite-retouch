@@ -14,6 +14,12 @@ interface UseMaterialProfilesReturn {
 
 let _cachedProfiles: Record<string, MaterialProfile> | null = null;
 
+/** Invalidate module-level cache so next mount re-fetches material profiles.
+ *  Call when profiles may have changed on the backend. */
+export function invalidateProfilesCache() {
+  _cachedProfiles = null;
+}
+
 export function useMaterialProfiles(): UseMaterialProfilesReturn {
   const [profiles, setProfiles] = useState<Record<string, MaterialProfile>>(_cachedProfiles || {});
   const [loading, setLoading] = useState(!_cachedProfiles);

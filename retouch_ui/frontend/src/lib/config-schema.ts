@@ -176,6 +176,26 @@ export const CONFIG_SCHEMA: ConfigSchema = {
   },
 };
 
+import type { MachineType } from "./types";
+
+/** Safely get machine params as Record<string, ParamDef> with exhaustiveness check.
+ *  Takes MachineType parameter so the switch is exhaustive — if a new MachineType
+ *  is added to the union, TypeScript will error at the `never` guard until a case is added.
+ *  The internal `as unknown as Record` is necessary because MachineParams lacks
+ *  a string index signature, but is safe since all properties are ParamDef-typed. */
+export function getMachineParams(machineKey: MachineType): Record<string, ParamDef> {
+  const { laser_standard, laser_80w, impact } = CONFIG_SCHEMA.processing;
+  switch (machineKey) {
+    case "laser_standard": return laser_standard as unknown as Record<string, ParamDef>;
+    case "laser_80w":      return laser_80w as unknown as Record<string, ParamDef>;
+    case "impact":         return impact as unknown as Record<string, ParamDef>;
+    default: {
+      const _exhaustive: never = machineKey;
+      return _exhaustive;
+    }
+  }
+}
+
 /** Parameter groups for params-panel tabs */
 export const PARAM_GROUPS = [
   { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "legacy_step_order", "min_resolution", "result_min_black_ratio", "mask_soft_sigma", "contour_smooth_epsilon"] },

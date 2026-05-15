@@ -3,40 +3,27 @@
  */
 
 import type { MachineType, PresetCatalogEntry, ConfigTree } from "../lib/types";
-import { fetchPresets } from "../lib/api";
-
-/** Цветовая кодировка machine_type */
-const MACHINE_COLORS: Record<MachineType, { bg: string; border: string; dot: string; label: string }> = {
-  impact: { bg: "bg-orange-50", border: "border-orange-200", dot: "bg-orange-400", label: "Ударный" },
-  laser_standard: { bg: "bg-green-50", border: "border-green-200", dot: "bg-green-400", label: "CO2 40W" },
-  laser_80w: { bg: "bg-red-50", border: "border-red-200", dot: "bg-red-400", label: "Диод 80W" },
-};
+import { MACHINE_THEME } from "../lib/machine-theme";
 
 interface Props {
   comboPresets: { key: string; entry: PresetCatalogEntry }[];
   selectedPreset: string | null;
+  presetsCache: Record<string, ConfigTree>;
   onSelect: (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => void;
 }
 
-export function ModuleSwitch({ comboPresets, selectedPreset, onSelect }: Props) {
+export function ModuleSwitch({ comboPresets, selectedPreset, presetsCache, onSelect }: Props) {
   if (comboPresets.length <= 1) return null;
 
-  const handleSwitch = async (presetKey: string, entry: PresetCatalogEntry) => {
-    try {
-      const data = await fetchPresets();
-      const found = data.presets.find(p => p.name === presetKey);
-      if (found) {
-        onSelect(presetKey, found.config, entry.machine_type);
-      }
-    } catch {
-      // Silent fail
-    }
+  const handleSwitch = (presetKey: string, entry: PresetCatalogEntry) => {
+    const config = presetsCache[presetKey];
+    if (config) onSelect(presetKey, config, entry.machine_type);
   };
 
   return (
     <div className="flex gap-1 mt-2">
       {comboPresets.map(({ key, entry }) => {
-        const colors = MACHINE_COLORS[entry.machine_type];
+        const colors = MACHINE_THEME[entry.machine_type];
         const isActive = key === selectedPreset;
         return (
           <button

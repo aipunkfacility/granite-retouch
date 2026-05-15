@@ -2,6 +2,58 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.3.0] - 2026-05-15
+
+### UI-рефакторинг (audit-ui-v7)
+
+Исправлены 9 ошибок компиляции, 7 логических проблем, 14 дополнительных проблем.
+
+#### Удалённые пропсы
+- `presetBaseline` из `ParamsPanel`
+- `machineType` из `StepSelector`
+
+#### Изменённые сигнатуры
+- `computeParamsFromTopDragShift()` — убран параметр `imageWidth`
+- `selectMaterial()` — возврат `Promise<{ success: boolean; validationWarnings: string[] }>` вместо `Promise<boolean>`
+- `UsePresetMaterialReturn`: +`groups`, +`presetsCache`, +`presetsLoaded`, +`presetsError`, +`materialError`, -`setMachineType`
+- `MachineSelectorProps`: +`presetsCache`
+- `ModuleSwitchProps`: +`presetsCache`
+- `ConfigActionsProps`: +`presetsCache`
+- `useConfig` return: +`error`
+
+#### Новые файлы
+- `src/lib/machine-theme.ts` — единый `MACHINE_THEME` (FIX-16)
+- `src/components/error-boundary.tsx` — ErrorBoundary с UI (FIX-25)
+- `vitest.config.ts` — конфигурация Vitest (FIX-0.1)
+- `src/test/setup.ts` — setup с jsdom + PointerEvent mock (FIX-0.1)
+- `src/test/mocks/api.ts` — моки API (FIX-0.2)
+
+#### Удалённые вызовы fetchPresets
+- `machine-selector.tsx` — теперь получает `presetsCache` через props
+- `module-switch.tsx` — теперь получает `presetsCache` через props
+- `config-actions.tsx` — теперь получает `presetsCache` через props
+
+#### Новые функции и хелперы
+- `getMachineParams(machineKey: MachineType)` — type-safe доступ к параметрам станка с `never` guard
+- `isConfigTree(val: unknown)` — runtime guard для ConfigTree с prototype check
+- `getExportMode(config, machineType)` — безопасное извлечение export_mode
+- `clamp(val, min, max)` — общая утилита в `lib/utils.ts`
+- `invalidateCatalogCache()` / `invalidateProfilesCache()` — инвалидация module-level кэша
+
+#### ESLint
+- `react-hooks/exhaustive-deps` = `error`
+
+#### Прочее
+- Shift-трекинг в face-oval-overlay (useEffect с keydown/keyup/blur/pointerdown)
+- Side effect в material-selector перенесён из тела рендера в useEffect
+- IIFE в App.tsx заменён на `pm.groups`
+- Все non-null assertions (`!`) в App.tsx заменены на optional chaining/local vars
+- Все `as unknown as ConfigTree` и `as ConfigTree` заменены на isConfigTree guard
+- setTimeout cleanup (clearTimeout + unmount cleanup) в material-selector и App.tsx
+- Удалён мёртвый код: `svgScale`, `svgRef`, мёртвый if-блок, `setMachineType`
+- Дедупликация: `FaceOvalParams` → реэкспорт из types.ts, `MACHINE_COLORS` → `MACHINE_THEME`
+- Silent catch заменён на error state: `materialError` в use-preset-material, `error` в use-config
+
 ## [6.2.0] - 2026-05-14
 
 ### Added

@@ -4,13 +4,9 @@
  * Нормализованные координаты (0–1) для масштабонезависимости.
  */
 
-export interface FaceOvalParams {
-  cx: number;  // центр X (0–1)
-  cy: number;  // центр Y (0–1)
-  rx: number;  // радиус X (0–1)
-  ry: number;  // радиус Y (0–1)
-  source: "heuristic" | "manual" | "auto" | "heuristic_legacy";
-}
+import type { FaceOvalParams } from "./types";
+export type { FaceOvalParams } from "./types";
+import { clamp } from "./utils";
 
 export type FaceOvalHandleType = "top" | "bottom" | "left" | "right" | "center";
 
@@ -21,11 +17,6 @@ export const FACE_OVAL_LIMITS = {
   rx: { min: 0.03, max: 0.45 },
   ry: { min: 0.03, max: 0.45 },
 };
-
-/** Ограничить значение в пределах */
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val));
-}
 
 /** Вычислить параметры овала из drag-смещения */
 export function computeFaceOvalFromDrag(

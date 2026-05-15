@@ -74,6 +74,13 @@ function groupCatalog(catalog: Record<string, PresetCatalogEntry>): CatalogGroup
 let _cachedCatalog: Record<string, PresetCatalogEntry> | null = null;
 let _cachedGroups: CatalogGroup[] | null = null;
 
+/** Invalidate module-level cache so next mount re-fetches catalog and groups.
+ *  Call after createPreset/deletePreset operations to refresh data. */
+export function invalidateCatalogCache() {
+  _cachedCatalog = null;
+  _cachedGroups = null;
+}
+
 export function usePresetCatalog(): UsePresetCatalogReturn {
   const [catalog, setCatalog] = useState<Record<string, PresetCatalogEntry>>(_cachedCatalog || {});
   const [groups, setGroups] = useState<CatalogGroup[]>(_cachedGroups || []);

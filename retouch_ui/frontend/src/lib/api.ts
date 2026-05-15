@@ -89,11 +89,11 @@ export async function uploadImage(file: File): Promise<{ file_id: string }> {
     return res.json();
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error("Загрузка превышена (120 сек). Проверьте подключение к backend.");
+      throw new Error("Загрузка превышена (120 сек). Проверьте подключение к backend.", { cause: e });
     }
     if (e instanceof TypeError) {
       // TypeError = сетевая ошибка (backend недоступен)
-      throw new Error("Backend недоступен. Убедитесь что сервер запущен (make ui-backend).");
+      throw new Error("Backend недоступен. Убедитесь что сервер запущен (make ui-backend).", { cause: e });
     }
     throw e;
   } finally {

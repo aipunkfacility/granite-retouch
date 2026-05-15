@@ -10,11 +10,11 @@
  *   - activeHint — контекстная подсказка
  */
 
-import { useState, useCallback } from "react";
-import { fetchMaterialApply } from "../lib/api";
+import { useState, useCallback, useEffect } from "react";
+import { fetchMaterialApply, fetchPresets } from "../lib/api";
 import { usePresetCatalog } from "./use-preset-catalog";
 import { useMaterialProfiles } from "./use-material-profiles";
-import type { MachineType, MaterialType, ConfigTree, MaterialChange, MaterialProfile, PresetCatalogEntry } from "../lib/types";
+import type { MachineType, MaterialType, ConfigTree, MaterialChange, MaterialProfile, PresetCatalogEntry, CatalogGroup } from "../lib/types";
 
 export interface PresetMaterialState {
   selectedPreset: string | null;
@@ -29,19 +29,23 @@ export interface PresetMaterialState {
 
 export interface UsePresetMaterialReturn extends PresetMaterialState {
   catalog: Record<string, PresetCatalogEntry>;
+  groups: CatalogGroup[];
   profiles: Record<string, MaterialProfile>;
   catalogLoading: boolean;
   profilesLoading: boolean;
+  presetsCache: Record<string, ConfigTree>;
+  presetsLoaded: boolean;
+  presetsError: string | null;
   selectPreset: (presetKey: string, presetConfig: ConfigTree) => void;
   switchModule: (presetKey: string, presetConfig: ConfigTree) => void;
-  selectMaterial: (material: MaterialType, currentConfig?: ConfigTree) => Promise<boolean>;
+  selectMaterial: (material: MaterialType, currentConfig?: ConfigTree) => Promise<{ success: boolean; validationWarnings: string[] }>;
   resetParam: (key: string) => ConfigTree | null;
   markOverridden: (key: string) => void;
-  setMachineType: (mt: MachineType) => void;
+  materialError: string | null;
 }
 
 export function usePresetMaterial(): UsePresetMaterialReturn {
-  const { catalog, loading: catalogLoading } = usePresetCatalog();
+  const { catalog, groups, loading: catalogLoading } = usePresetCatalog();
   const { profiles, loading: profilesLoading } = useMaterialProfiles();
 
   const [state, setState] = useState<PresetMaterialState>({
@@ -54,6 +58,26 @@ export function usePresetMaterial(): UsePresetMaterialReturn {
     validationWarnings: [],
     activeHint: null,
   });
+
+  const [presetsCache, setPresetsCache] = useState<Record<string, ConfigTree>>({});
+  const [presetsLoaded, setPresetsLoaded] = useState(false);
+  const [presetsError, setPresetsError] = useState<string | null>(null);
+  const [materialError, setMaterialError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (presetsLoaded) return;
+    fetchPresets()
+      .then(data => {
+        setPresetsError(null);
+        const cache: Record<string, ConfigTree> = {};
+        for (const p of data.presets) cache[p.name] = p.config;
+        setPresetsCache(cache);
+        setPresetsLoaded(true);
+      })
+      .catch((err) => {
+        setPresetsError(err instanceof Error ? err.message : "Ошибка загрузки пресетов");
+      });
+  }, [presetsLoaded]);
 
   const selectPreset = useCallback((presetKey: string, presetConfig: ConfigTree) => {
     setState((prev) => {
@@ -85,14 +109,14 @@ export function usePresetMaterial(): UsePresetMaterialReturn {
   const selectMaterial = useCallback(async (
     material: MaterialType,
     currentConfig?: ConfigTree,
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; validationWarnings: string[] }> => {
     try {
       const result = await fetchMaterialApply(material, state.machineType, currentConfig);
 
       // Проверяем ERROR — блокируем выбор
       const hasError = result.validation_warnings.some(w => w.startsWith("ERROR:"));
       if (hasError) {
-        return false; // Выбор заблокирован
+        return { success: false, validationWarnings: result.validation_warnings };
       }
 
       setState((prev) => ({
@@ -102,9 +126,11 @@ export function usePresetMaterial(): UsePresetMaterialReturn {
         validationWarnings: result.validation_warnings,
         activeHint: getActiveHint(prev.selectedPreset, material, prev.machineType, catalog, profiles),
       }));
-      return true;
-    } catch {
-      return false;
+      return { success: true, validationWarnings: result.validation_warnings };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Ошибка применения материала";
+      setMaterialError(msg);
+      return { success: false, validationWarnings: [] };
     }
   }, [state.machineType, catalog, profiles]);
 
@@ -128,26 +154,22 @@ export function usePresetMaterial(): UsePresetMaterialReturn {
     });
   }, []);
 
-  const setMachineType = useCallback((mt: MachineType) => {
-    setState((prev) => ({
-      ...prev,
-      machineType: mt,
-      activeHint: getActiveHint(prev.selectedPreset, prev.material, mt, catalog, profiles),
-    }));
-  }, [catalog, profiles]);
-
   return {
     ...state,
     catalog,
+    groups,
     profiles,
     catalogLoading,
     profilesLoading,
+    presetsCache,
+    presetsLoaded,
+    presetsError,
     selectPreset,
     switchModule,
     selectMaterial,
     resetParam,
     markOverridden,
-    setMachineType,
+    materialError,
   };
 }
 

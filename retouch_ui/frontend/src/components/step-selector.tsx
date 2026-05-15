@@ -1,10 +1,10 @@
 /** Switcher for intermediate processing steps */
+/* eslint-disable react-refresh/only-export-components */
 
 interface Props {
   selectedStep: string;
   onStepChange: (step: string) => void;
   availableSteps: string[];
-  machineType?: string;
   exportMode?: string;           // "8bit" | "1bit" — определяет видимость кнопки дизер-превью
   onRequestDitherPreview?: () => void;
   ditherLoading?: boolean;
@@ -23,7 +23,7 @@ export const STEP_LABELS: Record<string, string> = {
 /** Define the canonical step order */
 const STEP_ORDER = ["chromakey", "glow", "leveled", "face_corrected", "arch_mask", "final"];
 
-export function StepSelector({ selectedStep, onStepChange, availableSteps, machineType, exportMode, onRequestDitherPreview, ditherLoading }: Props) {
+export function StepSelector({ selectedStep, onStepChange, availableSteps, exportMode, onRequestDitherPreview, ditherLoading }: Props) {
   const orderedSteps = STEP_ORDER.filter((s) => availableSteps.includes(s));
   // Include any steps not in the canonical order
   const extraSteps = availableSteps.filter((s) => !STEP_ORDER.includes(s));
@@ -56,7 +56,9 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps, machi
                 ? "border-accent-orange/50 text-accent-orange/60 cursor-wait"
                 : "border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10"
             }`}
-          title="Предпросмотр дизеринга (1-bit режим, может быть медленно без Numba)"
+          title={exportMode === "1bit"
+            ? "Предпросмотр дизеринга (может быть медленно без Numba)"
+            : "Переключите экспорт в 1-bit режим для дизеринга"}
         >
           {ditherLoading ? (
             <span className="flex items-center gap-1">

@@ -73,3 +73,15 @@ export interface CatalogGroup {
   type: "combo" | "brand" | "technology";
   presets: { key: string; entry: PresetCatalogEntry }[];
 }
+
+/** Type guard for ConfigTree — checks for plain object.
+ *  Filters out null, arrays, and class instances (Date, Map, Set, Error, etc.)
+ *  by verifying prototype is Object.prototype or null (Object.create(null)).
+ *  Used as runtime guard for ConfigTree in place of unsafe `as ConfigTree` casts. */
+export function isConfigTree(val: unknown): val is ConfigTree {
+  return val !== null
+    && typeof val === "object"
+    && !Array.isArray(val)
+    && (Object.getPrototypeOf(val) === Object.prototype
+      || Object.getPrototypeOf(val) === null);
+}

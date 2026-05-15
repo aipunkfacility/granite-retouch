@@ -55,7 +55,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const handleExport = async (format: ExportFormat) => {
+  const handleExport = useCallback(async (format: ExportFormat) => {
     if (!fileId) return;
     setExporting(true);
     setExportFormat(format);
@@ -75,7 +75,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       setExporting(false);
       setExportFormat(null);
     }
-  };
+  }, [fileId, machineType, config, faceOval, showToast]);
 
   const handleDropdownKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
