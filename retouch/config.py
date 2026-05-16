@@ -118,11 +118,11 @@ DEFAULTS = {
             "unsharp_threshold": 3,  # FIX #11: SOP 3.1
             "shadow_floor": 5,  # FIX #12: SOP 5.1
             "target_pre_fb": 180,
-            "face_brightness_target_min": 230,
-            "face_brightness_target_max": 245,
+            "face_brightness_target_min": 210,
+            "face_brightness_target_max": 230,
             "white_ceiling": 250,
             "face_region_top": 0.45,
-            "highlight_start": 200,
+            "highlight_start": 180,
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "export_mode": "8bit",  # 8-bit grayscale BMP — Engrave делает растрирование сам
             "step_mm": 0.300,  # шаг ЧПУ для laser_standard
@@ -373,11 +373,11 @@ try:
         stone_gamma: float = Field(0.88, ge=0.5, le=1.5)  # FIX #8
         unsharp_threshold: int = Field(3, ge=0, le=20)  # FIX #11: SOP 3.1
         target_pre_fb: int = Field(160, ge=60, le=220)
-        face_brightness_target_min: int = Field(230, ge=80, le=255)
-        face_brightness_target_max: int = Field(245, ge=80, le=255)
+        face_brightness_target_min: int = Field(210, ge=80, le=255)
+        face_brightness_target_max: int = Field(230, ge=80, le=255)
         white_ceiling: int = Field(250, ge=100, le=255)
         face_region_top: float = Field(0.45, ge=0.2, le=0.8)
-        highlight_start: int = Field(200, ge=80, le=250)
+        highlight_start: int = Field(180, ge=80, le=250)
         shadow_noise_min: int = Field(0, ge=0, le=50)
         shadow_noise_max: int = Field(15, ge=0, le=50)
         shadow_noise_threshold: int = Field(30, ge=5, le=80)
@@ -397,8 +397,8 @@ try:
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
             glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,
-            face_brightness_target_min=230, face_brightness_target_max=245,
-            white_ceiling=250, highlight_start=200, dither_method="none",
+            face_brightness_target_min=210, face_brightness_target_max=230,
+            white_ceiling=250, highlight_start=180, dither_method="none",
             export_mode="8bit", step_mm=0.300, dither_method_1bit="jarvis"))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
