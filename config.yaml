@@ -44,8 +44,8 @@ processing:
     stone_gamma: 0.88
     unsharp_threshold: 3
     shadow_floor: 5
-    face_brightness_target_min: 230
-    face_brightness_target_max: 245
+    face_brightness_target_min: 210
+    face_brightness_target_max: 230
     white_ceiling: 250
     face_region_top: 0.45
     glow_opacity_max: 40
@@ -53,7 +53,7 @@ processing:
     glow_size_max: 80
     glow_size_min: 40
     glow_style: outer
-    highlight_start: 200
+    highlight_start: 180
     export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
     step_mm: 0.300              # шаг ЧПУ для laser_standard
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
