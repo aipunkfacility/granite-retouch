@@ -204,3 +204,57 @@ export const PARAM_GROUPS = [
   { key: "impact", label: "Impact", params: Object.keys(CONFIG_SCHEMA.processing.impact) },
   { key: "vignette", label: "Виньетка", params: Object.keys(CONFIG_SCHEMA.vignette) },
 ] as const;
+
+/** ParamSection definition for accordion groups */
+export interface ParamSection {
+  key: string;
+  label: string;
+  icon: string;
+  params: readonly string[];
+  machineType?: MachineType;
+  configPath?: string;
+  advancedOnly?: boolean;
+}
+
+/** Accordion parameter sections (replaces tab-based PARAM_GROUPS) */
+export const PARAM_SECTIONS = [
+  {
+    key: "main",
+    label: "Основные",
+    icon: "ri-settings-3-line",
+    params: ["stone_gamma", "glow_style", "export_mode", "white_ceiling", "step_mm", "dither_method_1bit"],
+  },
+  {
+    key: "glow",
+    label: "Glow",
+    icon: "ri-sun-line",
+    params: ["glow_size_min", "glow_size_max", "glow_opacity_min", "glow_opacity_max"],
+  },
+  {
+    key: "face",
+    label: "Лицо",
+    icon: "ri-user-line",
+    params: ["face_brightness_target_min", "face_brightness_target_max", "face_region_top", "highlight_start"],
+  },
+  {
+    key: "shadow",
+    label: "Тени",
+    icon: "ri-shadow-line",
+    params: ["shadow_noise_min", "shadow_noise_max", "shadow_noise_threshold", "shadow_floor"],
+    machineType: "impact",
+  },
+  {
+    key: "vignette",
+    label: "Виньетка",
+    icon: "ri-shape-line",
+    params: ["vertical_offset", "vertical_diameter", "blur_radius", "headroom", "horizontal_oversize"],
+    configPath: "vignette",
+  },
+  {
+    key: "advanced",
+    label: "Продвинутые",
+    icon: "ri-bug-line",
+    params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "min_resolution", "result_min_black_ratio", "mask_soft_sigma", "contour_smooth_epsilon", "unsharp_threshold"],
+    advancedOnly: true,
+  },
+] as const;

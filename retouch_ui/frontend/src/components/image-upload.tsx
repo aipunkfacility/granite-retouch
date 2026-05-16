@@ -6,9 +6,10 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 interface Props {
   onImageUploaded: (fileId: string, previewUrl: string) => void;
+  fullHeight?: boolean;
 }
 
-export function ImageUpload({ onImageUploaded }: Props) {
+export function ImageUpload({ onImageUploaded, fullHeight }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -54,7 +55,9 @@ export function ImageUpload({ onImageUploaded }: Props) {
       role="button"
       tabIndex={0}
       aria-label="Upload image"
-      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
+      className={`${
+        fullHeight ? "w-full h-full flex items-center justify-center" : ""
+      } border-2 border-dashed rounded-lg p-8 text-center transition-colors duration-200 cursor-pointer
         ${dragOver ? "border-accent-blue bg-bg-hover" : "border-border bg-bg-card"}`}
       onClick={() => inputRef.current?.click()}
       onKeyDown={(e) => {

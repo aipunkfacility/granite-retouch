@@ -1,6 +1,7 @@
 ﻿# IDE
 .gemini/
 .agents/ctx/
+.opencode/
 
 # OS files
 Thumbs.db
@@ -27,6 +28,10 @@ orders/active/*/
 retouch_ui/frontend/node_modules/
 retouch_ui/frontend/dist/
 retouch_ui/frontend/.vite/
+
+# Layout refactor — мокапы и черновики плана
+granite-retouch-layout-v3.html
+layout-refactor-plan.md
 
 # Временные файлы загрузок (если backend запускался локально)
 /tmp_upload_*

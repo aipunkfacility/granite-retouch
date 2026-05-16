@@ -2,6 +2,7 @@
 @import "@fontsource/outfit/600.css";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "tailwindcss";
 
@@ -25,6 +26,16 @@
   --color-accent-orange: #F59E0B;          /* Amber */
   --color-accent-red: #E11D48;             /* Rose */
 
+  /* Overlay colors — from palette */
+  --color-overlay-vignette-stroke: #7C8CF8;
+  --color-overlay-vignette-fill: rgba(124,140,248,0.06);
+  --color-overlay-vignette-oversize: rgba(0,0,0,0.35);
+  --color-overlay-vignette-handle: #9BAAFF;
+  --color-overlay-vignette-border: rgba(255,255,255,0.15);
+  --color-overlay-face-stroke: #F59E0B;
+  --color-overlay-face-fill: rgba(245,158,11,0.06);
+  --color-overlay-face-handle: #FBC04E;
+
   /* Borders */
   --color-border: #3a3a3a;
   --color-border-focus: #7C8CF8;           /* match accent */
@@ -33,6 +44,16 @@
   --font-heading: "Outfit", sans-serif;
   --font-body: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+
+  /* Layout */
+  --width-left-col: 360px;
+  --color-bg-canvas: #111111;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.6);
 }
 
 /* Base styles */

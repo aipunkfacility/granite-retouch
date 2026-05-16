@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { ImageUpload } from "./components/image-upload";
-import { BeforeAfter } from "./components/before-after";
-import { StepSelector } from "./components/step-selector";
+import { BeforeImage } from "./components/before-image";
+import { AfterImage } from "./components/after-image";
+import { StepSelector, STEP_LABELS } from "./components/step-selector";
 import { ParamsPanel } from "./components/params-panel";
 import { MachineSelector } from "./components/machine-selector";
 import { ModuleSwitch } from "./components/module-switch";
@@ -20,7 +21,6 @@ import type { FaceOvalParams } from "./lib/face-oval-geometry";
 import { deepMerge } from "./lib/utils";
 import type { MachineType as MT } from "./lib/types";
 
-/** Extract vignette params from config, with defaults */
 function getVignetteParams(config: ConfigTree): VignetteParams {
   const v = (config.vignette ?? {}) as Record<string, unknown>;
   return {
@@ -32,7 +32,6 @@ function getVignetteParams(config: ConfigTree): VignetteParams {
   };
 }
 
-/** Default face oval params */
 const DEFAULT_FACE_OVAL: FaceOvalParams = {
   cx: 0.5,
   cy: 0.25,
@@ -41,7 +40,6 @@ const DEFAULT_FACE_OVAL: FaceOvalParams = {
   source: "heuristic",
 };
 
-/** Safely extract export_mode from config tree */
 function getExportMode(config: ConfigTree | null, machineType: MT): string | undefined {
   if (!config?.processing) return undefined;
   const proc = config.processing as Record<string, unknown>;
@@ -53,7 +51,6 @@ function getExportMode(config: ConfigTree | null, machineType: MT): string | und
 export default function App() {
   const { showToast } = useToast();
 
-  // State
   const [fileId, setFileId] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState("final");
@@ -62,18 +59,18 @@ export default function App() {
   const [faceOvalOverlayEnabled, setFaceOvalOverlayEnabled] = useState(false);
   const [faceOval, setFaceOval] = useState<FaceOvalParams | null>(null);
   const [faceOvalPinned, setFaceOvalPinned] = useState(false);
+  const [paramsCollapsed, setParamsCollapsed] = useState(false);
+  const [leftColHidden, setLeftColHidden] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
 
-  // Dither preview state
   const [ditherImageUrl, setDitherImageUrl] = useState<string | null>(null);
   const [ditherLoading, setDitherLoading] = useState(false);
   const ditherAbortRef = useRef<AbortController | null>(null);
 
-  // Hooks
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
   const pm = usePresetMaterial();
 
-  // AUDIT-3.1: Синхронизировать faceOval из diagnostics preview → state
   useEffect(() => {
     if (previewResult?.diagnostics?.face_oval && !faceOvalOverlayEnabled && !faceOvalPinned) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from external server diagnostics
@@ -81,14 +78,11 @@ export default function App() {
     }
   }, [previewResult, faceOvalOverlayEnabled, faceOvalPinned]);
 
-  // Vignette params derived from config
   const vignetteParams = useMemo(() => getVignetteParams(config), [config]);
 
-  // Image dimensions from preview diagnostics
   const imageWidth = previewResult?.diagnostics.width ?? 0;
   const imageHeight = previewResult?.diagnostics.height ?? 0;
 
-  // Backend health check on mount
   useEffect(() => {
     let cancelled = false;
     const checkHealth = async () => {
@@ -103,14 +97,33 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // Cleanup Object URL when originalUrl changes or on unmount
   useEffect(() => {
     return () => {
       if (originalUrl) URL.revokeObjectURL(originalUrl);
     };
   }, [originalUrl]);
 
-  // Helpers
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === "p" || e.key === "P" || e.key === "з" || e.key === "З") {
+        e.preventDefault();
+        setParamsCollapsed((prev) => !prev);
+      }
+      if (e.key === "[" || e.key === "х" || e.key === "Х") {
+        e.preventDefault();
+        setLeftColHidden((prev) => !prev);
+      }
+      if (e.key === "Escape" && compareMode) {
+        e.preventDefault();
+        setCompareMode(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [compareMode]);
+
   const requestPreviewWithOval = useCallback(
     (fid: string, mt: MachineType, cfg: ConfigTree) => {
       const oval = faceOvalOverlayEnabled ? faceOval : null;
@@ -119,7 +132,6 @@ export default function App() {
     [faceOvalOverlayEnabled, faceOval, requestPreview],
   );
 
-  // Handlers
   const handleImageUploaded = useCallback(
     (newFileId: string, previewUrl: string) => {
       setFileId(newFileId);
@@ -132,11 +144,17 @@ export default function App() {
     [pm.machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval],
   );
 
-  // Обработка выбора пресета из MachineSelector
+  const handleChangeImage = useCallback(() => {
+    setFileId(null);
+    setOriginalUrl(null);
+    setFaceOval(null);
+    setFaceOvalPinned(false);
+    setDitherImageUrl(null);
+  }, []);
+
   const handlePresetSelect = useCallback(
     (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => {
       pm.selectPreset(presetKey, presetConfig);
-      // Обновить конфиг из пресета
       const merged = deepMerge(config as Record<string, unknown>, presetConfig as Record<string, unknown>);
       if (!isConfigTree(merged)) return;
       updateConfig(merged);
@@ -145,13 +163,10 @@ export default function App() {
     [config, pm, updateConfig, fileId, requestPreviewWithOval],
   );
 
-  // Обработка выбора материала
   const handleMaterialSelect = useCallback(
     async (mat: MaterialType, currentConfig?: ConfigTree): Promise<{ success: boolean; validationWarnings: string[] }> => {
       const result = await pm.selectMaterial(mat, currentConfig);
       if (result.success) {
-        // Применить config_patch к текущему конфигу
-        // Это будет сделано через materialChanges + автоматическое обновление
         if (fileId) requestPreviewWithOval(fileId, pm.machineType, config as ConfigTree);
       }
       return result;
@@ -172,7 +187,6 @@ export default function App() {
       }
       obj[path[path.length - 1]] = value;
       updateConfig(newConfig as ConfigTree);
-      // Отметить параметр как overridden
       pm.markOverridden(path.join("."));
       if (fileId) requestPreviewWithOval(fileId, pm.machineType, newConfig);
     },
@@ -195,6 +209,29 @@ export default function App() {
     [fileId, pm.machineType, resetConfig, requestPreviewWithOval],
   );
 
+  const handleResetParam = useCallback(
+    (key: string) => {
+      const baseline = pm.resetParam(key);
+      if (baseline) {
+        const newConfig = structuredClone(config);
+        const parts = key.split(".");
+        let obj: Record<string, unknown> = newConfig as Record<string, unknown>;
+        let baselineObj: Record<string, unknown> = baseline as Record<string, unknown>;
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (!isConfigTree(obj[parts[i]])) obj[parts[i]] = {};
+          obj = obj[parts[i]] as Record<string, unknown>;
+          if (!isConfigTree(baselineObj[parts[i]])) baselineObj[parts[i]] = {};
+          baselineObj = baselineObj[parts[i]] as Record<string, unknown>;
+        }
+        if (baselineObj[parts[parts.length - 1]] !== undefined) {
+          obj[parts[parts.length - 1]] = baselineObj[parts[parts.length - 1]];
+          updateConfig(newConfig as ConfigTree);
+        }
+      }
+    },
+    [config, pm, updateConfig],
+  );
+
   const handleFaceOvalChange = useCallback(
     (newOval: FaceOvalParams) => {
       setFaceOval(newOval);
@@ -210,7 +247,6 @@ export default function App() {
     setFaceOvalPinned((prev) => !prev);
   }, []);
 
-  // Dither preview handler
   const handleRequestDitherPreview = useCallback(async () => {
     if (!fileId) return;
 
@@ -261,16 +297,14 @@ export default function App() {
     }
   }, [fileId, config, faceOvalOverlayEnabled, faceOval, previewResult, pm.machineType, showToast]);
 
-  // Compute available steps
-  const availableSteps = useMemo(
-    () =>
-      previewResult
-        ? { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) }
-        : {},
+  const availableSteps: Record<string, string> = useMemo(
+    () => {
+      if (!previewResult) return {};
+      return { ...previewResult.images, ...(ditherImageUrl ? { dithered: ditherImageUrl } : {}) };
+    },
     [previewResult, ditherImageUrl],
   );
 
-  // Комби-пресеты для текущего combo_group
   const comboPresets = useMemo(() => {
     if (!pm.selectedPreset) return [];
     const entry = pm.catalog[pm.selectedPreset];
@@ -284,10 +318,23 @@ export default function App() {
   const selectedEntry = pm.selectedPreset ? pm.catalog[pm.selectedPreset] : null;
   const brand = selectedEntry?.brand;
 
-  // Layout
+  const stepLabel = STEP_LABELS[selectedStep] ?? selectedStep;
+
+  const showVignette =
+    vignetteOverlayEnabled &&
+    selectedStep === "final" &&
+    imageWidth > 0 &&
+    imageHeight > 0;
+
+  const showFaceOval =
+    faceOvalOverlayEnabled &&
+    (selectedStep === "face_corrected" || selectedStep === "final") &&
+    imageWidth > 0 &&
+    imageHeight > 0 &&
+    faceOval !== null;
+
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
-      {/* Backend down banner */}
       {backendDown && (
         <div className="bg-accent-orange/90 text-white px-6 py-2 text-sm font-medium text-center border-b border-accent-orange">
           <i className="ri-error-warning-line mr-1" />
@@ -295,13 +342,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
-        <h1 className="text-xl font-heading font-semibold tracking-tight">
-          <i className="ri-brush-line mr-2 text-accent-blue" />
-          Granite Retouch
-        </h1>
-        <div className="flex gap-4 items-center">
+      <header className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0 gap-3">
+        <div className="flex items-center gap-4 min-w-0">
+          <h1 className="text-xl font-heading font-semibold tracking-tight shrink-0">
+            <i className="ri-brush-line mr-2 text-accent-blue" />
+            Granite Retouch
+          </h1>
           <MachineSelector
             groups={pm.catalogLoading ? [] : pm.groups}
             selectedPreset={pm.selectedPreset}
@@ -309,13 +355,66 @@ export default function App() {
             presetsCache={pm.presetsCache}
             onSelect={handlePresetSelect}
           />
-          <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} />
+          {fileId && (
+            <MaterialSelector
+              material={pm.material}
+              machineType={pm.machineType}
+              profiles={pm.profiles}
+              materialChanges={pm.materialChanges}
+              validationWarnings={pm.validationWarnings}
+              activeHint={pm.activeHint}
+              onSelect={handleMaterialSelect}
+              currentConfig={config}
+              compact
+            />
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {fileId && (
+            <>
+              <label className="flex items-center gap-1 text-xs text-text-muted cursor-pointer select-none whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={vignetteOverlayEnabled}
+                  onChange={(e) => setVignetteOverlayEnabled(e.target.checked)}
+                  className="accent-accent-blue"
+                />
+                Виньетка
+              </label>
+              <div className="flex items-center gap-1">
+                <label className="flex items-center gap-1 text-xs text-text-muted cursor-pointer select-none whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={faceOvalOverlayEnabled}
+                    onChange={(e) => setFaceOvalOverlayEnabled(e.target.checked)}
+                    className="accent-accent-orange"
+                  />
+                  Овал
+                </label>
+                <button
+                  onClick={handleFaceOvalPinToggle}
+                  className={`text-xs px-1 py-0.5 rounded transition-colors duration-200 ${
+                    faceOvalPinned
+                      ? "text-accent-orange"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
+                  title={
+                    faceOvalPinned
+                      ? "Открепить овал (автообновление)"
+                      : "Закрепить овал (без автообновления)"
+                  }
+                >
+                  <i className={faceOvalPinned ? "ri-pushpin-2-fill" : "ri-pushpin-2-line"} />
+                </button>
+              </div>
+            </>
+          )}
+          <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} processing={loading} />
         </div>
       </header>
 
-      {/* ModuleSwitch (только для комби-станков) */}
       {comboPresets.length > 1 && (
-        <div className="px-6 py-2 border-b border-border bg-bg-card/50">
+        <div className="px-3 py-1.5 border-b border-border bg-bg-card/50">
           <span className="text-xs text-text-muted mr-2">
             {brand === "sauno" ? "САУНО" : brand === "stanzone" ? "Stanzone" : brand === "mirtels" ? "Mirtels" : ""} — модуль:
           </span>
@@ -328,9 +427,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Config warnings banner */}
       {configWarnings.length > 0 && (
-        <div className="bg-accent-orange/10 text-accent-orange px-6 py-2 text-sm border-b border-accent-orange/20">
+        <div className="bg-accent-orange/10 text-accent-orange px-3 py-1.5 text-xs border-b border-accent-orange/20">
           {configWarnings.map((w, i) => (
             <span key={`warning-${i}`}>
               {i > 0 ? " · " : ""}{w}
@@ -339,151 +437,188 @@ export default function App() {
         </div>
       )}
 
-      {/* Numba not available banner */}
       {previewResult?.diagnostics && !previewResult.diagnostics.numba_available && (
-        <div className="bg-accent-orange/10 text-accent-orange px-6 py-2 text-sm border-b border-accent-orange/20 flex items-center gap-2">
+        <div className="bg-accent-orange/10 text-accent-orange px-3 py-1.5 text-xs border-b border-accent-orange/20 flex items-center gap-2">
           <i className="ri-speed-line" />
           Дизеринг без Numba — медленно (30–120 сек). Установите: <code className="bg-accent-orange/20 px-1 rounded-sm">uv sync --extra fast</code>
         </div>
       )}
 
-      {/* Main content */}
+      {/* Step bar */}
+      {fileId && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-bg-card/50">
+          <StepSelector
+            selectedStep={selectedStep}
+            onStepChange={setSelectedStep}
+            availableSteps={Object.keys(availableSteps)}
+            exportMode={getExportMode(config, pm.machineType)}
+            onRequestDitherPreview={handleRequestDitherPreview}
+            ditherLoading={ditherLoading}
+          />
+          <div className="border-l border-border pl-2 ml-auto">
+            <button
+              onClick={handleChangeImage}
+              className="text-xs text-text-muted hover:text-text-secondary transition-colors duration-200 flex items-center gap-1"
+            >
+              <i className="ri-image-add-line" />
+              Сменить фото
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Portrait Split: left-col + canvas */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar: parameters */}
-        <aside className="w-80 border-r border-border overflow-y-auto p-4 space-y-4 shrink-0">
+        {/* Left column */}
+        <div
+          className={`${
+            leftColHidden ? "w-0 overflow-hidden border-r-0" : "w-left-col"
+          } border-r border-border flex flex-col overflow-hidden transition-all duration-200`}
+        >
           {!fileId ? (
-            <ImageUpload onImageUploaded={handleImageUploaded} />
+            <ImageUpload onImageUploaded={handleImageUploaded} fullHeight />
           ) : (
             <>
-              {/* Material selector */}
-              <MaterialSelector
-                material={pm.material}
-                machineType={pm.machineType}
-                profiles={pm.profiles}
-                materialChanges={pm.materialChanges}
-                validationWarnings={pm.validationWarnings}
-                activeHint={pm.activeHint}
-                onSelect={handleMaterialSelect}
-                currentConfig={config}
-              />
+              <div className="flex-1 min-h-0 overflow-hidden p-3">
+                <BeforeImage originalUrl={originalUrl} />
+              </div>
 
-              <ParamsPanel
-                machineType={pm.machineType}
-                config={config}
-                onConfigChange={handleConfigChangeByPath}
-                vignetteOverlayEnabled={vignetteOverlayEnabled}
-                onVignetteOverlayToggle={setVignetteOverlayEnabled}
-                faceOvalOverlayEnabled={faceOvalOverlayEnabled}
-                onFaceOvalOverlayToggle={setFaceOvalOverlayEnabled}
-                faceOvalPinned={faceOvalPinned}
-                onFaceOvalPinToggle={handleFaceOvalPinToggle}
-                overriddenKeys={pm.overriddenKeys}
-                onResetParam={(key: string) => {
-                  const baseline = pm.resetParam(key);
-                  if (baseline) {
-                    // Сбросить параметр к значению пресета
-                    const newConfig = structuredClone(config);
-                    const parts = key.split(".");
-                    let obj: Record<string, unknown> = newConfig as Record<string, unknown>;
-                    let baselineObj: Record<string, unknown> = baseline as Record<string, unknown>;
-                    for (let i = 0; i < parts.length - 1; i++) {
-                      if (!isConfigTree(obj[parts[i]])) obj[parts[i]] = {};
-                      obj = obj[parts[i]] as Record<string, unknown>;
-                      if (!isConfigTree(baselineObj[parts[i]])) baselineObj[parts[i]] = {};
-                      baselineObj = baselineObj[parts[i]] as Record<string, unknown>;
-                    }
-                    if (baselineObj[parts[parts.length - 1]] !== undefined) {
-                      obj[parts[parts.length - 1]] = baselineObj[parts[parts.length - 1]];
-                      updateConfig(newConfig as ConfigTree);
-                    }
-                  }
-                }}
-              />
-              <div className="border-t border-border pt-4">
+              <div
+                className={`flex-shrink-0 overflow-hidden border-t border-border transition-all duration-300 ${
+                  paramsCollapsed ? "max-h-0 opacity-0" : "max-h-[60vh] opacity-100"
+                }`}
+              >
+                <div className="p-3 overflow-y-auto max-h-[60vh]">
+                  <ParamsPanel
+                    machineType={pm.machineType}
+                    config={config}
+                    onConfigChange={handleConfigChangeByPath}
+                    overriddenKeys={pm.overriddenKeys}
+                    onResetParam={handleResetParam}
+                  />
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 border-t border-border px-3 py-1.5 flex items-center justify-between bg-bg-card/50">
+                <button
+                  onClick={() => setParamsCollapsed((prev) => !prev)}
+                  className="text-xs text-text-muted hover:text-text-secondary transition-colors duration-200 flex items-center gap-1"
+                >
+                  <i className={`ri-arrow-${paramsCollapsed ? "down" : "up"}-s-line`} />
+                  Параметры
+                </button>
+              </div>
+
+              <div className="flex-shrink-0 border-t border-border p-3 space-y-2 bg-bg-card/50">
                 <ConfigActions
                   config={config}
                   presetsCache={pm.presetsCache}
                   onConfigReset={handleReset}
                   onConfigChange={handleConfigChangeFull}
                 />
-              </div>
-              <div className="border-t border-border pt-4">
                 <DiagnosticsPanel
+                  compact
                   diagnostics={previewResult?.diagnostics ?? null}
                   warnings={previewResult?.warnings ?? []}
                 />
               </div>
-              {/* Change image button */}
-              <button
-                onClick={() => {
-                  setFileId(null);
-                  setOriginalUrl(null);
-                  setFaceOval(null);
-                  setFaceOvalPinned(false);
-                  setDitherImageUrl(null);
-                }}
-                className="text-sm text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1"
-              >
-                <i className="ri-image-add-line" />
-                Сменить изображение
-              </button>
             </>
           )}
-        </aside>
+        </div>
 
-        {/* Main area: image preview */}
-        <main className="flex-1 p-4 flex flex-col gap-3 overflow-y-auto">
-          {previewResult ? (
-            <>
-              <StepSelector
-                selectedStep={selectedStep}
-                onStepChange={setSelectedStep}
-                availableSteps={Object.keys(availableSteps)}
-                exportMode={getExportMode(config, pm.machineType)}
-                onRequestDitherPreview={handleRequestDitherPreview}
-                ditherLoading={ditherLoading}
-              />
-              <BeforeAfter
-                originalUrl={originalUrl}
-                images={availableSteps}
-                selectedStep={selectedStep}
-                onStepChange={setSelectedStep}
-                vignetteOverlayEnabled={vignetteOverlayEnabled}
-                faceOvalOverlayEnabled={faceOvalOverlayEnabled}
-                faceOval={faceOval}
-                onFaceOvalChange={handleFaceOvalChange}
-                imageWidth={imageWidth}
-                imageHeight={imageHeight}
-                vignetteParams={vignetteParams}
-                onVignetteParamChange={handleConfigChangeByPath}
-              />
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-text-muted">
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <i className="ri-loader-4-line animate-spin text-xl" />
-                  <span>Обработка...</span>
-                </div>
-              ) : (
-                <div className="text-center space-y-3">
-                  <i className="ri-image-line text-5xl text-text-muted/30" />
-                  <p className="text-text-secondary">Загрузите изображение для обработки</p>
-                  <p className="text-text-muted text-xs">PNG, TIFF, BMP — перетащите в панель слева или нажмите для выбора</p>
-                </div>
-              )}
+        <main className="flex-1 bg-canvas relative flex flex-col overflow-hidden">
+          {leftColHidden && !compareMode && (
+            <button
+              onClick={() => setLeftColHidden(false)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-10 bg-bg-card/80 hover:bg-bg-card border border-border border-l-0 rounded-r flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors duration-200"
+              title="Показать панель ([/Х)"
+            >
+              <i className="ri-arrow-right-s-line text-sm" />
+            </button>
+          )}
+
+          {!loading && !previewError && previewResult && !compareMode && (
+            <div className="absolute top-2 right-2 z-10 flex gap-2">
+              <button
+                onClick={() => setCompareMode(true)}
+                className="text-xs px-2 py-1 rounded bg-black/50 text-text-muted hover:text-text-secondary hover:bg-black/60 transition-colors duration-200 flex items-center gap-1"
+                title="Сравнить оригинал и результат"
+              >
+                <i className="ri-side-bar-line" />
+                Сравнить
+              </button>
             </div>
           )}
-          {previewError && (
-            <p className="text-accent-red text-sm">
-              <i className="ri-error-warning-line mr-1" />
-              {previewError}
-            </p>
+
+          {loading && (
+            <div className="flex-1 flex items-center justify-center text-text-muted gap-2">
+              <i className="ri-loader-4-line animate-spin text-xl" />
+              <span>Обработка...</span>
+            </div>
+          )}
+          {!loading && previewError && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-accent-red text-sm">
+                <i className="ri-error-warning-line mr-1" />
+                {previewError}
+              </p>
+            </div>
+          )}
+          {!loading && !previewError && previewResult && !compareMode && (
+            <AfterImage
+              imageUrl={availableSteps[selectedStep] ?? null}
+              stepLabel={stepLabel}
+              vignetteOverlayEnabled={showVignette}
+              faceOvalOverlayEnabled={showFaceOval}
+              faceOval={faceOval}
+              onFaceOvalChange={handleFaceOvalChange}
+              imageWidth={imageWidth}
+              imageHeight={imageHeight}
+              vignetteParams={vignetteParams}
+              onVignetteParamChange={handleConfigChangeByPath}
+            />
+          )}
+          {!loading && !previewError && previewResult && compareMode && (
+            <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 min-w-0 overflow-hidden p-2">
+                <BeforeImage originalUrl={originalUrl} />
+              </div>
+              <div className="w-px bg-border flex-shrink-0" />
+              <div className="flex-1 min-w-0 overflow-hidden p-2">
+                <AfterImage
+                  imageUrl={availableSteps[selectedStep] ?? null}
+                  stepLabel={stepLabel}
+                  vignetteOverlayEnabled={showVignette}
+                  faceOvalOverlayEnabled={showFaceOval}
+                  faceOval={faceOval}
+                  onFaceOvalChange={handleFaceOvalChange}
+                  imageWidth={imageWidth}
+                  imageHeight={imageHeight}
+                  vignetteParams={vignetteParams}
+                  onVignetteParamChange={handleConfigChangeByPath}
+                />
+              </div>
+              <button
+                onClick={() => setCompareMode(false)}
+                className="absolute top-2 right-2 z-10 text-xs px-2 py-1 rounded bg-black/50 text-text-muted hover:text-text-secondary hover:bg-black/60 transition-colors duration-200 flex items-center gap-1"
+                title="Закрыть сравнение (Escape)"
+              >
+                <i className="ri-close-line" />
+                Закрыть
+              </button>
+            </div>
+          )}
+          {!loading && !previewError && !previewResult && !fileId && (
+            <div className="flex-1 flex items-center justify-center text-text-muted">
+              <div className="text-center space-y-3">
+                <i className="ri-image-line text-5xl text-text-muted/30" />
+                <p className="text-text-secondary">Загрузите изображение для обработки</p>
+                <p className="text-text-muted text-xs">PNG, TIFF, BMP — перетащите в панель слева или нажмите для выбора</p>
+              </div>
+            </div>
           )}
         </main>
       </div>
-
-
     </div>
   );
 }

@@ -27,6 +27,8 @@ interface Props {
   activeHint: string | null;
   onSelect: (material: MaterialType, currentConfig?: ConfigTree) => Promise<{ success: boolean; validationWarnings: string[] }>;
   currentConfig?: ConfigTree;
+  /** Compact mode: chips only, no title/details/hints */
+  compact?: boolean;
 }
 
 export function MaterialSelector({
@@ -37,6 +39,7 @@ export function MaterialSelector({
   activeHint,
   onSelect,
   currentConfig,
+  compact,
 }: Props) {
   const { showToast } = useToast();
 
@@ -76,8 +79,8 @@ export function MaterialSelector({
   const isIncompatible = profile?.incompatible_machine_types?.includes(machineType);
 
   return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-text-primary">Материал</h4>
+    <div className={compact ? "" : "space-y-2"}>
+      {!compact && <h4 className="text-sm font-heading font-semibold text-text-primary">Материал</h4>}
 
       {/* Чипсы */}
       <div className="flex flex-wrap gap-1.5">
@@ -93,7 +96,7 @@ export function MaterialSelector({
               onClick={() => handleSelect(mat)}
               aria-pressed={isActive}
               aria-label={`Материал: ${MATERIAL_LABELS[mat]}`}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border
                 ${isActive
                   ? "bg-accent-blue text-white border-accent-blue"
                   : isAlert
@@ -110,8 +113,7 @@ export function MaterialSelector({
         })}
       </div>
 
-      {/* Подсказка профиля */}
-      {profile && (
+      {!compact && profile && (
         <div className="text-xs text-text-muted space-y-0.5">
           <div>
             <i className="ri-lightbulb-line mr-0.5" /> {MATERIAL_LABELS[material]}: step {profile.step_mm_range[0].toFixed(3)}–{profile.step_mm_range[1].toFixed(3)},
@@ -123,8 +125,7 @@ export function MaterialSelector({
         </div>
       )}
 
-      {/* Контекстная подсказка */}
-      {activeHint && (
+      {!compact && activeHint && (
         <div className={`text-xs px-2 py-1 rounded-lg border
           ${isIncompatible
             ? "bg-accent-red/10 text-accent-red border-accent-red/30"

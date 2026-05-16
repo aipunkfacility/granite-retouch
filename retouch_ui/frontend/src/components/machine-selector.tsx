@@ -125,7 +125,7 @@ export function MachineSelector({ groups, selectedPreset, machineType, presetsCa
         aria-expanded={open}
         aria-haspopup="listbox"
         id="machine-selector-trigger"
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors duration-200
           ${colors.bg} ${colors.border} hover:opacity-90`}
       >
         <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
@@ -165,7 +165,7 @@ export function MachineSelector({ groups, selectedPreset, machineType, presetsCa
                       onClick={() => handleSelect(key, entry)}
                       role="option"
                       aria-selected={isSelected}
-                      className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors
+                       className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors duration-200
                         ${isSelected ? "bg-accent-blue/10 text-accent-blue" : "hover:bg-bg-hover text-text-primary"}`}
                     >
                       <span className={`w-2 h-2 rounded-full shrink-0 ${itemColors.dot}`} />

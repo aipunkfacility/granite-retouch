@@ -14,6 +14,7 @@ interface Props {
   machineType: MachineType;
   config: ConfigTree;
   faceOval?: FaceOvalParams | null;
+  processing?: boolean;
 }
 
 /** Default export format per machine type */
@@ -43,7 +44,7 @@ function formatLabel(format: ExportFormat): string {
   }
 }
 
-export function ExportButtons({ fileId, machineType, config, faceOval }: Props) {
+export function ExportButtons({ fileId, machineType, config, faceOval, processing }: Props) {
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -116,14 +117,16 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
 
   const primaryFormat = defaultFormat(machineType);
 
+  const disabledReason = !fileId ? "Загрузите изображение" : processing ? "Дождитесь обработки" : null;
+
   return (
     <div className="flex gap-2 items-center relative">
       {/* Primary export button (format depends on machine type) */}
       <button
         onClick={() => handleExport(primaryFormat)}
-        disabled={!fileId || exporting}
-        className="px-4 py-1.5 bg-accent-blue text-white text-sm rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1"
-        title={`Экспорт ${formatLabel(primaryFormat)} (по умолчанию для ${machineType})`}
+        disabled={!!disabledReason || exporting}
+        className="px-3 py-1.5 bg-accent-blue text-white text-sm rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity duration-200 flex items-center gap-1"
+        title={disabledReason ?? `Экспорт ${formatLabel(primaryFormat)} (по умолчанию для ${machineType})`}
       >
         {exporting && exportFormat === primaryFormat ? (
           <i className="ri-loader-4-line animate-spin" />
@@ -136,9 +139,9 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       {/* PNG preview */}
       <button
         onClick={() => handleExport("png")}
-        disabled={!fileId || exporting}
-        className="px-4 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors flex items-center gap-1"
-        title="PNG для предпросмотра"
+        disabled={!!disabledReason || exporting}
+        className="px-3 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors duration-200 flex items-center gap-1"
+        title={disabledReason ?? "PNG для предпросмотра"}
       >
         {exporting && exportFormat === "png" ? (
           <i className="ri-loader-4-line animate-spin" />
@@ -151,9 +154,9 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
       {/* More formats dropdown */}
       <div className="relative">
         <button
-          disabled={!fileId || exporting}
-          className="px-2 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors"
-          title="Другие форматы"
+          disabled={!!disabledReason || exporting}
+          className="px-3 py-1.5 bg-bg-card text-text-primary text-sm rounded-lg hover:bg-bg-hover disabled:opacity-50 transition-colors duration-200"
+          title={disabledReason ?? "Другие форматы"}
           onClick={() => {
             setDropdownOpen((prev) => !prev);
             setDropdownIndex(0);
@@ -174,7 +177,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval }: Props) 
                 ref={(el) => { dropdownBtnRefs.current[idx] = el; }}
                 onClick={() => handleExport(fmt)}
                 onKeyDown={handleDropdownKeyDown}
-                className={`w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-hover transition-colors
+                className={`w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-hover transition-colors duration-200
                   ${idx === dropdownIndex ? "bg-bg-hover" : ""}`}
               >
                 {formatLabel(fmt)}

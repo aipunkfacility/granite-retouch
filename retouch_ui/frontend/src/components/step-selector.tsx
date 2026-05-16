@@ -36,7 +36,7 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps, expor
           key={step}
           onClick={() => onStepChange(step)}
           aria-current={step === selectedStep ? "step" : undefined}
-          className={`px-3 py-1.5 text-sm rounded-lg transition-colors
+          className={`px-3 py-1.5 text-sm rounded-lg transition-colors duration-200
             ${
               step === selectedStep
                 ? "bg-accent-blue text-white"
@@ -52,7 +52,7 @@ export function StepSelector({ selectedStep, onStepChange, availableSteps, expor
           <button
             onClick={onRequestDitherPreview}
             disabled={ditherLoading}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-colors border border-dashed
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors duration-200 duration-200 border border-dashed
               ${
                 ditherLoading
                   ? "border-accent-orange/50 text-accent-orange/60 cursor-wait"

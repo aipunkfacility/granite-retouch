@@ -125,8 +125,8 @@ export function FaceOvalOverlay({
         cy={cyPx}
         rx={rxPx}
         ry={ryPx}
-        fill="var(--face-oval-fill, rgba(255,180,0,0.06))"
-        stroke="var(--face-oval-stroke, #ffb400)"
+        fill="var(--color-overlay-face-fill)"
+        stroke="var(--color-overlay-face-stroke)"
         strokeWidth={2}
         strokeDasharray="8 4"
       />
@@ -135,7 +135,7 @@ export function FaceOvalOverlay({
       <text
         x={cxPx}
         y={cyPx - ryPx - 12}
-        fill="var(--face-oval-stroke, #ffb400)"
+        fill="var(--color-overlay-face-stroke)"
         fontSize={10}
         textAnchor="middle"
         fontFamily="'JetBrains Mono', monospace"
@@ -220,7 +220,7 @@ function OvalHandle({ x, y, active, cursor, label, onPointerDown }: OvalHandlePr
       />
       <circle
         cx={x} cy={y} r={RADIUS}
-        fill={active ? "var(--face-oval-handle-active, #ffd060)" : "var(--face-oval-stroke, #ffb400)"}
+        fill={active ? "var(--color-overlay-face-handle)" : "var(--color-overlay-face-stroke)"}
         stroke="white"
         strokeWidth={2}
         onPointerDown={onPointerDown}
@@ -228,7 +228,7 @@ function OvalHandle({ x, y, active, cursor, label, onPointerDown }: OvalHandlePr
       {/* Label */}
       <text
         x={x} y={y - RADIUS - 6}
-        fill="var(--face-oval-stroke, #ffb400)"
+        fill="var(--color-overlay-face-stroke)"
         fontSize={9}
         textAnchor="middle"
         fontFamily="'JetBrains Mono', monospace"
