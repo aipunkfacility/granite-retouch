@@ -41,6 +41,7 @@ processing:
     step_mm: 0.250              # по мануалу САУНО: 0.125–0.250 мм для лазера
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   laser_standard:
+    target_pre_fb: 155
     stone_gamma: 0.88
     unsharp_threshold: 3
     shadow_floor: 5
