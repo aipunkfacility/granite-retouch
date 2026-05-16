@@ -550,12 +550,6 @@ export default function App() {
             </div>
           )}
 
-          {loading && (
-            <div className="flex-1 flex items-center justify-center text-text-muted gap-2">
-              <i className="ri-loader-4-line animate-spin text-xl" />
-              <span>Обработка...</span>
-            </div>
-          )}
           {!loading && previewError && (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-accent-red text-sm">
@@ -564,22 +558,30 @@ export default function App() {
               </p>
             </div>
           )}
-          {!loading && !previewError && previewResult && !compareMode && (
-            <AfterImage
-              imageUrl={availableSteps[selectedStep] ?? null}
-              stepLabel={stepLabel}
-              vignetteOverlayEnabled={showVignette}
-              faceOvalOverlayEnabled={showFaceOval}
-              faceOval={faceOval}
-              onFaceOvalChange={handleFaceOvalChange}
-              imageWidth={imageWidth}
-              imageHeight={imageHeight}
-              vignetteParams={vignetteParams}
-              onVignetteParamChange={handleConfigChangeByPath}
-            />
+          {!previewError && previewResult && !compareMode && (
+            <div className="relative flex-1">
+              <AfterImage
+                imageUrl={availableSteps[selectedStep] ?? null}
+                stepLabel={stepLabel}
+                vignetteOverlayEnabled={showVignette}
+                faceOvalOverlayEnabled={showFaceOval}
+                faceOval={faceOval}
+                onFaceOvalChange={handleFaceOvalChange}
+                imageWidth={imageWidth}
+                imageHeight={imageHeight}
+                vignetteParams={vignetteParams}
+                onVignetteParamChange={handleConfigChangeByPath}
+              />
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-bg-canvas/50 text-text-muted gap-2 z-10">
+                  <i className="ri-loader-4-line animate-spin text-xl" />
+                  <span>Обработка...</span>
+                </div>
+              )}
+            </div>
           )}
-          {!loading && !previewError && previewResult && compareMode && (
-            <div className="flex-1 flex overflow-hidden">
+          {!previewError && previewResult && compareMode && (
+            <div className="relative flex-1 flex overflow-hidden">
               <div className="flex-1 min-w-0 overflow-hidden p-2">
                 <BeforeImage originalUrl={originalUrl} />
               </div>
@@ -606,6 +608,18 @@ export default function App() {
                 <i className="ri-close-line" />
                 Закрыть
               </button>
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-bg-canvas/50 text-text-muted gap-2 z-10">
+                  <i className="ri-loader-4-line animate-spin text-xl" />
+                  <span>Обработка...</span>
+                </div>
+              )}
+            </div>
+          )}
+          {loading && !previewResult && (
+            <div className="flex-1 flex items-center justify-center text-text-muted gap-2">
+              <i className="ri-loader-4-line animate-spin text-xl" />
+              <span>Обработка...</span>
             </div>
           )}
           {!loading && !previewError && !previewResult && !fileId && (

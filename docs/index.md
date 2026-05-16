@@ -6,6 +6,7 @@
 
 ## Быстрый старт
 
+- **[setup.md](setup.md)** — установка окружения с нуля (Python, uv, Node.js)
 - **[getting-started.md](getting-started.md)** — 5 шагов от заказа до готового файла
 
 ## Справочники

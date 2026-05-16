@@ -66,14 +66,19 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     local_maxima = np.where((diff[:-1] > 0) & (diff[1:] <= 0))[0]
 
     if len(local_maxima) >= 2:
-        # Есть минимум 2 локальных максимума → первый = макушка/причёска,
-        # второй или далее = скулы. Берём последний из первых 5 (глубже в лицо).
         candidates = local_maxima[:min(5, len(local_maxima))]
-        # Выбираем тот, что дальше от края (ближе к центру лица)
-        # но не самый маленький — берём тот что ближе к середине candidates
-        mid_idx = len(candidates) // 2
-        # Берём медианного кандидата (не первый=макушка, не последний=плечи)
-        best_candidate = candidates[mid_idx]
+        # Сравниваем ширину первого и второго кандидата
+        row0 = int(candidates[0]) + CANONICAL_KERNEL
+        row1 = int(candidates[1]) + CANONICAL_KERNEL
+        w0 = smooth[row0]
+        w1 = smooth[row1]
+        # Если второй существенно шире первого (>1.3x) → первый=скулы, второй=плечи
+        if w1 > w0 * 1.3:
+            best_candidate = candidates[0]
+        else:
+            # Медианный кандидат (не первый=макушка, не последний=плечи)
+            mid_idx = len(candidates) // 2
+            best_candidate = candidates[mid_idx]
         face_row = int(best_candidate) + CANONICAL_KERNEL
         method = "local_max"
     elif len(local_maxima) == 1:
@@ -93,12 +98,12 @@ def _detect_face_by_width_profile(subject_mask, img_height, img_width):
     # face_width_px — ширина маски в оригинальных пикселях.
     face_width_px = smooth[face_row]
     face_width_norm = face_width_px / img_width  # доля ширины изображения
-    face_height_norm = face_width_norm * 1.2  # с запасом, в долях ширины
+    face_height_norm = face_width_px * 1.2 / img_height  # доля высоты изображения (FIX-oval: было width → height)
 
     # Центр овала (в нормализованных координатах 0-1)
     # face_row в CANONICAL_HEIGHT → нормализуем к 0-1
     cx_norm = 0.5  # по горизонтали — центр
-    cy_norm = (face_row / CANONICAL_HEIGHT) - face_height_norm / 2
+    cy_norm = face_row / CANONICAL_HEIGHT  # центр овала = найденная строка (скулы)
     rx_norm = face_width_norm / 2
     ry_norm = face_height_norm / 2
 
