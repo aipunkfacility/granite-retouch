@@ -152,18 +152,18 @@ class TestShrinkMask:
 class TestCheckFaceBrightness:
     """Тесты контроля яркости лица."""
 
-    def test_dark_face_gets_brightened(self):
-        """Тёмное лицо (среднее 80) корректируется вверх."""
+    def test_dark_face_not_brightened(self):
+        """v7: Тёмное лицо (медиана 80) НЕ корректируется — только затемнение."""
         gray = Image.new("L", (200, 200), 80)
-        mask = Image.new("L", (200, 200), 255)  # всё — субъект
+        mask = Image.new("L", (200, 200), 255)
         target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
-        assert result_arr.mean() > 80, "Тёмное лицо должно стать ярче"
-        assert before == 80.0, f"before должен быть 80.0, а не {before}"
-        assert after > 80.0, f"after должен быть > 80.0, а не {after}"
-        assert factor > 1.0, f"factor должен быть > 1.0 для тёмного лица, а не {factor}"
+        assert result_arr.mean() == 80.0, "Тёмное лицо не должно меняться (v7)"
+        assert before == 80.0
+        assert after == 80.0
+        assert factor == 1.0, "factor=1.0 — коррекция не применяется"
 
     def test_bright_face_gets_darkened(self):
         """Слишком яркое лицо (среднее 240) корректируется вниз."""
@@ -217,7 +217,7 @@ class TestCheckFaceBrightness:
         assert before < 120, f"before должен отражать верхнюю часть: {before}"
 
     def test_correction_only_within_mask(self):
-        """Коррекция применяется только внутри маски субъекта."""
+        """v7: Тёмное лицо не меняется, маска не затрагивает фон."""
         # Левая половина — субъект (маска=255), правая — фон (маска=0)
         arr = np.full((200, 200), 80, dtype=np.uint8)
         gray = Image.fromarray(arr)
@@ -236,10 +236,11 @@ class TestCheckFaceBrightness:
         assert np.all(right_half == 80), \
             f"Фон вне маски не должен корректироваться, got max={right_half.max()}"
 
-        # Левая половина (внутри маски) должна стать ярче
+        # v7: Левая половина не меняется — тёмное лицо не осветляется
         left_half = result_arr[:, :100]
-        assert left_half.mean() > 80, \
-            f"Субъект внутри маски должен стать ярче, got {left_half.mean():.0f}"
+        assert left_half.mean() == 80, \
+            f"v7: тёмное лицо не меняется, got {left_half.mean():.0f}"
+        assert factor == 1.0, "v7: factor=1.0 для тёмного лица"
 
     def test_bright_skin_not_overexposed(self):
         """Уже яркие пиксели кожи не засвечиваются дальше (target_ceiling)."""

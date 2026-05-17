@@ -312,7 +312,10 @@ class PixelReport:
 
 def generate_report(source_path: str, output_path: str,
                     machine_type: str = "laser_standard",
+                    face_mask_path: Optional[str] = None,
+                    subject_mask_path: Optional[str] = None,
                     json_path: Optional[str] = None,
+                    heatmap_path: Optional[str] = None,
                     txt_path: Optional[str] = None) -> PixelReport:
     report = PixelReport(
         source_path=source_path,

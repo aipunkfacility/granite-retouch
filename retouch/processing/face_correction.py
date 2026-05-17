@@ -244,77 +244,62 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         avg_brightness, face_p75, face_p90, target_min, target_max,
     )
 
-    if avg_brightness < target_min or avg_brightness > target_max:
-        if avg_brightness < target_min and HAS_NUMPY:
-            if face_p75 >= target_max:
-                logger.info(
-                    "Face brightening SKIPPED: median=%.1f < target_min=%d, "
-                    "but p75=%.1f >= target_max=%d (skin already bright)",
-                    avg_brightness, target_min, face_p75, target_max,
-                )
-                return img_gray, float(avg_brightness), float(avg_brightness), 1.0
+    # v7: Только затемнение, никогда осветление.
+    # Nano Banana выдаёт нормальные лица — не нужно их трогать.
+    # Face correction нужен только когда лицо слишком яркое для станка.
+    if avg_brightness > target_max:
+        correction = target_mid / max(avg_brightness, 1)
+        correction = max(0.70, min(1.00, correction))
+    else:
+        logger.info(
+            "Face brightness OK: median=%.1f ≤ target_max=%d, no correction",
+            avg_brightness, target_max,
+        )
+        return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
-            if face_p90 >= target_max - 15:
-                gentle_cap = 1.15  # Безопасно с skin-only замером + curves protection
-                logger.info(
-                    "Face brightening CAPPED at %.2f: p90=%.1f near target_max=%d",
-                    gentle_cap, face_p90, target_max,
-                )
-                correction = target_mid / max(avg_brightness, 1)
-                correction = max(0.70, min(gentle_cap, correction))
-            else:
-                correction = target_mid / max(avg_brightness, 1)
-                correction = max(0.70, min(1.20, correction))
-        else:
-            correction = target_mid / max(avg_brightness, 1)
-            correction = max(0.70, min(1.20, correction))
+    if correction == 1.0:
+        logger.info("Face brightness: correction resolved to 1.0, no change needed")
+        return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
-        if correction == 1.0:
-            logger.info("Face brightness: correction resolved to 1.0, no change needed")
-            return img_gray, float(avg_brightness), float(avg_brightness), 1.0
+    if HAS_NUMPY:
+        # FIX-overexposure: для лица используем target_max, а не white_ceiling
+        effective_ceiling = float(target_max) if correction > 1.0 else None
+        # Мягкая маска коррекции: GaussianBlur по маске лица → float 0-1.
+        # Градиентный переход на краях = без видимого следа маски на лице.
+        # Бинарная маска (bool) даёт резкий скачок яркости на границе.
+        try:
+            from scipy.ndimage import gaussian_filter as _gf
+            feather_radius = max(5, glow_size // 4) if glow_size > 0 else 10
+            soft_mask = _gf(face_mask.astype(np.float32), sigma=feather_radius)
+            correction_mask_arr = np.clip(soft_mask, 0, 1)
+            # Не позволяем мягкой маске «затекать» за границы субъекта
+            correction_mask_arr = correction_mask_arr * full_subject_mask.astype(np.float32)
+        except ImportError:
+            correction_mask_arr = face_mask  # bool fallback
 
-        if HAS_NUMPY:
-            # FIX-overexposure: для лица используем target_max, а не white_ceiling
-            effective_ceiling = float(target_max) if correction > 1.0 else None
-            # Мягкая маска коррекции: GaussianBlur по маске лица → float 0-1.
-            # Градиентный переход на краях = без видимого следа маски на лице.
-            # Бинарная маска (bool) даёт резкий скачок яркости на границе.
-            try:
-                from scipy.ndimage import gaussian_filter as _gf
-                feather_radius = max(5, glow_size // 4) if glow_size > 0 else 10
-                soft_mask = _gf(face_mask.astype(np.float32), sigma=feather_radius)
-                correction_mask_arr = np.clip(soft_mask, 0, 1)
-                # Не позволяем мягкой маске «затекать» за границы субъекта
-                correction_mask_arr = correction_mask_arr * full_subject_mask.astype(np.float32)
-            except ImportError:
-                correction_mask_arr = face_mask  # bool fallback
+        result_arr = _curves_correction(
+            arr, correction,
+            highlight_start=highlight_start,
+            mask=correction_mask_arr,
+            target_ceiling=effective_ceiling,
+        )
+        # BE-L7: Убран double ceiling — _curves_correction уже применяет
+        # effective_ceiling (= target_max при осветлении).
+        result = Image.fromarray(result_arr.astype(np.uint8))
+    else:
+        logger.warning(
+            "check_face_brightness: numpy недоступен — коррекция применяется "
+            "глобально (фон может загрязниться). Установите numpy: pip install numpy"
+        )
+        enhancer = ImageEnhance.Brightness(img_gray)
+        result = enhancer.enhance(correction)
 
-            result_arr = _curves_correction(
-                arr, correction,
-                highlight_start=highlight_start,
-                mask=correction_mask_arr,
-                target_ceiling=effective_ceiling,
-            )
-            # BE-L7: Убран double ceiling — _curves_correction уже применяет
-            # effective_ceiling (= target_max при осветлении).
-            result = Image.fromarray(result_arr.astype(np.uint8))
-        else:
-            logger.warning(
-                "check_face_brightness: numpy недоступен — коррекция применяется "
-                "глобально (фон может загрязниться). Установите numpy: pip install numpy"
-            )
-            enhancer = ImageEnhance.Brightness(img_gray)
-            result = enhancer.enhance(correction)
+    if HAS_NUMPY:
+        result_arr_check = np.array(result, dtype=np.float32)
+        new_avg = float(np.median(result_arr_check[face_mask]))
+        logger.info("Curves correction: factor=%.3f, %.1f → %.1f", correction, avg_brightness, new_avg)
+    else:
+        new_avg = target_mid
+        logger.info("Linear correction: factor=%.3f, %.1f, %.1f → %.1f", correction, avg_brightness, new_avg)
 
-        if HAS_NUMPY:
-            result_arr_check = np.array(result, dtype=np.float32)
-            new_avg = float(np.median(result_arr_check[face_mask]))
-            logger.info("Curves correction: factor=%.3f, %.1f → %.1f", correction, avg_brightness, new_avg)
-        else:
-            new_avg = target_mid
-            logger.info("Linear correction: factor=%.3f, %.1f → %.1f", correction, avg_brightness, new_avg)
-
-        return result, float(avg_brightness), float(new_avg), float(correction)
-
-    logger.info("Face brightness OK, no correction needed")
-    return img_gray, float(avg_brightness), float(avg_brightness), 1.0
+    return result, float(avg_brightness), float(new_avg), float(correction)
