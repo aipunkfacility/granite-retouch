@@ -140,7 +140,7 @@ class TestV2toV3Migration:
         result = _migrate_v2_to_v3(config)
         assert result["processing"]["laser_80w"]["stone_gamma"] == 1.0
         assert result["processing"]["laser_80w"]["face_brightness_target_min"] == 160
-        assert result["processing"]["laser_80w"]["face_brightness_target_max"] == 180
+        assert result["processing"]["laser_80w"]["face_brightness_target_max"] == 210  # 180→210 v3
 
     def test_per_machine_step_mm_from_global(self):
         """Глобальный step_mm копируется в per-machine при отсутствии"""

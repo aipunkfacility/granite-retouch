@@ -337,7 +337,7 @@ class TestConfigMachineTypes:
         """Laser 80W target = 160-180 (recalibrated for gamma=1.0 + 8bit export)."""
         cfg = DEFAULTS["processing"]["laser_80w"]
         assert cfg["face_brightness_target_min"] == 160
-        assert cfg["face_brightness_target_max"] == 180
+        assert cfg["face_brightness_target_max"] == 210  # 180→210 v3
 
     def test_impact_face_target(self):
         """Impact target = 200-225 (expert values from knowledge/machines/)."""

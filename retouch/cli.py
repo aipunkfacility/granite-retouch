@@ -180,6 +180,33 @@ def cmd_gimp(args):
     sys.exit(exit_code)
 
 
+def cmd_debug_report(args):
+    """Попиксельный анализ результата пайплайна."""
+    from retouch.debug.pixel_report import generate_report
+
+    json_path = args.json
+    txt_path = args.txt
+    heatmap_path = args.heatmap
+
+    if args.output_dir:
+        od = args.output_dir
+        os.makedirs(od, exist_ok=True)
+        json_path = json_path or os.path.join(od, "pixel-report.json")
+        txt_path = txt_path or os.path.join(od, "pixel-report.txt")
+        heatmap_path = heatmap_path or os.path.join(od, "heatmap.png")
+
+    generate_report(
+        source_path=args.input,
+        output_path=args.output,
+        machine_type=args.machine,
+        face_mask_path=args.face_mask,
+        subject_mask_path=args.subject_mask,
+        json_path=json_path,
+        heatmap_path=heatmap_path,
+        txt_path=txt_path,
+    )
+
+
 def _find_orders_root():
     """Найти корневую директорию orders/ (проект root)."""
     candidates = [
@@ -378,6 +405,23 @@ def main():
     p_gimp.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
     p_gimp.add_argument("--config", "-c", help="Путь к config.yaml")
     p_gimp.set_defaults(func=cmd_gimp)
+
+    # --- debug ---
+    p_debug = subparsers.add_parser("debug", help="Диагностика и анализ")
+    debug_sub = p_debug.add_subparsers(dest="debug_command", required=True)
+
+    # debug report
+    p_dreport = debug_sub.add_parser("report", help="Попиксельный анализ результата пайплайна")
+    p_dreport.add_argument("--input", "-i", required=True, help="Исходное изображение (source)")
+    p_dreport.add_argument("--output", "-o", required=True, help="Результат пайплайна (output)")
+    p_dreport.add_argument("--machine", "-m", choices=["laser_standard", "laser_80w", "impact"], default="laser_standard")
+    p_dreport.add_argument("--face-mask", "-f", help="Маска лица (PNG)")
+    p_dreport.add_argument("--subject-mask", "-s", help="Маска субъекта (PNG)")
+    p_dreport.add_argument("--output-dir", "-d", help="Папка для отчётов (JSON+TXT+heatmap)")
+    p_dreport.add_argument("--json", help="Путь для JSON отчёта")
+    p_dreport.add_argument("--txt", help="Путь для текстового отчёта")
+    p_dreport.add_argument("--heatmap", help="Путь для heatmap PNG")
+    p_dreport.set_defaults(func=cmd_debug_report)
 
     # --- order ---
     p_order = subparsers.add_parser("order", help="Управление заказами")

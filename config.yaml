@@ -3,6 +3,7 @@ processing:
   fringe_radius: 3
   legacy_step_order: false
   impact:
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое
     stone_gamma: 0.90
     unsharp_threshold: 2
     face_brightness_target_min: 200
@@ -26,9 +27,9 @@ processing:
     stone_gamma: 1.0                  # при 8bit Engrave сам управляет яркостью
     unsharp_threshold: 3
     shadow_floor: 5
-    target_pre_fb: 150
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое, не нужно задирать
     face_brightness_target_min: 160   # перекалибровка: gamma=1.0 вместо 0.85
-    face_brightness_target_max: 180   # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 210   # 180→210: меньше даунтит лицо на gamma=1.0
     white_ceiling: 235
     face_region_top: 0.45
     glow_opacity_max: 20
@@ -41,7 +42,7 @@ processing:
     step_mm: 0.250              # по мануалу САУНО: 0.125–0.250 мм для лазера
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   laser_standard:
-    target_pre_fb: 155
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое
     stone_gamma: 0.88
     unsharp_threshold: 3
     shadow_floor: 5

@@ -40,16 +40,23 @@ class ImageAnalytics:
         return asdict(self)
 
 
-def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray) -> dict:
+def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray,
+                  face_mask: np.ndarray | None = None) -> dict:
     """Измеряет тональные характеристики входного grayscale-файла.
 
     Вызывается ОДИН раз после шага 2 (Grayscale), когда доступны
     grayscale-изображение и subject_mask.
     Результат передаётся во все последующие шаги.
 
+    FIX-ORD-007: Если передан face_mask — метрики (median, p90, p95)
+    считаются по лицу, а не по всему субъекту. Иначе чёрная одежда
+    тянет медиану вниз и levels factor получается безумным (13x).
+
     Args:
         gray_image: PIL.Image в режиме L (grayscale)
         subject_mask: numpy array — маска субъекта (bool или 0/255)
+        face_mask: numpy array — маска лица (bool или 0/255).
+            Если None — метрики считаются по subject_mask (legacy).
 
     Returns:
         dict с метриками для адаптивных доработок пайплайна.
@@ -58,50 +65,60 @@ def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray) -> dict:
 
     # Нормализуем маску в bool
     if subject_mask.dtype != bool:
-        mask_bool = np.array(subject_mask) > 128
+        subj_bool = np.array(subject_mask) > 128
     else:
-        mask_bool = subject_mask
+        subj_bool = subject_mask
 
-    face_pixels = img_arr[mask_bool]
-    bg_pixels = img_arr[~mask_bool]
+    # FIX-ORD-007: для метрик яркости используем лицо, если есть
+    if face_mask is not None:
+        if face_mask.dtype != bool:
+            face_bool = np.array(face_mask) > 128
+        else:
+            face_bool = face_mask
+        metric_pixels = img_arr[face_bool & subj_bool]
+    else:
+        metric_pixels = img_arr[subj_bool]
 
-    if len(face_pixels) == 0:
-        logger.warning("analyze_input: нет пикселей субъекта в маске")
+    bg_pixels = img_arr[~subj_bool]
+
+    if len(metric_pixels) == 0:
+        logger.warning("analyze_input: нет пикселей для анализа")
         return _empty_result()
 
     # PERF: batch np.percentile — 1 вызов вместо 6
-    p10, p25, p75, p90 = np.percentile(face_pixels, [10, 25, 75, 90])
+    p10, p25, p75, p90, p95 = np.percentile(metric_pixels, [10, 25, 75, 90, 95])
 
     result = {
-        # Основные метрики (лицо)
-        'median_brightness': float(np.median(face_pixels)),
-        'mean_brightness': float(np.mean(face_pixels)),
+        # Основные метрики (лицо при наличии face_mask, иначе субъект)
+        'median_brightness': float(np.median(metric_pixels)),
+        'mean_brightness': float(np.mean(metric_pixels)),
 
-        # Тональный диапазон (лицо)
+        # Тональный диапазон
         'p10_brightness': float(p10),
         'p25_brightness': float(p25),
         'p75_brightness': float(p75),
         'p90_brightness': float(p90),
+        'p95_brightness': float(p95),
         'tonal_range': float(p90 - p10),
 
-        # Проблемные зоны (лицо)
-        'highlight_clipping_pct': float(np.sum(face_pixels >= 250) / len(face_pixels) * 100),
-        'shadow_clipping_pct': float(np.sum(face_pixels <= 5) / len(face_pixels) * 100),
+        # Проблемные зоны
+        'highlight_clipping_pct': float(np.sum(metric_pixels >= 250) / len(metric_pixels) * 100),
+        'shadow_clipping_pct': float(np.sum(metric_pixels <= 5) / len(metric_pixels) * 100),
 
         # Метрики фона (для P3: адаптивный glow)
         'bg_median_brightness': float(np.median(bg_pixels)) if len(bg_pixels) > 0 else 0,
         'bg_mean_brightness': float(np.mean(bg_pixels)) if len(bg_pixels) > 0 else 0,
-        'subject_separation': float(abs(np.median(face_pixels) - (np.median(bg_pixels) if len(bg_pixels) > 0 else 0))),
+        'subject_separation': float(abs(np.median(metric_pixels) - (np.median(bg_pixels) if len(bg_pixels) > 0 else 0))),
 
         # Классификация входа
-        'input_class': _classify_input(face_pixels),
+        'input_class': _classify_input(metric_pixels),
     }
 
     logger.info(
-        "Input analysis: median=%.1f, class=%s, range=%.1f, p90=%.1f, clipping=%.1f%%",
+        "Input analysis: median=%.1f, class=%s, range=%.1f, p90=%.1f, p95=%.1f, clipping=%.1f%%",
         result['median_brightness'], result['input_class'],
         result['tonal_range'], result['p90_brightness'],
-        result['highlight_clipping_pct'],
+        result['p95_brightness'], result['highlight_clipping_pct'],
     )
 
     return result
@@ -125,7 +142,7 @@ def _empty_result() -> dict:
     return {
         'median_brightness': 0, 'mean_brightness': 0,
         'p10_brightness': 0, 'p25_brightness': 0,
-        'p75_brightness': 0, 'p90_brightness': 0,
+        'p75_brightness': 0, 'p90_brightness': 0, 'p95_brightness': 0,
         'tonal_range': 0,
         'highlight_clipping_pct': 0, 'shadow_clipping_pct': 0,
         'bg_median_brightness': 0, 'bg_mean_brightness': 0,

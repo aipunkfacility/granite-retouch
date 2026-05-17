@@ -105,7 +105,19 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         # P6: Mask protection — коррекция только внутри маски
         arr = np.array(img_gray, dtype=np.float32)
         corrected = arr * factor
-        corrected = np.clip(corrected, 0, 255)
+        # Per-pixel ceiling: soft knee вместо hard-clip (v6)
+        # Hard-clip даёт плато — все пиксели >= ceiling одинаковые.
+        # Soft knee: выше knee=ceiling*0.90 сжимаем excess на 65%,
+        # сохраняя 35% градиента (текстура).
+        ceiling = 255.0
+        if machine_cfg:
+            ceiling = float(machine_cfg.get("white_ceiling", 255))
+        knee = ceiling * 0.90
+        over = corrected > knee
+        if over.any():
+            excess = corrected[over] - knee
+            corrected[over] = knee + excess * 0.35
+        corrected = np.clip(corrected, 0, ceiling)
         result_arr = _apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))
     elif subject_mask is not None and not HAS_NUMPY:
@@ -170,15 +182,19 @@ def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_c
     # FIX #1: единый clamp, brightness убран (заменён на stone_gamma)
     factor = max(0.50, min(1.50, factor))
 
-    # Защита от клиппинга: не выталкиваем p90 за white_ceiling
+    # Защита от клиппинга: не выталкиваем p95 за white_ceiling
+    # FIX-ORD-007: p95 вместо p90 — p90 не ловит горячие пиксели на лбу.
+    # median_brightness теперь считается по лицу (не по субъекту),
+    # поэтому factor адекватный даже при чёрной одежде.
     # FIX-5: Приоритет: machine_cfg > DEFAULTS > fallback
     default_ceiling = _get_default_for_machine("white_ceiling", machine_type, fallback=248)
     white_ceiling = default_ceiling
     if machine_cfg:
         white_ceiling = machine_cfg.get("white_ceiling", default_ceiling)
 
-    if analytics['p90_brightness'] * factor > white_ceiling:
-        safe_factor = (white_ceiling - 2) / max(analytics['p90_brightness'], 1)
+    p95 = analytics.get('p95_brightness', analytics['p90_brightness'])
+    if p95 * factor > white_ceiling:
+        safe_factor = (white_ceiling - 2) / max(p95, 1)
         # Разрешаем factor < 1.0 для защиты от клиппинга, но ограничиваем
         # снизу чтобы не затемнять слишком агрессивно. Ранее max(safe_factor, 1.0)
         # полностью отключало защиту когда safe_factor < 1.0, и пиксели выше

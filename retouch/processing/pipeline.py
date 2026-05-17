@@ -1,6 +1,7 @@
 """Полный пайплайн обработки портрета для гравировки."""
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -63,6 +64,7 @@ class PipelineContext:
     face_brightness_after: float = 0.0
     correction_factor: float = 1.0
     warnings: list[str] = field(default_factory=list)
+    debug_dir: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +230,7 @@ def process_steps(
     no_validate: bool = False,
     keep_intermediates: bool = True,
     input_image: Image.Image | None = None,
+    debug_dir: str | None = None,
 ) -> PipelineResult:
     """Полный пайплайн с доступом к каждому шагу.
 
@@ -316,15 +319,16 @@ def process_steps(
     # 2. Grayscale
     img_gray = img_chromakey.convert("L")
 
-    # 2a. Преданализ входного grayscale-изображения
-    analytics = analyze_input(img_gray, np.array(subject_mask))
-
-    # 2b. Детекция зоны лица (C.1: трёхуровневая стратегия)
+    # 2a. Детекция зоны лица (C.1: трёхуровневая стратегия)
+    # FIX-ORD-007: делаем ДО analyze_input, чтобы метрики считались по лицу
     if face_oval is None:
         face_oval = detect_face_oval(img_gray, subject_mask=subject_mask)
 
-    # 2c. Генерация маски лица из овала (C.2)
+    # 2b. Генерация маски лица из овала (C.2)
     face_mask = generate_face_mask(width, height, face_oval, subject_mask)
+
+    # 2c. Преданализ — метрики по лицу (не по субъекту с одеждой)
+    analytics = analyze_input(img_gray, np.array(subject_mask), np.array(face_mask))
 
     # B.1: Заполняем PipelineContext — внутренняя упаковка
     machine_cfg = proc_cfg.get(machine_type, {})
@@ -341,7 +345,15 @@ def process_steps(
         stone_type=config.get("stone", {}).get("type", "granite"),
         step_mm=machine_cfg.get("step_mm", config.get("machine", {}).get("step_mm", 0.300)),
         warnings=validation_warnings,
+        debug_dir=debug_dir,
     )
+
+    # Сохраняем маски для отладки
+    if debug_dir:
+        os.makedirs(debug_dir, exist_ok=True)
+        subject_mask.save(os.path.join(debug_dir, "subject_mask.png"))
+        face_mask.save(os.path.join(debug_dir, "face_mask.png"))
+        img_gray.save(os.path.join(debug_dir, "source_gray.png"))
 
     # B.1: Выполнение шагов через PipelineContext
     result = _run_pipeline_steps(
@@ -351,6 +363,18 @@ def process_steps(
         no_validate=no_validate,
         blue_ratio=blue_ratio,
     )
+
+    # Сохраняем промежуточные для отладки (до release_intermediates)
+    if debug_dir:
+        _steps = [
+            ("step_00_chromakey.png", result.img_chromakey),
+            ("step_01_glow.png", result.img_glow),
+            ("step_02_levels.png", result.img_leveled),
+            ("step_03_face_corrected.png", result.img_face_corrected),
+        ]
+        for fname, img in _steps:
+            if img:
+                img.save(os.path.join(debug_dir, fname))
 
     # Авто-освобождение промежуточных при keep_intermediates=False
     if not keep_intermediates:
@@ -466,9 +490,18 @@ def _run_pipeline_steps(
             logger.info("Stone gamma applied: %.2f", stone_gamma)
 
         # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
+        # v6: soft knee вместо clamp_masked (hard-clip даёт плато)
         if white_ceiling is not None:
-            arr = clamp_masked(arr, ctx.subject_mask, vmax=white_ceiling, mask_bool=mask_bool)
-            logger.info("White ceiling clamp (post-gamma): %d", white_ceiling)
+            knee = white_ceiling * 0.90
+            over = arr[mask_bool] > knee
+            if over.any():
+                excess = arr[mask_bool][over] - knee
+                arr[mask_bool][over] = knee + excess * 0.35
+            arr[mask_bool] = np.clip(arr[mask_bool], 0, float(white_ceiling))
+            logger.info("White ceiling knee (post-gamma): %d", white_ceiling)
+            # Per-region face clamp удалён (v4—v5): создавал серое плато
+            # по границе маски лица на всех трёх типах станка.
+            # Защита от пересвета: levels→white_ceiling + face_correction→target_ceiling.
 
         img_postproc = Image.fromarray(arr.astype(np.uint8))
 
@@ -627,6 +660,7 @@ def process_export(
     fmt: str = "bmp",
     overwrite: bool = True,
     no_validate: bool = False,
+    debug_dir: str | None = None,
     **kwargs,
 ) -> PipelineResult:
     """Полная обработка + сохранение BMP/PNG.
@@ -665,6 +699,7 @@ def process_export(
         machine_type=machine_type,
         config=config,
         no_validate=no_validate,
+        debug_dir=debug_dir,
         **kwargs,
     )
 
@@ -733,7 +768,8 @@ def process(input_path: str, output_path: str, machine_type: str = "laser_standa
             glow_size_override: int | None = None, glow_opacity_override: float | None = None,
             config: dict | None = None, fmt: str = "bmp", overwrite: bool = True,
             no_validate: bool = False,
-            face_oval: dict[str, float] | None = None) -> PipelineResult:
+            face_oval: dict[str, float] | None = None,
+            debug_dir: str | None = None) -> PipelineResult:
     """Обратная совместимая обёртка. CLI не ломается."""
     return process_export(
         input_path=input_path,
@@ -746,4 +782,5 @@ def process(input_path: str, output_path: str, machine_type: str = "laser_standa
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
         face_oval=face_oval,  # AUDIT-3.1: проброс овала лица
+        debug_dir=debug_dir,
     )

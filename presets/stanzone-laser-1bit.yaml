@@ -10,7 +10,7 @@ processing:
     step_mm: 0.250
     stone_gamma: 1.0
     face_brightness_target_min: 160
-    face_brightness_target_max: 180
+    face_brightness_target_max: 210  # 180→210: меньше даунтит лицо на gamma=1.0
     white_ceiling: 225
     highlight_start: 195
     shadow_floor: 5

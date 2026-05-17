@@ -5,7 +5,7 @@ processing:
   laser_80w:
     stone_gamma: 1.0                # при 8bit Engrave сам управляет яркостью через Р-график
     face_brightness_target_min: 160  # перекалибровка: gamma=1.0 вместо 0.85
-    face_brightness_target_max: 180  # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 210  # 180→210: меньше даунтит лицо на gamma=1.0
     white_ceiling: 235
     highlight_start: 195
     shadow_floor: 5

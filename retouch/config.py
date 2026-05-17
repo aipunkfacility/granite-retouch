@@ -117,7 +117,7 @@ DEFAULTS = {
             "stone_gamma": 0.88,  # FIX #8: SOP 5.1
             "unsharp_threshold": 3,  # FIX #11: SOP 3.1
             "shadow_floor": 5,  # FIX #12: SOP 5.1
-            "target_pre_fb": 180,
+            "target_pre_fb": 130,  # FIX-ORD-007: 180→130, лицо уже яркое (медиана ~120)
             "face_brightness_target_min": 210,
             "face_brightness_target_max": 230,
             "white_ceiling": 250,
@@ -135,9 +135,9 @@ DEFAULTS = {
             "stone_gamma": 1.0,  # при 8bit Engrave сам управляет яркостью через Р-график
             "unsharp_threshold": 3,  # FIX #11: SOP 3.1
             "shadow_floor": 5,  # FIX #12: SOP 5.1
-            "target_pre_fb": 150,
+            "target_pre_fb": 130,  # FIX-ORD-007: 150→130
             "face_brightness_target_min": 160,  # перекалибровка: gamma=1.0 вместо 0.85
-            "face_brightness_target_max": 180,
+            "face_brightness_target_max": 210,  # 180 → 210: меньше даунтит лицо на gamma=1.0
             "white_ceiling": 235,
             "face_region_top": 0.45,
             "highlight_start": 195,
@@ -152,7 +152,7 @@ DEFAULTS = {
             "glow_style": "outer",
             "stone_gamma": 0.90,  # FIX #8: SOP 5.1
             "unsharp_threshold": 2,  # FIX #11: SOP 3.1
-            "target_pre_fb": 160,
+            "target_pre_fb": 130,  # FIX-ORD-007: 160→130
             "face_brightness_target_min": 200,
             "face_brightness_target_max": 225,
             "white_ceiling": 240,
@@ -396,19 +396,19 @@ try:
         legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
-            glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,
+            glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=130,
             face_brightness_target_min=210, face_brightness_target_max=230,
             white_ceiling=250, highlight_start=180, dither_method="none",
             export_mode="8bit", step_mm=0.300, dither_method_1bit="jarvis"))
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
-            glow_style="outer", stone_gamma=1.0, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
-            face_brightness_target_min=160, face_brightness_target_max=180,
+            glow_style="outer", stone_gamma=1.0, unsharp_threshold=3, shadow_floor=5, target_pre_fb=130,
+            face_brightness_target_min=160, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=195, dither_method="none",
             export_mode="8bit", step_mm=0.250, dither_method_1bit="jarvis"))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
+            glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=130,
             face_brightness_target_min=200, face_brightness_target_max=225,
             white_ceiling=240, highlight_start=200,
             shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="none",
@@ -575,7 +575,7 @@ def _migrate_v2_to_v3(config: dict) -> dict:
     if mc_80w.get("face_brightness_target_min") == 190:
         mc_80w["face_brightness_target_min"] = 160
     if mc_80w.get("face_brightness_target_max") == 210:
-        mc_80w["face_brightness_target_max"] = 180
+        mc_80w["face_brightness_target_max"] = 210  # 180→210 v3: старое значение оставляем (180 было слишком темно)
 
     config["config_version"] = 3
     return config

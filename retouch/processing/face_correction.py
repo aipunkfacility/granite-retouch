@@ -274,9 +274,8 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
             return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
         if HAS_NUMPY:
-            effective_ceiling = float(white_ceiling) if white_ceiling is not None and correction > 1.0 else (
-                float(target_max) if correction > 1.0 else None
-            )
+            # FIX-overexposure: для лица используем target_max, а не white_ceiling
+            effective_ceiling = float(target_max) if correction > 1.0 else None
             # Мягкая маска коррекции: GaussianBlur по маске лица → float 0-1.
             # Градиентный переход на краях = без видимого следа маски на лице.
             # Бинарная маска (bool) даёт резкий скачок яркости на границе.
@@ -297,8 +296,7 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
                 target_ceiling=effective_ceiling,
             )
             # BE-L7: Убран double ceiling — _curves_correction уже применяет
-            # effective_ceiling (= white_ceiling при осветлении), повторный
-            # clip поверх не нужен и давал двойное ограничение.
+            # effective_ceiling (= target_max при осветлении).
             result = Image.fromarray(result_arr.astype(np.uint8))
         else:
             logger.warning(
