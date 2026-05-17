@@ -316,7 +316,7 @@ def process_steps(
     )
     # img — независимая копия (результат .convert()), закрытие не требуется
 
-    # 2. Grayscale
+    # 2. Grayscale — RGB уже pre-multiplied по альфе в chromakey
     img_gray = img_chromakey.convert("L")
 
     # 2a. Детекция зоны лица (C.1: трёхуровневая стратегия)

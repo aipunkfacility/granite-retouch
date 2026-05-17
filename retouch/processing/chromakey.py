@@ -234,8 +234,12 @@ def _remove_blue_numpy(img, threshold=30, fringe_radius=3,
     blue_strength = _compute_blue_strength(r, g, b, threshold)
     subject_alpha = 1.0 - blue_strength
 
-    # Фон = чёрный прозрачный (RGB обнулён для чистоты)
-    arr[blue_mask] = [0, 0, 0, 0]
+    # Pre-multiply RGB по альфе — плавный переход без бинарного зануления
+    alpha_f = subject_alpha.astype(np.float32)
+    for c in range(3):
+        arr[..., c] = np.clip(
+            arr[..., c].astype(np.float32) * alpha_f, 0, 255
+        ).astype(np.uint8)
 
     # Альфа-канал = градиентная маска
     arr[..., 3] = (subject_alpha * 255).astype(np.uint8)
