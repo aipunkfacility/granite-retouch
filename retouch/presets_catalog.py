@@ -82,4 +82,10 @@ PRESET_CATALOG = {
         "brand": "stonegraf",
         "alert": "DPI в BMP критичен — станок не распознаёт файл при некорректном DPI",
     },
+    "graver5-impact": {
+        "label": "Гравёр 5 (ударный)",
+        "category": "machine",
+        "machine_type": "impact",
+        "brand": "graver5",
+    },
 }

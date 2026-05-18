@@ -36,8 +36,8 @@ class TestPresetCatalog:
     """Тесты PRESET_CATALOG."""
 
     def test_catalog_contains_all_presets(self):
-        """PRESET_CATALOG содержит все 11 пресетов."""
-        assert len(PRESET_CATALOG) == 11  # 3 technology + 8 machine
+        """PRESET_CATALOG содержит все 12 пресетов."""
+        assert len(PRESET_CATALOG) == 12  # 3 technology + 9 machine
 
     def test_catalog_has_required_fields(self):
         """Каждый пресет в каталоге содержит обязательные поля."""

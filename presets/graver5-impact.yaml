@@ -1,0 +1,38 @@
+# Пресет для Гравёр 5 — ударно-гравировальный станок (алмазная игла)
+# Все параметры обработки совпадают с impact-default.yaml.
+# Отличие: stone.material = gabbro (карельский габбро — основной материал).
+# Подробнее: knowledge/machines/graver5-research.md
+description: "Гравёр 5 (ИП Павленко). Ударная гравировка по габбро/граниту. \
+  Используется с программой «Гравёр 5.2x» на ПК (конвертация PSD/BMP → .GRV)."
+
+processing:
+  impact:
+    stone_gamma: 0.90
+    face_brightness_target_min: 200
+    face_brightness_target_max: 225
+    white_ceiling: 240
+    highlight_start: 200
+    shadow_floor: 8
+    shadow_noise_min: 5
+    shadow_noise_max: 15
+    shadow_noise_threshold: 30
+    export_mode: 8bit
+    step_mm: 0.300
+    dither_method_1bit: stucki
+    glow_size_min: 10
+    glow_size_max: 25
+    glow_opacity_min: 60
+    glow_opacity_max: 80
+    glow_style: outer
+
+vignette:
+  enabled: true
+  vertical_offset: 0.10
+  vertical_diameter: 0.50
+  blur_radius: 60
+  headroom: 0.60
+  horizontal_oversize: 0.20
+
+stone:
+  material: gabbro
+  type: gabbro

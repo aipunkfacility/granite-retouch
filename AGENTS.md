@@ -42,6 +42,7 @@ granite-retouch — система автоматизации подготовк
 ```bash
 # Обработка портрета
 uv run python -m retouch process -i ai.png -o final.bmp -m laser_standard
+uv run python -m retouch process -i ai.png -o final.bmp --preset graver5-impact  # Гравёр 5
 
 # Управление заказами
 uv run python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
@@ -104,7 +105,7 @@ orders/active/ORD-2026-001/
 
 - Всегда проверять JSON по схеме `orders/schema.json`
 - Обязательные поля: `order_id`, `machine_type`, `source_photo`, `status`
-- Тип станка: `laser_standard`, `laser_80w` или `impact`
+- Тип станка: `laser_standard`, `laser_80w` или `impact` (также пресет `graver5-impact` для Гравёр 5)
 - При валидации изображения: `ValidationError` + понятное сообщение
 
 ---

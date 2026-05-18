@@ -69,7 +69,7 @@ async def list_presets():
     presets = []
     for p in sorted(presets_dir.glob("*.yaml")):
         try:
-            with open(p, "r") as f:
+            with open(p, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             if isinstance(config, dict):
                 presets.append(PresetInfo(name=p.stem, config=config))
@@ -92,7 +92,7 @@ async def create_preset(request: PresetCreateRequest):
         raise HTTPException(409, f"Пресет '{safe_name}' уже существует")
 
     try:
-        with open(preset_path, "w") as f:
+        with open(preset_path, "w", encoding="utf-8") as f:
             yaml.dump(request.config, f, default_flow_style=False, allow_unicode=True)
         logger.info("Пресет создан: %s", preset_path)
     except Exception as exc:
