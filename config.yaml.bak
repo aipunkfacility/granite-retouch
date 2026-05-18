@@ -3,6 +3,7 @@ processing:
   fringe_radius: 3
   legacy_step_order: false
   impact:
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое
     stone_gamma: 0.90
     unsharp_threshold: 2
     face_brightness_target_min: 200
@@ -26,9 +27,9 @@ processing:
     stone_gamma: 1.0                  # при 8bit Engrave сам управляет яркостью
     unsharp_threshold: 3
     shadow_floor: 5
-    target_pre_fb: 150
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое, не нужно задирать
     face_brightness_target_min: 160   # перекалибровка: gamma=1.0 вместо 0.85
-    face_brightness_target_max: 180   # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 210   # 180→210: меньше даунтит лицо на gamma=1.0
     white_ceiling: 235
     face_region_top: 0.45
     glow_opacity_max: 20
@@ -41,11 +42,12 @@ processing:
     step_mm: 0.250              # по мануалу САУНО: 0.125–0.250 мм для лазера
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   laser_standard:
+    target_pre_fb: 130              # FIX-ORD-007: лицо уже яркое
     stone_gamma: 0.88
     unsharp_threshold: 3
     shadow_floor: 5
-    face_brightness_target_min: 230
-    face_brightness_target_max: 245
+    face_brightness_target_min: 210
+    face_brightness_target_max: 230
     white_ceiling: 250
     face_region_top: 0.45
     glow_opacity_max: 40
@@ -53,13 +55,13 @@ processing:
     glow_size_max: 80
     glow_size_min: 40
     glow_style: outer
-    highlight_start: 200
+    highlight_start: 180
     export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
     step_mm: 0.300              # шаг ЧПУ для laser_standard
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
   min_blue_ratio: 0.15
   min_resolution: 512
-  max_resolution: 8192       # Защита от OOM: 8192×8192 × 4 байт ≈ 256 MB
+  max_resolution: 4096       # Защита от OOM
   result_min_black_ratio: 0.25
   mask_soft_sigma: 1.5       # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
   contour_smooth_epsilon: 0.002  # Сглаживание контура cv2: 0.001=мин, 0.005=агрессивное
