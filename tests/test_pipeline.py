@@ -596,6 +596,30 @@ class TestPipelineStepsAPI:
                 f"Image.open вызван {mock_open.call_count} раз, ожидается 1"
             )
 
+    def test_vignette_disabled(self, tmp_path):
+        """Когда vignette.enabled=False, виньетка не применяется (arch_mask=None)."""
+        from copy import deepcopy
+
+        from retouch.processing.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["vignette"]["enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(input_path, machine_type="laser_standard", config=config)
+
+        assert result.arch_mask is None, "arch_mask должен быть None при enabled=False"
+
+        # Сравниваем с enabled=True — картинки должны отличаться
+        config_enabled = deepcopy(DEFAULTS)
+        config_enabled["vignette"]["enabled"] = True
+        result_enabled = process_steps(
+            input_path, machine_type="laser_standard", config=config_enabled
+        )
+        assert not np.array_equal(
+            np.array(result.img_final), np.array(result_enabled.img_final)
+        ), "img_final с enabled=False и enabled=True должны отличаться"
+
 
 class TestDeprecationWarnings:
     """FIX-A1: Deprecated alias должен выдавать DeprecationWarning."""

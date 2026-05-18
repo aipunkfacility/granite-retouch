@@ -177,6 +177,7 @@ DEFAULTS = {
         "heterogeneity": None,  # None = auto по material → MATERIAL_PROFILES
     },
     "vignette": {
+        "enabled": True,
         "vertical_offset": 0.10,  # FIX #3: восстановлено (было 0.30)
         "vertical_diameter": 0.55,
         "blur_radius": 60,
@@ -432,6 +433,7 @@ try:
             return self
 
     class VignetteConfig(BaseModel):
+        enabled: bool = True
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
         vertical_diameter: float = Field(0.50, ge=0.2, le=0.8)
         blur_radius: int = Field(60, ge=10, le=120)

@@ -11,7 +11,6 @@ interface Props {
   images: Record<string, string>;
   selectedStep: string;
   onStepChange: (step: string) => void;
-  vignetteOverlayEnabled: boolean;
   faceOvalOverlayEnabled: boolean;
   faceOval: FaceOvalParams | null;
   onFaceOvalChange: (params: FaceOvalParams) => void;
@@ -25,7 +24,6 @@ export function BeforeAfter({
   originalUrl,
   images,
   selectedStep,
-  vignetteOverlayEnabled,
   faceOvalOverlayEnabled,
   faceOval,
   onFaceOvalChange,
@@ -35,12 +33,6 @@ export function BeforeAfter({
   onVignetteParamChange,
 }: Props) {
   const stepLabel = STEP_LABELS[selectedStep] ?? selectedStep;
-
-  const showVignette =
-    vignetteOverlayEnabled &&
-    selectedStep === "final" &&
-    imageWidth > 0 &&
-    imageHeight > 0;
 
   const showFaceOval =
     faceOvalOverlayEnabled &&
@@ -55,7 +47,6 @@ export function BeforeAfter({
       <AfterImage
         imageUrl={images[selectedStep] ?? null}
         stepLabel={stepLabel}
-        vignetteOverlayEnabled={showVignette}
         faceOvalOverlayEnabled={showFaceOval}
         faceOval={faceOval}
         onFaceOvalChange={onFaceOvalChange}

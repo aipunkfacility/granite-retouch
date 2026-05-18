@@ -21,6 +21,7 @@ processing:
     glow_style: outer
 
 vignette:
+  enabled: true
   vertical_offset: 0.10
   vertical_diameter: 0.50
   blur_radius: 60

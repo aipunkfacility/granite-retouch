@@ -10,7 +10,6 @@ import type { FaceOvalParams } from "../lib/face-oval-geometry";
 interface Props {
   imageUrl: string | null;
   stepLabel: string;
-  vignetteOverlayEnabled: boolean;
   faceOvalOverlayEnabled: boolean;
   faceOval: FaceOvalParams | null;
   onFaceOvalChange: (params: FaceOvalParams) => void;
@@ -23,7 +22,6 @@ interface Props {
 export function AfterImage({
   imageUrl,
   stepLabel,
-  vignetteOverlayEnabled,
   faceOvalOverlayEnabled,
   faceOval,
   onFaceOvalChange,
@@ -37,7 +35,7 @@ export function AfterImage({
   const { renderedWidth, renderedHeight, offsetX, offsetY, onImgLoad } = useRenderMetrics(containerRef, imgRef);
 
   const showVignetteOverlay =
-    vignetteOverlayEnabled &&
+    vignetteParams.enabled &&
     imageWidth > 0 &&
     imageHeight > 0;
 

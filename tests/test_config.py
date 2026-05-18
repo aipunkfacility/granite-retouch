@@ -79,6 +79,12 @@ class TestDefaults:
             assert mc["face_brightness_target_min"] < mc["face_brightness_target_max"], \
                 f"{mtype}: min < max"
 
+    def test_defaults_vignette_enabled(self):
+        """DEFAULTS содержит vignette.enabled."""
+        assert "vignette" in DEFAULTS
+        assert "enabled" in DEFAULTS["vignette"]
+        assert DEFAULTS["vignette"]["enabled"] is True
+
 
 class TestDeepMerge:
     """Тесты deep_merge()."""
@@ -324,6 +330,10 @@ class TestPydanticModel:
                 if key in pydantic_defaults["processing"][machine]:
                     assert DEFAULTS["processing"][machine][key] == pydantic_defaults["processing"][machine][key], \
                         f"DEFAULTS mismatch for processing.{machine}.{key}"
+
+        # Проверяем vignette секцию
+        assert "vignette" in pydantic_defaults
+        assert pydantic_defaults["vignette"]["enabled"] is True
 
 
 class TestConfigMachineTypes:

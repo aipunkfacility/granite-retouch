@@ -6,13 +6,13 @@ describe("AfterImage", () => {
   const baseProps = {
     imageUrl: null,
     stepLabel: "final",
-    vignetteOverlayEnabled: false,
     faceOvalOverlayEnabled: false,
     faceOval: null,
     onFaceOvalChange: vi.fn(),
     imageWidth: 0,
     imageHeight: 0,
     vignetteParams: {
+      enabled: true,
       vertical_offset: 0,
       vertical_diameter: 0.5,
       blur_radius: 60,
@@ -42,7 +42,7 @@ describe("AfterImage", () => {
 
   it("does not render vignette overlay when disabled", () => {
     const { container } = render(
-      <AfterImage {...baseProps} imageWidth={800} imageHeight={600} vignetteOverlayEnabled={false} />,
+      <AfterImage {...baseProps} imageWidth={800} imageHeight={600} vignetteParams={{ ...baseProps.vignetteParams, enabled: false }} />,
     );
     expect(container.querySelector("svg")).toBeNull();
   });

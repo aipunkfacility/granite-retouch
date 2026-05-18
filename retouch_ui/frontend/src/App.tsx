@@ -55,7 +55,6 @@ export default function App() {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState("final");
   const [backendDown, setBackendDown] = useState(false);
-  const [vignetteOverlayEnabled, setVignetteOverlayEnabled] = useState(false);
   const [faceOvalOverlayEnabled, setFaceOvalOverlayEnabled] = useState(false);
   const [faceOval, setFaceOval] = useState<FaceOvalParams | null>(null);
   const [faceOvalPinned, setFaceOvalPinned] = useState(false);
@@ -320,12 +319,6 @@ export default function App() {
 
   const stepLabel = STEP_LABELS[selectedStep] ?? selectedStep;
 
-  const showVignette =
-    vignetteOverlayEnabled &&
-    selectedStep === "final" &&
-    imageWidth > 0 &&
-    imageHeight > 0;
-
   const showFaceOval =
     faceOvalOverlayEnabled &&
     (selectedStep === "face_corrected" || selectedStep === "final") &&
@@ -375,8 +368,8 @@ export default function App() {
               <label className="flex items-center gap-1 text-xs text-text-muted cursor-pointer select-none whitespace-nowrap">
                 <input
                   type="checkbox"
-                  checked={vignetteOverlayEnabled}
-                  onChange={(e) => setVignetteOverlayEnabled(e.target.checked)}
+                  checked={!!(config?.vignette as any)?.enabled ?? true}
+                  onChange={(e) => handleConfigChangeByPath(["vignette", "enabled"], e.target.checked ? 1 : 0)}
                   className="accent-accent-blue"
                 />
                 Виньетка
@@ -563,7 +556,6 @@ export default function App() {
               <AfterImage
                 imageUrl={availableSteps[selectedStep] ?? null}
                 stepLabel={stepLabel}
-                vignetteOverlayEnabled={showVignette}
                 faceOvalOverlayEnabled={showFaceOval}
                 faceOval={faceOval}
                 onFaceOvalChange={handleFaceOvalChange}
@@ -590,7 +582,6 @@ export default function App() {
                 <AfterImage
                   imageUrl={availableSteps[selectedStep] ?? null}
                   stepLabel={stepLabel}
-                  vignetteOverlayEnabled={showVignette}
                   faceOvalOverlayEnabled={showFaceOval}
                   faceOval={faceOval}
                   onFaceOvalChange={handleFaceOvalChange}

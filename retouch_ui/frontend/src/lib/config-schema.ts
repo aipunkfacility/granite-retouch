@@ -18,8 +18,15 @@ export interface ParamToggle {
   label: string;
 }
 
+/** Checkbox parameter (boolean) */
+export interface ParamCheckbox {
+  type: "checkbox";
+  label: string;
+  default: boolean;
+}
+
 /** Union type for any parameter definition */
-export type ParamDef = ParamRange | ParamToggle;
+export type ParamDef = ParamRange | ParamToggle | ParamCheckbox;
 
 /** Machine parameters (laser_standard / laser_80w / impact) */
 export interface MachineParams {
@@ -62,6 +69,7 @@ export interface ProcessingParams {
 
 /** Vignette parameters */
 export interface VignetteParams {
+  enabled: ParamCheckbox;
   vertical_offset: ParamRange;
   vertical_diameter: ParamRange;
   blur_radius: ParamRange;
@@ -168,6 +176,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     },
   },
   vignette: {
+    enabled: { type: "checkbox", label: "Виньетка", default: true },
     vertical_offset: { min: 0, max: 0.3, step: 0.01, label: "Вертикальное смещение", unit: "" },
     vertical_diameter: { min: 0.2, max: 0.8, step: 0.01, label: "Вертикальный диаметр", unit: "" },
     blur_radius: { min: 10, max: 120, step: 1, label: "Радиус размытия", unit: "px" },
@@ -247,7 +256,7 @@ export const PARAM_SECTIONS = [
     key: "vignette",
     label: "Виньетка",
     icon: "ri-shape-line",
-    params: ["vertical_offset", "vertical_diameter", "blur_radius", "headroom", "horizontal_oversize"],
+    params: ["enabled", "vertical_offset", "vertical_diameter", "blur_radius", "headroom", "horizontal_oversize"],
     configPath: "vignette",
   },
   {

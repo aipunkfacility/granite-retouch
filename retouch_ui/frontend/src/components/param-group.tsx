@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { CONFIG_SCHEMA, getMachineParams } from "../lib/config-schema";
-import type { ParamSection, ParamToggle, ParamDef } from "../lib/config-schema";
+import type { ParamSection, ParamToggle, ParamCheckbox, ParamDef } from "../lib/config-schema";
 import type { MachineType, ConfigTree } from "../lib/types";
 import { Slider } from "./slider";
 
@@ -18,6 +18,10 @@ interface Props {
 
 function isParamToggle(param: ParamDef): param is ParamToggle {
   return "type" in param && param.type === "toggle";
+}
+
+function isParamCheckbox(param: ParamDef): param is ParamCheckbox {
+  return "type" in param && param.type === "checkbox";
 }
 
 function isParamDef(val: unknown): val is ParamDef {
@@ -75,8 +79,10 @@ export function ParamGroup({
     return count;
   }, [section, machineType, overriddenKeys]);
 
+  const isVignetteDisabled = section.configPath === "vignette" && !(config as any)?.vignette?.enabled;
+
   return (
-    <div className="bg-bg-card rounded-lg shadow-sm overflow-hidden">
+    <div className={`bg-bg-card rounded-lg shadow-sm overflow-hidden${isVignetteDisabled ? " opacity-50" : ""}`}>
       <button
         onClick={() => setCollapsed((prev) => !prev)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs font-heading font-semibold uppercase tracking-wide text-text-secondary hover:bg-bg-hover transition-colors duration-200"
@@ -94,7 +100,7 @@ export function ParamGroup({
       </button>
 
       <div
-        className={`transition-all duration-250 overflow-hidden ${collapsed ? "max-h-0 opacity-0" : "max-h-[50vh] opacity-100"}`}
+        className={`transition-all duration-250 overflow-hidden${isVignetteDisabled ? " pointer-events-none" : ""} ${collapsed ? "max-h-0 opacity-0" : "max-h-[50vh] opacity-100"}`}
       >
         <div className="px-3 pb-3 space-y-3">
           {section.params.map((paramKey) => {
@@ -126,6 +132,22 @@ export function ParamGroup({
                     ))}
                   </div>
                 </div>
+              );
+            }
+
+            if (isParamCheckbox(def)) {
+              const raw = getValue(config, path);
+              const checked = raw === true || raw === 1;
+              return (
+                <label key={pathKey} className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => onConfigChange(path, e.target.checked ? 1 : 0)}
+                    className="accent-accent-blue w-4 h-4"
+                  />
+                  {def.label}
+                </label>
               );
             }
 

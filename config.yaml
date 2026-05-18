@@ -70,6 +70,7 @@ stone:
   material: granite
   type: granite           # deprecated, синхронизируется с material
 vignette:
+  enabled: true              # NEW: управление виньеткой в пайплайне
   blur_radius: 60
   headroom: 0.6
   horizontal_oversize: 0.2

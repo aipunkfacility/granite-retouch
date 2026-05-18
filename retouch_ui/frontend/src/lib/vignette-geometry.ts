@@ -8,6 +8,7 @@
 import { clamp } from "./utils";
 
 export interface VignetteParams {
+  enabled: boolean;               // NEW: управление виньеткой
   vertical_offset: number;       // 0–0.3
   vertical_diameter: number;     // 0.2–0.8
   blur_radius: number;           // 10–120 px

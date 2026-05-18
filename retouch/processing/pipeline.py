@@ -507,7 +507,11 @@ def _run_pipeline_steps(
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
-    img_final, arch_mask = apply_vignette(img_postproc, width, height, vign_cfg)
+    if vign_cfg.get("enabled", True):
+        img_final, arch_mask = apply_vignette(img_postproc, width, height, vign_cfg)
+    else:
+        img_final = img_postproc
+        arch_mask = None
 
     # 7. Валидация результата
     black_ratio = 0.0
