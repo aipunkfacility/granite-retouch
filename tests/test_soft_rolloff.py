@@ -71,3 +71,29 @@ class TestSoftRolloffMasked:
 
         result = soft_rolloff_masked(arr, mask, knee=225.0, ceiling=250.0)
         assert result[0, 0] == 200.0
+
+
+class TestRolloffZonal:
+    """Rolloff применяется только к целевой зоне, не ко всему subject."""
+
+    def test_rolloff_applies_only_to_highlights_zone(self):
+        """Rolloff не трогает face_skin и hair, только highlights."""
+        arr = np.full((10, 10), 240.0, dtype=np.float32)
+        highlights = np.zeros((10, 10), dtype=np.uint8)
+        highlights[5, 5] = 255
+
+        result = soft_rolloff_masked(arr, highlights, knee=225.0, ceiling=250.0, compression=0.35)
+
+        assert result[5, 5] < 240.0   # highlights сжат
+        assert result[0, 0] == 240.0  # non-highlights не изменён
+
+    def test_rolloff_applies_only_to_face_skin_zone(self):
+        """Rolloff в levels применяется только к face_skin."""
+        arr = np.full((10, 10), 240.0, dtype=np.float32)
+        face_skin = np.zeros((10, 10), dtype=np.uint8)
+        face_skin[3:7, 3:7] = 255
+
+        result = soft_rolloff_masked(arr, face_skin, knee=225.0, ceiling=250.0, compression=0.35)
+
+        assert result[5, 5] < 240.0   # face_skin сжат
+        assert result[0, 0] == 240.0  # вне face_skin не изменён

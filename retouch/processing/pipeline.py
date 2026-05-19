@@ -714,10 +714,15 @@ def _run_pipeline_steps(
 
         # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
         # v6: soft_rolloff_masked вместо inline knee (единый helper)
+        # v6.5: rolloff только по highlights-зоне (не весь subject)
         if white_ceiling is not None:
             knee = white_ceiling * 0.90
-            subj_mask_arr = np.array(ctx.subject_mask, dtype=np.uint8)
-            arr = soft_rolloff_masked(arr, subj_mask_arr, knee, float(white_ceiling), compression)
+            if zone_masks is not None and zone_masks.highlights.any():
+                rolloff_mask = zone_masks.highlights
+                logger.info("White ceiling rolloff applied to highlights zone (%d px)", int(rolloff_mask.sum()))
+            else:
+                rolloff_mask = np.array(ctx.subject_mask, dtype=np.uint8)
+            arr = soft_rolloff_masked(arr, rolloff_mask, knee, float(white_ceiling), compression)
             logger.info("White ceiling rolloff (post-gamma): %d, compression=%.2f", white_ceiling, compression)
             # Per-region face clamp удалён (v4—v5): создавал серое плато
             # по границе маски лица на всех трёх типах станка.

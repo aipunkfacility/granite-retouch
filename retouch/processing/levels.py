@@ -125,9 +125,12 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         if machine_cfg:
             ceiling = float(machine_cfg.get("white_ceiling", 255))
         compression = machine_cfg.get("rolloff_compression", 0.35) if machine_cfg else 0.35
-        # Apply rolloff only to subject_mask (not background)
-        subj_mask_arr = np.array(subject_mask, dtype=np.uint8)
-        corrected = soft_rolloff_masked(corrected, subj_mask_arr, ceiling * 0.90, ceiling, compression)
+        # v6.5: rolloff по face_skin (если маска есть), иначе по subject_mask
+        if face_skin_mask is not None:
+            rolloff_mask_arr = face_skin_bool.astype(np.uint8) * 255
+        else:
+            rolloff_mask_arr = np.array(subject_mask, dtype=np.uint8)
+        corrected = soft_rolloff_masked(corrected, rolloff_mask_arr, ceiling * 0.90, ceiling, compression)
 
         result_arr = _apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))

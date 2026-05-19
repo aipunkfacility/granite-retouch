@@ -152,18 +152,20 @@ class TestShrinkMask:
 class TestCheckFaceBrightness:
     """Тесты контроля яркости лица."""
 
-    def test_dark_face_not_brightened(self):
-        """v7: Тёмное лицо (медиана 80) НЕ корректируется — только затемнение."""
+    def test_dark_face_get_brightened(self):
+        """v6.5: Тёмное лицо (медиана 80) осветляется bounded delta ±15."""
         gray = Image.new("L", (200, 200), 80)
         mask = Image.new("L", (200, 200), 255)
         target = [140, 165]
 
         result, before, after, factor = check_face_brightness(gray, target, mask, glow_size=0)
         result_arr = np.array(result)
-        assert result_arr.mean() == 80.0, "Тёмное лицо не должно меняться (v7)"
+        assert result_arr.mean() > 80.0, "Тёмное лицо должно осветлиться (v6.5)"
         assert before == 80.0
-        assert after == 80.0
-        assert factor == 1.0, "factor=1.0 — коррекция не применяется"
+        assert after >= 80.0
+        assert factor > 1.0, "factor>1.0 — осветление"
+        # Проверяем bounded delta: after <= before + 15
+        assert after <= 95.0, f"Delta превышает 15: {after:.1f}"
 
     def test_bright_face_gets_darkened(self):
         """Слишком яркое лицо (среднее 240) корректируется вниз."""
@@ -217,7 +219,7 @@ class TestCheckFaceBrightness:
         assert before < 120, f"before должен отражать верхнюю часть: {before}"
 
     def test_correction_only_within_mask(self):
-        """v7: Тёмное лицо не меняется, маска не затрагивает фон."""
+        """v6.5: Тёмное лицо осветляется, маска не затрагивает фон."""
         # Левая половина — субъект (маска=255), правая — фон (маска=0)
         arr = np.full((200, 200), 80, dtype=np.uint8)
         gray = Image.fromarray(arr)
@@ -236,11 +238,11 @@ class TestCheckFaceBrightness:
         assert np.all(right_half == 80), \
             f"Фон вне маски не должен корректироваться, got max={right_half.max()}"
 
-        # v7: Левая половина не меняется — тёмное лицо не осветляется
+        # v6.5: Левая половина осветляется bounded delta
         left_half = result_arr[:, :100]
-        assert left_half.mean() == 80, \
-            f"v7: тёмное лицо не меняется, got {left_half.mean():.0f}"
-        assert factor == 1.0, "v7: factor=1.0 для тёмного лица"
+        assert left_half.mean() > 80.0, \
+            f"v6.5: тёмное лицо должно осветлиться, got {left_half.mean():.0f}"
+        assert factor > 1.0, "v6.5: factor>1.0 для осветления"
 
     def test_bright_skin_not_overexposed(self):
         """Уже яркие пиксели кожи не засвечиваются дальше (target_ceiling)."""
@@ -292,11 +294,11 @@ class TestCheckFaceBrightness:
 
 
     def test_low_median_bright_skin_no_overexposure(self):
-        """Низкая медиана + уже светлая кожа → осветление пропускается.
+        """Низкая медиана + уже светлая кожа → осветление не засвечивает кожу.
 
         Симулирует двойной портрет: много тёмных пикселей (волосы) в зоне
         лица занижают медиану, но кожа уже яркая (p75 >= target_max).
-        Осветление в таком случае приведёт к засвету кожи.
+        _curves_correction защищает уже яркие пиксели через highlight_start.
 
         skin_threshold=0 чтобы волосы участвовали в замере — именно их
         наличие занижает медиану и триггерит ложное осветление.
@@ -320,10 +322,12 @@ class TestCheckFaceBrightness:
             gray, target, mask, glow_size=0,
             skin_threshold=0,  # замер по ВСЕМ пикселям (включая волосы)
         )
-        # Медиана < target_min, но p75 >= target_max → коррекция пропущена
-        assert factor == 1.0, (
-            f"Коррекция не нужна: медиана низкая из-за волос, "
-            f"но кожа уже яркая. factor={factor:.3f}"
+        result_arr = np.array(result, dtype=np.float32)
+        # Кожа не должна клиппиться к 255 (даже при коррекции)
+        skin_region = result_arr[100:180, :]
+        clipping_pct = (skin_region >= 250).sum() / skin_region.size * 100
+        assert clipping_pct < 5.0, (
+            f"Кожа клиппится: {clipping_pct:.1f}% >= 250"
         )
 
     def test_bright_skin_with_skin_threshold_gets_darkened(self):
