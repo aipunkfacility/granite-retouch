@@ -303,6 +303,7 @@
 
 | Поле | Тип | Описание |
 |------|-----|----------|
+| `profile` | str | Профиль обработки: `preserve`, `standard`, `diagnostic` |
 | `glow_size` | int | Размер Glow |
 | `glow_opacity` | float | Прозрачность Glow |
 | `skin_delta` | float | Дельта осветления/затемнения кожи |
@@ -348,8 +349,9 @@
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `step_name` | str | Имя шага |
-| `mean_by_zone` | dict[str, float] | Средняя яркость по каждой зоне |
-| `std_by_zone` | dict[str, float] | Стандартное отклонение по каждой зоне |
+| `timestamp_ms` | int | Время выполнения шага (ms) |
+| `zone_metrics` | dict[str, ZoneMetrics] | Метрики (median, p10, p90, p95, max, variance, clipped_pct) по каждой зоне |
+| `warnings` | list[str] | Предупреждения quality gates для данного шага |
 
 ### ZoneMasks
 

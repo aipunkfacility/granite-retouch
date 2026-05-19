@@ -289,7 +289,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 - `PipelinePlan` — активные шаги, параметры (skin_delta, glow_size, unsharp_*, stone_gamma, shadow_floor, white_ceiling)
 - `SafetyEnvelope` — лимиты коррекций по зонам: `face_skin ±15`, `face_dark ±5`, `hair ±3`, `clothes 0`
 - `ValidatedPlan` — результат `validate_plan()` с флагами нарушений
-- Профили: `standard` (все шаги), `soft` (без face_correction), `impact` (с shadow_noise)
+- Профили: `standard` (все шаги), `preserve` (только chromakey → gray → glow → rolloff → vignette), `diagnostic` (с сохранением масок и метрик)
 
 ### ZoneMetrics
 
@@ -314,10 +314,10 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 **Модуль:** `retouch/processing/gates.py`
 
 7 контрольных точек качества пайплайна:
-- **Pre-check (3):** `gate_chromakey_ratio`, `gate_face_detected`, `gate_analytics_valid`
-- **Post-check (4):** `gate_clipping`, `gate_shadow_crush`, `gate_tonal_range`, `gate_face_brightness`
+- **Pre-check (3):** `pre_check_face_dark_small`, `pre_check_contour_inner_quality`, `pre_check_skin_delta_envelope`
+- **Post-check (4):** `post_check_variance_loss`, `post_check_clipped_pct`, `post_check_p95_shift`, `post_check_shadow_crush`
 
-Каждый gate возвращает `GateResult(pass/fail, severity, message)`. `gate_state` в `PipelineResult` — сводка всех gate'ов.
+Каждый gate возвращает `GateResult(gate_name, step_name, triggered, original_value, adjusted_value, reason)`. `gate_state` в `PipelineResult` — сводка всех gate'ов.
 
 ---
 

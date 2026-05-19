@@ -113,7 +113,7 @@ output = knee + rolloff                # результат
 ```
 
 где:
-- `knee` — порог срабатывания (по умолч. 200, из `config.yaml:rolloff_knee`)
+- `knee` — порог срабатывания (вычисляется как `white_ceiling × 0.90`, по умолч. 225 для laser_standard)
 - `compression` — сила сжатия (по умолч. 0.35, из `config.yaml:rolloff_compression`)
 - компрессия = 0 → hard clip, компрессия = 1 → без изменений
 

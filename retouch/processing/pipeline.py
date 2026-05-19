@@ -43,6 +43,7 @@ from retouch.processing.gates import (
     GateState,
     pre_check_face_dark_small,
     pre_check_contour_inner_quality,
+    pre_check_skin_delta_envelope,
     post_check_variance_loss,
     post_check_clipped_pct,
     post_check_p95_shift,
@@ -543,6 +544,19 @@ def _run_pipeline_steps(
                 subject_area = int(np.sum(zone_masks.subject))
                 gate = pre_check_contour_inner_quality(contour_area, subject_area)
                 gate_state.results.append(gate)
+
+                # Gate: skin_delta_envelope
+                sd_gate = pre_check_skin_delta_envelope(
+                    validated.plan.skin_delta, envelope.face_skin_max_delta,
+                    step_name="plan_validation",
+                )
+                gate_state.results.append(sd_gate)
+                if sd_gate.triggered:
+                    validated.plan.skin_delta = sd_gate.adjusted_value
+                    logger.info(
+                        "Gate skin_delta_envelope: %.1f → %.1f",
+                        sd_gate.original_value, sd_gate.adjusted_value,
+                    )
         except ValueError:
             # face_mask не построен — пропускаем зоны
             logger.warning("ZoneMasks не построены: face_mask unavailable")
@@ -804,6 +818,13 @@ def _run_pipeline_steps(
 
     # F.2: Метрики качества
     quality = _compute_quality_metrics(img_final, ctx.subject_mask, ctx.machine_cfg)
+
+    # Post-check: shadow_crush
+    sc_gate = post_check_shadow_crush(
+        quality["shadow_crush_pct"],
+    )
+    if sc_gate.triggered:
+        gate_state.results.append(sc_gate)
 
     logger.info(
         "Pipeline complete: %dx%d, glow=%dpx/%.0f%%, face=%.0f→%.0f",

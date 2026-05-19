@@ -36,16 +36,16 @@
 | `glow_size_max` | 80 | 25 | 25 |
 | `glow_opacity_min` | 30 | 10 | 60 |
 | `glow_opacity_max` | 40 | 20 | 80 |
-| `glow_style` | `"outer"` | `"outer"` | `"outer"` |
-| `stone_gamma` | 0.88 | 1.0 | 0.90 |
-| `unsharp_threshold` | 3 | 3 | 2 |
-| `shadow_floor` | 5 | 5 | 8 |
+| `glow_style` | `"outer"` | `"outer"` | `"inner"` |
+| `stone_gamma` | 0.88 | 1.0 | 0.88 |
+| `unsharp_threshold` | 3 | 3 | 1 |
+| `shadow_floor` | 5 | 5 | 2 |
 | `target_pre_fb` | 180 | 150 | 160 |
-| `face_brightness_target_min` | 230 | 160 | 200 |
-| `face_brightness_target_max` | 245 | 180 | 225 |
-| `white_ceiling` | 250 | 235 | 240 |
+| `face_brightness_target_min` | 230 | 160 | 170 |
+| `face_brightness_target_max` | 245 | 180 | 215 |
+| `white_ceiling` | 250 | 235 | 245 |
 | `face_region_top` | 0.45 | 0.45 | 0.45 |
-| `highlight_start` | 200 | 195 | 200 |
+| `highlight_start` | 200 | 195 | 185 |
 | `face_skin_threshold` | 100 | 100 | 100 |
 | `shadow_noise_min` | — | — | 5 |
 | `shadow_noise_max` | — | — | 15 |
@@ -131,22 +131,22 @@
 | `glow_size_max` | int | 25 | 5–100 | Максимальный размер Glow (px) |
 | `glow_opacity_min` | int | 60 | 10–100 | Минимальная opacity Glow (%) |
 | `glow_opacity_max` | int | 80 | 10–100 | Максимальная opacity Glow (%) |
-| `glow_style` | toggle | `"outer"` | `"inner"` / `"outer"` | Стиль glow |
-| `stone_gamma` | float | 0.90 | 0.5–1.5 | Поправочная гамма для камня |
-| `face_brightness_target_min` | int | 200 | 80–255 | Минимальная целевая яркость лица. Для impact ниже чем для laser_standard |
-| `face_brightness_target_max` | int | 225 | 80–255 | Максимальная целевая яркость лица. Пересвет критичен для иглы |
-| `white_ceiling` | int | 240 | 200–255 | Потолок белой точки |
+| `glow_style` | toggle | `"inner"` | `"inner"` / `"outer"` | Стиль glow |
+| `stone_gamma` | float | 0.88 | 0.5–1.5 | Поправочная гамма для камня |
+| `face_brightness_target_min` | int | 170 | 80–255 | Минимальная целевая яркость лица. Для impact ниже чем для laser_standard |
+| `face_brightness_target_max` | int | 215 | 80–255 | Максимальная целевая яркость лица. Пересвет критичен для иглы |
+| `white_ceiling` | int | 245 | 200–255 | Потолок белой точки |
 | `shadow_noise_min` | int | 5 | 0–50 | Минимальный шум в глубоких тенях. 0 = без шума |
 | `shadow_noise_max` | int | 15 | 0–50 | Максимальный шум в глубоких тенях. 0 = без шума |
-| `shadow_floor` | int | 8 | 0–30 | Минимальная яркость в тенях субъекта. Impact: предотвращает застой иглы на чёрном |
+| `shadow_floor` | int | 2 | 0–30 | Минимальная яркость в тенях субъекта. Impact: предотвращает застой иглы на чёрном |
 | `shadow_noise_threshold` | int | 30 | 5–80 | Порог яркости для shadow noise: шум добавляется только в пиксели < threshold |
 
 ### Особенности impact
 
 - Узкий яркий glow (10–25px, 60–80%) — чёткий контур, игла хорошо считывает границу
-- Лицо умеренной яркости (200–225) — пересвет критичнее чем для лазера, игла не различает оттенки выше 240
+- Лицо умеренной яркости (170–215) — пересвет критичнее чем для лазера, игла не различает оттенки выше 240
 - Shadow noise (5–15) — игла impact-станка не бьёт в полностью чёрные пиксели (нет точек), шум даёт игле «зацепку». Шум добавляется только внутри маски субъекта в пикселях с яркостью < shadow_noise_threshold
-- Shadow floor (8) — минимальная яркость в тенях, предотвращает застой иглы на чистом чёрном
+- Shadow floor (2) — минимальная яркость в тенях, предотвращает застой иглы на чистом чёрном
 - Формат экспорта по умолчанию: **BMP 8-bit grayscale**
 
 ---
