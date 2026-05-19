@@ -64,6 +64,7 @@ class ZoneStats:
     plateau_pct: float = 0.0
     plateau_peak: int = 0
     plateau_max_run: int = 0
+    n_unique: int = 0
 
 
 @dataclass
@@ -178,6 +179,7 @@ class PixelReport:
             plateau_pct=round(plateau_pct, 1),
             plateau_peak=plateau_peak,
             plateau_max_run=plateau_max_run,
+            n_unique=len(np.unique(pixels)),
         )
 
     def summary_text(self) -> str:
@@ -215,6 +217,9 @@ class PixelReport:
                 if oz.plateau_pct > 0:
                     p.append(f"    ⚠ ПЛАТО: {oz.plateau_pct}% зоны, пик={oz.plateau_peak}, "
                              f"макс.run={oz.plateau_max_run}px")
+                if oz.n_unique < 30:
+                    p.append(f"    ⚠ УНИКУМОВ: {oz.n_unique}/{oz.count} px "
+                             f"({oz.count//max(oz.n_unique,1)} px/знач)")
         p.append("")
 
         # Диагноз
@@ -267,6 +272,19 @@ class PixelReport:
                     f"Зона {zone_label} упирается в ceiling={ceiling}: "
                     f"max={oz.max_val}. "
                     f"p95={oz.p95} — горячие пиксели на пределе."
+                )
+
+        # Потеря уникальных значений (плоская текстура)
+        for lo, hi in [ZONE_DARK, ZONE_MID, ZONE_BRIGHT, ZONE_HOT]:
+            oz = self.output_zones.get((lo, hi))
+            if not oz or oz.count < 10000:
+                continue
+            if oz.n_unique < 30:
+                label = _zone_name(lo, hi)
+                problems.append(
+                    f"Зона «{label}»: {oz.count} px содержат всего {oz.n_unique} "
+                    f"уникальных значений ({oz.count//max(oz.n_unique,1)} px на значение) — "
+                    f"текстура плоская, сплошное плато."
                 )
 
         # Сравнение p95 shift

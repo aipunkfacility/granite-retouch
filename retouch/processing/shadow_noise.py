@@ -68,7 +68,10 @@ def add_shadow_noise(img_gray, subject_mask, noise_min=5, noise_max=15,
     noise = rng.integers(effective_min, noise_max + 1, size=arr.shape).astype(np.float32)
 
     # Применяем шум только к тёмным пикселям субъекта
-    arr = np.where(subject_dark, noise, arr)
+    # ВАЖНО: добавляем шум к пикселю (arr + noise), а НЕ заменяем (noise).
+    # Замена уничтожает текстуру ткани — складки, градации пропадают.
+    # Добавление сохраняет исходный градиент и гарантирует работу иглы.
+    arr = np.where(subject_dark, arr + noise, arr)
     arr = np.clip(arr, 0, 255)
 
     logger.info(

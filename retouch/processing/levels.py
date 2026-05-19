@@ -104,7 +104,12 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
     if subject_mask is not None and HAS_NUMPY:
         # P6: Mask protection — коррекция только внутри маски
         arr = np.array(img_gray, dtype=np.float32)
-        corrected = arr * factor
+        # Кривая с сохранением теней: weight=norm^0.5
+        # тени (norm~0) почти не трогаем, лица/света корректируются на factor
+        norm = arr / 255.0
+        weight = np.power(norm, 0.5)
+        effective = 1.0 + (factor - 1.0) * weight
+        corrected = arr * effective
         # Per-pixel ceiling: soft knee вместо hard-clip (v6)
         # Hard-clip даёт плато — все пиксели >= ceiling одинаковые.
         # Soft knee: выше knee=ceiling*0.90 сжимаем excess на 65%,
@@ -116,7 +121,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         over = corrected > knee
         if over.any():
             excess = corrected[over] - knee
-            corrected[over] = knee + excess * 0.35
+            corrected[over] = knee + excess * 0.50
         corrected = np.clip(corrected, 0, ceiling)
         result_arr = _apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))

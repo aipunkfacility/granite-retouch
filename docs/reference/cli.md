@@ -26,8 +26,8 @@ python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|lase
 | `--output` | `-o` | Да | Путь к выходному файлу (BMP по умолчанию) |
 | `--machine` | `-m` | Нет | Тип станка: `laser_standard` (default), `laser_80w` или `impact` |
 | `--format` | `-f` | Нет | Формат экспорта: `bmp` (default), `bmp_1bit`, `bmp_8bit`, `png`, `tiff` |
-| `--glow-size` | — | Нет | Переопределить размер Inner Glow (px) |
-| `--glow-opacity` | — | Нет | Переопределить opacity Inner Glow (%) |
+| `--glow-size` | — | Нет | Переопределить размер Glow (px) |
+| `--glow-opacity` | — | Нет | Переопределить opacity Glow (%) |
 | `--config` | `-c` | Нет | Путь к config.yaml (default: автопоиск) |
 | `--no-validate` | — | Нет | Пропустить валидацию входа и результата |
 | `--overwrite` | — | Нет | Перезаписать выходной файл без подтверждения. Без флага — exit(1) если файл существует |
@@ -54,7 +54,7 @@ python -m retouch process -i ai.png -o final.png -m laser_standard --format png
 # Экспорт в TIFF (legacy / совместимость)
 python -m retouch process -i ai.png -o final.tiff -m laser_standard --format tiff
 
-# Переопределить Inner Glow
+# Переопределить Glow (стиль зависит от типа станка: Outer для лазера, Inner для impact)
 python -m retouch process -i ai.png -o final.bmp -m laser_standard --glow-size 50 --glow-opacity 35
 
 # Свой config.yaml

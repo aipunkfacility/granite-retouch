@@ -486,13 +486,13 @@ async def export_image(
                 config=full_config,
                 face_oval=face_oval,
             ),
-            timeout=60.0,
+            timeout=180.0,
         )
     except asyncio.TimeoutError:
         _ref_dec(request.file_id)
         raise HTTPException(
             408,
-            "Превышено время экспорта (60 сек). "
+            "Превышено время экспорта (180 сек). "
             "Попробуйте уменьшить размер изображения.",
         )
     except Exception as exc:

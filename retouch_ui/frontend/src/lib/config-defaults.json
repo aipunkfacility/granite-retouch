@@ -54,7 +54,7 @@
       "glow_size_max": 25,
       "glow_opacity_min": 60,
       "glow_opacity_max": 80,
-      "glow_style": "outer",
+      "glow_style": "inner",
       "stone_gamma": 0.9,
       "unsharp_threshold": 2,
       "target_pre_fb": 160,
@@ -82,7 +82,6 @@
     "heterogeneity": null
   },
   "vignette": {
-    "enabled": true,
     "vertical_offset": 0.1,
     "vertical_diameter": 0.55,
     "blur_radius": 60,
