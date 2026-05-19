@@ -1,6 +1,6 @@
 ﻿# IDE
 .gemini/
-.agents/ctx/
+.agents/
 .opencode/
 
 # OS files
