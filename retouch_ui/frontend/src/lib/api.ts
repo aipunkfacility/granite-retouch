@@ -5,6 +5,23 @@ import type { MaterialApplyResult, PresetCatalogEntry, MaterialProfile } from ".
 
 const API_BASE = "/api";
 
+export interface ZoneMetricsData {
+  median: number;
+  p10: number;
+  p90: number;
+  p95: number;
+  max: number;
+  variance: number;
+  clipped_pct: number;
+}
+
+export interface StepMetricsData {
+  step_name: string;
+  timestamp_ms: number;
+  zone_metrics: Record<string, ZoneMetricsData>;
+  warnings: string[];
+}
+
 export interface DiagnosticsData {
   glow_size: number;
   glow_opacity: number;
@@ -18,6 +35,8 @@ export interface DiagnosticsData {
   // AUDIT-3.1: face_oval из preview для передачи в export
   face_oval?: FaceOvalParams | null;
   numba_available?: boolean;
+  profile?: string;
+  step_metrics?: StepMetricsData[];
 }
 
 export interface PreviewResult {

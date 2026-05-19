@@ -11,6 +11,7 @@ import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
 import { ProfileSelector } from "./components/profile-selector";
+import { StepMetricsPanel } from "./components/step-metrics-panel";
 import { useToast } from "./components/toast-provider";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
@@ -524,6 +525,11 @@ export default function App() {
                   diagnostics={previewResult?.diagnostics ?? null}
                   warnings={previewResult?.warnings ?? []}
                 />
+                {profile === "diagnostic" && (
+                  <StepMetricsPanel
+                    stepMetrics={previewResult?.diagnostics?.step_metrics}
+                  />
+                )}
               </div>
             </>
           )}
