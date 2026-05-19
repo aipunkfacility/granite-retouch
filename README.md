@@ -91,6 +91,36 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - **Quality gates:** 7 контрольных точек (3 pre-check, 4 post-check) — автоматическое ослабление агрессивных шагов
 - **Step metrics:** метрики по зонам после каждого шага — видно какой шаг ухудшил результат
 
+### Quality Gates
+
+Система pre/post-check gates предотвращает деградацию изображения при агрессивных настройках:
+
+**Pre-check (до шага):**
+| Gate | Триггер | Действие |
+|------|---------|----------|
+| `face_dark_small` | < 5% тёмных пикселей лица | Пропустить коррекцию |
+| `contour_inner_quality` | контур > 30% субъекта | Fallback на morphological contour |
+| `skin_delta_envelope` | delta > safety envelope | Клиппинг до ±max_delta |
+
+**Post-check (после шага):**
+| Gate | Триггер | Действие |
+|------|---------|----------|
+| `variance_loss` | потеря variance > 35% | Ослабить stone_gamma на 50% |
+| `clipped_pct` | клиппинг > 5% | Увеличить rolloff compression на 20% |
+| `p95_shift` | сдвиг p95 > 20 | Ослабить skin_delta на 50% |
+| `shadow_crush` | crush теней > 10% | Отключить shadow_floor и stone_gamma |
+
+Все срабатывания пишутся в `diagnostics` с `gate_name`, `original_value`, `adjusted_value`, `reason`.
+
+### Rolling Ceiling
+
+Вместо hard clamp `np.clip()` используется `soft_rolloff_masked()`:
+
+- **Принцип:** Плавное сжатие light-зоны после порога knee, а не обрезание
+- **Формула:** `output = knee + max(value - knee, 0) * (1 - compression)`
+- **По зонам (v6.5):** Rolloff применяется только к `highlights` и `face_skin` (не ко всему subject)
+- **Параметры:** `rolloff_knee` (по умолч. 200), `rolloff_compression` (по умолч. 0.35) из config.yaml
+
 ## Known Limitations
 
 ### Preview ≠ Export: детекция лица и параметры

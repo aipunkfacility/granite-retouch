@@ -72,6 +72,61 @@ contour_outer = (gradient > 0.0) & (gradient <= 0.5)
 
 **Fallback:** если `contour_inner > 30%` от `subject_mask` — morphological contour (`dilate - erode`) с warning `contour_fallback_used`.
 
+## Bounded delta
+
+Агрессивная коррекция по зонам ограничивается safety envelope. Формула bounded delta:
+
+```
+delta = clamp(target - median, -max_delta, +max_delta)
+```
+
+где `max_delta` — значение из таблицы Safety Envelope (см. выше) или из `config.yaml:processing.safety_envelope.<zone_name>`.
+
+**Механизм:**
+1. `bounded_delta()` вычисляет сырую дельту как `target - median`
+2. Клиппит по `[-max_delta, +max_delta]`
+3. Возвращает `(delta, clamped)` — clamped=true если сработала оболочка
+4. Проверяется gate `skin_delta_envelope` — если `|delta| > max_delta`, warning в diagnostics
+
+**Вес коррекции (curves):**
+
+После bounded delta применяется `_curves_correction()`:
+
+```
+weight = 1.0 - (pixel_norm - highlight_start_norm) / (1.0 - highlight_start_norm)
+correction = pixel + delta * clamp(weight, 0, 1)
+```
+
+- Тени (`pixel < highlight_start`) получают полную коррекцию
+- Света (`pixel > highlight_start`) получают уменьшенную коррекцию (защита пересветов)
+
+## Rolloff (soft knee)
+
+Вместо hard clamp `np.clip()` используется `soft_rolloff_masked()` — плавное сжатие светов.
+
+**Формула:**
+
+```python
+excess = max(value - knee, 0)          # пересвет
+rolloff = excess * (1 - compression)   # сжатие
+output = knee + rolloff                # результат
+```
+
+где:
+- `knee` — порог срабатывания (по умолч. 200, из `config.yaml:rolloff_knee`)
+- `compression` — сила сжатия (по умолч. 0.35, из `config.yaml:rolloff_compression`)
+- компрессия = 0 → hard clip, компрессия = 1 → без изменений
+
+**Применение по зонам (v6.5):**
+
+Rolloff применяется только к `highlights` зоне (не ко всему subject):
+- Если ZoneMasks доступны → rolloff по `highlights` + `face_skin`
+- Если ZoneMasks недоступны → fallback на `subject_mask`
+
+**Gate: `clipped_pct`**
+
+Пост-чек: если >5% пикселей достигли white_ceiling → `compression` увеличивается на 20% (автоматическое ослабление).
+
 ## Memory budget
 
 | Разрешение | Budget на маски |

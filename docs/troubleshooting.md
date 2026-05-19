@@ -34,6 +34,8 @@ Soft knee (rolloff) не применяется — все пиксели ниж
 
 ## Quality gate warnings
 
+Всего 7 quality gates: 3 pre-check (до обработки) + 4 post-check (после обработки).
+
 ### `face_dark_small`
 
 **`face_dark X.X% < 5.0% — correction skipped`**
@@ -62,7 +64,19 @@ Soft knee (rolloff) не применяется — все пиксели ниж
 
 ---
 
-### `variance_loss`
+### `skin_delta_envelope`
+
+**`skin_delta X.X > safety envelope — clamped to ±max_delta`**
+
+Дельта коррекции кожи превысила safety envelope из config.yaml.
+
+**Причины:**
+- Слишком агрессивная коррекция
+- Некорректный threshold
+
+**Действие:** Проверить результат — safety envelope автоматически ограничил delta. Если нужно больше коррекции — увеличить `max_delta` для зоны в config.yaml.
+
+---
 
 **`variance loss X.X% > 35.0% — delta weakened 50%`**
 

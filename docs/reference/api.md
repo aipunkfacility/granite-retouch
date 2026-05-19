@@ -264,3 +264,103 @@
 ### POST /api/vignette/mask
 
 Сгенерировать маску арховой виньетки по параметрам.
+
+---
+
+## Internal Data Models
+
+Поля возвращаемые в `diagnostics` ответов `/api/process/*`.
+
+### PipelineResult
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `img_final` | Image | Итоговое изображение после всех шагов |
+| `face_brightness_before` | float | Средняя яркость лица до коррекции |
+| `face_brightness_after` | float | Средняя яркость лица после коррекции |
+| `face_correction_factor` | float | Фактор коррекции (>1 = осветление, <1 = затемнение) |
+| `glow_size` | int | Размер Glow (пиксели) |
+| `glow_opacity` | float | Прозрачность Glow |
+| `black_ratio` | float | Доля чёрных пикселей |
+| `blue_ratio` | float | Доля синего фона (до chromakey) |
+| `width` / `height` | int | Размер изображения |
+| `warnings` | list[str] | Предупреждения в ходе обработки |
+| `quality_warnings` | list[str] | Предупреждения quality gates |
+| `analytics` | dict | Полный набор метрик (13+ метрик ImageAnalytics) |
+| `face_oval` | dict | Овал лица `{cx, cy, rx, ry}` (нормализован 0-1) |
+| `gate_state` | object | Состояние quality gates (см. ниже) |
+| `step_metrics` | list[StepMetricsRecord] | Метрики по зонам после каждого шага |
+| `zone_masks` | ZoneMasks | Маски 8 зон (см. docs/zones.md) |
+| `plan` | PipelinePlan | План обработки до валидации |
+| `validated_plan` | ValidatedPlan | План после валидации и safety envelope |
+| `hair_anomaly` | bool | Флаг аномалии волос |
+| `hair_ratio` | float | Соотношение волос/лицо |
+| `clipped_pixels_pct` | float | Процент клиппированных пикселей |
+| `shadow_crush_pct` | float | Процент crushed теней |
+| `tonal_range_output` | float | Тональный диапазон на выходе |
+
+### PipelinePlan
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `glow_size` | int | Размер Glow |
+| `glow_opacity` | float | Прозрачность Glow |
+| `skin_delta` | float | Дельта осветления/затемнения кожи |
+| `target_range` | tuple[float,float] | Целевой диапазон яркости лица |
+| `rolloff_knee` | int | Порог soft knee для rolloff |
+| `rolloff_compression` | float | Сжатие после knee |
+| `unsharp_strength` | float | Сила unsharp mask |
+| `stone_gamma` | float | Гамма-коррекция под камень |
+| `highlight_start` | int | Порог защиты светов в curves |
+| `white_ceiling` | int | Потолок белого |
+| `shadow_floor` | int | Пол теней |
+
+### ValidatedPlan
+
+Наследует все поля `PipelinePlan` + добавляет:
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `warnings` | list[str] | Предупреждения валидации |
+| `applied_envelope` | bool | Применена ли safety envelope |
+
+### GateState
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `results` | list[GateResult] | Результаты всех gates |
+| `triggered_gates` | list[GateResult] | Только сработавшие gates |
+| `warnings` | list[str] | Текстовые предупреждения для UI |
+
+### GateResult
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `gate_name` | str | Имя гейта |
+| `step_name` | str | Шаг на котором сработал |
+| `triggered` | bool | True если условие превышено |
+| `original_value` | float | Значение до коррекции |
+| `adjusted_value` | float | Значение после ослабления |
+| `reason` | str | Причина срабатывания |
+
+### StepMetricsRecord
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `step_name` | str | Имя шага |
+| `mean_by_zone` | dict[str, float] | Средняя яркость по каждой зоне |
+| `std_by_zone` | dict[str, float] | Стандартное отклонение по каждой зоне |
+
+### ZoneMasks
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `subject` | Image | Маска субъекта |
+| `face_skin` | Image | Маска кожи лица |
+| `face_dark` | Image | Маска тёмных участков лица |
+| `hair` | Image | Маска волос |
+| `clothes` | Image | Маска одежды |
+| `highlights` | Image | Маска светов (для rolloff) |
+| `contour_inner` | Image | Маска внутреннего контура |
+| `contour_outer` | Image | Маска внешнего контура |
+| `background` | Image | Маска фона |
