@@ -50,6 +50,13 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - **Просмотр дизеринга** — предпросмотр Jarvis дизеринга для laser_80w (по кнопке)
 - **ParamToggle** — сегментный контрол для glow_style (Outer/Inner) вместо слайдера
 
+## Конфигурация
+
+Python `DEFAULTS` в `retouch/config.py` — единственный источник истины для
+параметров обработки. Frontend `config-defaults.json` генерируется из него
+скриптом `scripts/export_defaults.py`. CI проверяет синхронизацию через
+`make check-defaults-sync`.
+
 ## Документация
 
 Полная документация в `docs/`. См. [docs/index.md](docs/index.md).
@@ -90,6 +97,19 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - **Processing profiles:** `standard` (полная обработка), `preserve` (минимальное вмешательство), `diagnostic` (расширенный сбор метрик)
 - **Quality gates:** 7 контрольных точек (3 pre-check, 4 post-check) — автоматическое ослабление агрессивных шагов
 - **Step metrics:** метрики по зонам после каждого шага — видно какой шаг ухудшил результат
+
+### Processing Profiles
+
+Профиль задаёт набор активных шагов пайплайна. Ортогонален пресету станка
+(параметры шагов берутся из пресета, но неподходящие шаги отключаются):
+
+| Profile | Активные шаги | Назначение |
+|---------|--------------|------------|
+| `preserve` | chromakey → gray → glow → rolloff → vignette | Минимальное вмешательство, почти не меняет исходную AI-ретушь |
+| `standard` | Все шаги (chromakey, gray, glow, levels, face_correction, unsharp, shadow_noise, postproc, vignette) | Полная обработка с автокоррекцией |
+| `diagnostic` | Все шаги + расширенные маски и step-метрики | Отладка и анализ качества |
+
+Выбор профиля: через CLI (`--profile preserve`) или UI (Profile Selector).
 
 ### Quality Gates
 
