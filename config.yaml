@@ -19,6 +19,7 @@ processing:
     shadow_noise_max: 15
     shadow_noise_threshold: 30
     shadow_floor: 2
+    rolloff_compression: 0.35  # soft knee: 0.35=мягкий, 0.50=средний, 0.80=жёсткий
     export_mode: 8bit           # 8-bit grayscale — 256 уровней силы удара
     step_mm: 0.300              # шаг ЧПУ для impact
     dither_method_1bit: stucki  # метод дизеринга если оператор переключит на 1bit
@@ -37,6 +38,7 @@ processing:
     glow_size_min: 15
     glow_style: outer
     highlight_start: 195
+    rolloff_compression: 0.35
     export_mode: 8bit           # 8-bit grayscale — Engrave модулирует мощность по яркости
     step_mm: 0.250              # по мануалу САУНО: 0.125–0.250 мм для лазера
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit
@@ -54,6 +56,7 @@ processing:
     glow_size_min: 40
     glow_style: outer
     highlight_start: 200
+    rolloff_compression: 0.35
     export_mode: 8bit           # 8-bit grayscale — Engrave делает растрирование сам
     step_mm: 0.300              # шаг ЧПУ для laser_standard
     dither_method_1bit: jarvis  # метод дизеринга если оператор переключит на 1bit

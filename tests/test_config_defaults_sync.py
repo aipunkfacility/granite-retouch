@@ -1,6 +1,7 @@
 """TDD: DEFAULTS должны быть корректны без config.yaml."""
 
 import os, tempfile
+from pathlib import Path
 import pytest
 from retouch.config import DEFAULTS, load_config, MACHINE_TYPES
 
@@ -172,3 +173,76 @@ class TestV2toV3Migration:
         result = _migrate_v2_to_v3(config_v3)
         assert result["processing"]["laser_80w"]["export_mode"] == "8bit"
         assert result["processing"]["laser_80w"]["stone_gamma"] == 1.0
+
+
+class TestExportDefaults:
+    """Шаг 1: export adapter генерирует валидный JSON из DEFAULTS."""
+
+    def test_export_defaults_generates_valid_json(self):
+        """export_defaults() создаёт файл, который можно загрузить как JSON."""
+        import json
+        import tempfile
+        from scripts.export_defaults import export_defaults
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = export_defaults(Path(tmp) / "config-defaults.json")
+            assert output_path.exists()
+            with open(output_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            assert "processing" in data
+            assert "config_version" in data
+
+    def test_export_defaults_matches_python_defaults(self):
+        """Сгенерированный JSON содержит те же значения, что и DEFAULTS."""
+        import json
+        import tempfile
+        from scripts.export_defaults import export_defaults
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = export_defaults(Path(tmp) / "config-defaults.json")
+            with open(output_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            assert data == DEFAULTS
+
+    def test_export_defaults_has_all_machine_types(self):
+        """Сгенерированный JSON содержит все MACHINE_TYPES."""
+        import tempfile
+        from scripts.export_defaults import export_defaults
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = export_defaults(Path(tmp) / "config-defaults.json")
+            import json
+            with open(output_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for mtype in MACHINE_TYPES:
+                assert mtype in data["processing"], f"Нет {mtype} в export"
+
+    def test_check_defaults_sync_passes_when_in_sync(self):
+        """check_defaults_sync() возвращает True когда JSON совпадает."""
+        import tempfile, json
+        from pathlib import Path
+        from scripts.export_defaults import export_defaults, check_defaults_sync
+
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = Path(tmp) / "config-defaults.json"
+            export_defaults(json_path)
+            assert check_defaults_sync(json_path) is True
+
+    def test_check_defaults_sync_fails_when_out_of_sync(self):
+        """check_defaults_sync() возвращает False когда JSON отличается."""
+        import tempfile, json
+        from pathlib import Path
+        from scripts.export_defaults import check_defaults_sync
+
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = Path(tmp) / "config-defaults.json"
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump({"wrong": "data"}, f)
+            assert check_defaults_sync(json_path) is False
+
+    def test_check_defaults_sync_fails_when_file_missing(self):
+        """check_defaults_sync() возвращает False когда файл отсутствует."""
+        from pathlib import Path
+        from scripts.export_defaults import check_defaults_sync
+
+        assert check_defaults_sync(Path("/nonexistent/path/config-defaults.json")) is False

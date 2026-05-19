@@ -1,13 +1,15 @@
-"""Levels — коррекция яркости (адаптивная и ручная).
+"""Levels — коррекция яркости (bounded delta, зональная).
+
+Этап 3: Заменён factor на ограниченную дельту с явным target range.
+Вместо arr * factor используется двусторонняя формула:
+  if median < target_min: delta = min(target_min - median, max_delta)
+  elif median > target_max: delta = max(target_max - median, -max_delta)
+  else: delta = 0
+
+Delta применяется только к face_skin с весом от яркости.
 
 F.1: Функции unsharp, face_correction, shadow_noise вынесены в отдельные
-модули. Этот файл сохраняет backward-compatible re-exports для
-существующего импорта: from retouch.processing.levels import check_face_brightness
-
-REFACTOR-4: re-exports устарели. Используйте прямые импорты:
-  from retouch.processing.unsharp import apply_unsharp_mask
-  from retouch.processing.face_correction import check_face_brightness
-  from retouch.processing.shadow_noise import add_shadow_noise
+модули. Этот файл сохраняет backward-compatible re-exports.
 """
 
 import logging
@@ -23,15 +25,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Внутренний импорт — apply_masked используется в apply_levels().
-# Не реэкспортируется — внешние пользователи должны импортировать напрямую.
 from retouch.processing.mask_utils import apply_masked as _apply_masked
 
 
-# ─── Backward-compatible re-exports (F.1) ──────────────────────────────
-# BE-I2: Replaced __getattr__ + globals() with direct imports.
-# These re-exports will be removed in the next release.
-# DEPRECATED: используйте прямые импорты из source-модулей.
+# ─── Backward-compatible re-exports ────────────────────────────────────
 
 from retouch.processing.unsharp import apply_unsharp_mask  # noqa: F401
 from retouch.processing.unsharp import _adaptive_unsharp_percent  # noqa: F401
@@ -40,8 +37,8 @@ from retouch.processing.face_correction import _curves_correction  # noqa: F401
 from retouch.processing.face_correction import _shrink_mask  # noqa: F401
 from retouch.processing.shadow_noise import add_shadow_noise  # noqa: F401
 from retouch.processing.mask_utils import apply_masked  # noqa: F401
+from retouch.processing.rolloff import soft_rolloff_masked
 
-# Emit deprecation warnings for all re-exported names at import time
 _DEPRECATED_REEXPORTS = {
     "apply_unsharp_mask": "retouch.processing.unsharp",
     "_adaptive_unsharp_percent": "retouch.processing.unsharp",
@@ -63,154 +60,139 @@ for _name, _module in _DEPRECATED_REEXPORTS.items():
 
 # ─── Levels — основная функция ────────────────────────────────────────
 
-def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None, subject_mask=None, machine_cfg=None):
-    """Применить Levels (brightness adjustment).
+def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None,
+                 subject_mask=None, machine_cfg=None, face_skin_mask=None):
+    """Применить Levels (bounded delta correction).
 
-    Поддерживает два режима:
-    - Legacy: positional brightness_factor, analytics=None → простой brightness enhance.
-    - Adaptive: analytics provided → фактор вычисляется из метрик и machine_type.
-      При наличии machine_cfg, адаптивный фактор умножается на brightness из конфига
-      и white_ceiling читается из конфига вместо хардкода.
+    Этап 3: Вместо factor — двусторонняя bounded delta формула.
+    Delta применяется только к face_skin (или subject_mask если face_skin_mask=None).
 
     Args:
         img_gray: PIL.Image в режиме L
-        brightness_factor: множитель яркости (1.0 = нейтрально).
-            Используется в legacy-режиме (когда analytics is None).
-        analytics: dict от analyze_input() — если передан, включается
-            адаптивный расчёт фактора (P2).
-        machine_type: str — тип станка ('laser_standard', 'laser_80w', 'impact').
-            Используется только вместе с analytics.
-        subject_mask: PIL.Image в режиме L — маска субъекта.
-            Когда передана, коррекция применяется только внутри маски (P6).
-        machine_cfg: dict — параметры станка из config.yaml.
-            Когда передан с analytics, brightness используется как корректирующий
-            коэффициент, а white_ceiling — вместо хардкода.
+        brightness_factor: legacy — множитель яркости (игнорируется если analytics)
+        analytics: dict от analyze_input() — включает адаптивный расчёт
+        machine_type: тип станка
+        subject_mask: PIL.Image — маска субъекта
+        machine_cfg: dict — параметры станка
+        face_skin_mask: numpy array или None — маска кожи лица для зональной коррекции.
+            Если None, коррекция применяется ко всей subject_mask (fallback).
 
     Returns:
         PIL.Image: скорректированное изображение
     """
-    # Определяем фактор яркости
-    if analytics is not None:
-        # P2: Адаптивный расчёт фактора
-        factor = _adaptive_levels_factor(analytics, machine_type, machine_cfg=machine_cfg)
+    if analytics is not None and machine_type is not None:
+        delta = _compute_bounded_delta(analytics, machine_type, machine_cfg)
     elif brightness_factor is not None:
-        # Legacy: явный фактор
-        factor = brightness_factor
+        delta = (brightness_factor - 1.0) * 128.0
     else:
-        # Default: нейтральный
-        factor = 1.0
+        delta = 0.0
 
-    # Применяем коррекцию
+    if delta == 0.0:
+        return img_gray
+
     if subject_mask is not None and HAS_NUMPY:
-        # P6: Mask protection — коррекция только внутри маски
         arr = np.array(img_gray, dtype=np.float32)
+        subj_mask = np.array(subject_mask) > 128
+
+        if face_skin_mask is not None:
+            # Convert to boolean: handle both 0/1 uint8 and 0/255 masks
+            if hasattr(face_skin_mask, 'max') and face_skin_mask.max() <= 1:
+                face_skin_bool = face_skin_mask.astype(bool)
+            else:
+                face_skin_bool = face_skin_mask > 128
+            apply_mask = subj_mask & face_skin_bool
+        else:
+            apply_mask = subj_mask
+
+        if not apply_mask.any():
+            return img_gray
+
         # Кривая с сохранением теней: weight=norm^0.5
-        # тени (norm~0) почти не трогаем, лица/света корректируются на factor
         norm = arr / 255.0
         weight = np.power(norm, 0.5)
-        effective = 1.0 + (factor - 1.0) * weight
-        corrected = arr * effective
-        # Per-pixel ceiling: soft knee вместо hard-clip (v6)
-        # Hard-clip даёт плато — все пиксели >= ceiling одинаковые.
-        # Soft knee: выше knee=ceiling*0.90 сжимаем excess на 65%,
-        # сохраняя 35% градиента (текстура).
+
+        # Применяем delta с весом
+        corrected = arr.copy()
+        corrected[apply_mask] = arr[apply_mask] + delta * weight[apply_mask]
+
+        logger.info(
+            "Levels applied: delta=%.1f, apply_mask_pixels=%d, corrected_median=%.1f",
+            delta, apply_mask.sum(), np.median(corrected[apply_mask]),
+        )
+
+        # Soft knee ceiling via unified helper
         ceiling = 255.0
         if machine_cfg:
             ceiling = float(machine_cfg.get("white_ceiling", 255))
-        knee = ceiling * 0.90
-        over = corrected > knee
-        if over.any():
-            excess = corrected[over] - knee
-            corrected[over] = knee + excess * 0.50
-        corrected = np.clip(corrected, 0, ceiling)
+        compression = machine_cfg.get("rolloff_compression", 0.35) if machine_cfg else 0.35
+        # Apply rolloff only to subject_mask (not background)
+        subj_mask_arr = np.array(subject_mask, dtype=np.uint8)
+        corrected = soft_rolloff_masked(corrected, subj_mask_arr, ceiling * 0.90, ceiling, compression)
+
         result_arr = _apply_masked(arr, corrected, subject_mask)
         return Image.fromarray(result_arr.astype(np.uint8))
     elif subject_mask is not None and not HAS_NUMPY:
-        # Pillow fallback БЕЗ numpy — коррекция глобальная, но маска не применяется.
         logger.warning(
             "apply_levels: subject_mask передана, но numpy недоступен — "
-            "коррекция применяется глобально (фон может загрязниться). "
-            "Установите numpy: pip install numpy"
+            "коррекция применяется глобально."
         )
+        factor = 1.0 + delta / 128.0
         enhancer = ImageEnhance.Brightness(img_gray)
         return enhancer.enhance(factor)
     else:
-        # Без маски — глобальная коррекция (старое поведение)
+        factor = 1.0 + delta / 128.0
         enhancer = ImageEnhance.Brightness(img_gray)
         return enhancer.enhance(factor)
 
 
-def _get_default_for_machine(key: str, machine_type: str | None, fallback=160) -> int | float:
-    """FIX-5: Получить значение по ключу из DEFAULTS для данного machine_type.
+def _compute_bounded_delta(analytics: dict, machine_type: str,
+                           machine_cfg: dict | None = None) -> float:
+    """Этап 3: Двусторонняя bounded delta формула.
 
-    Единственный источник правды — DEFAULTS в config.py.
-    Если machine_type=None или ключ отсутствует — возвращается fallback.
+    if median < target_min: delta = min(target_min - median, max_delta)
+    elif median > target_max: delta = max(target_max - median, -max_delta)
+    else: delta = 0
+
+    max_delta ограничен safety envelope (±15 для face_skin).
+
+    Args:
+        analytics: dict с метриками от analyze_input()
+        machine_type: тип станка
+        machine_cfg: параметры станка
+
+    Returns:
+        float: delta в уровнях (0-255 шкала)
     """
+    default_min = _get_default_for_machine("face_brightness_target_min", machine_type, 180)
+    default_max = _get_default_for_machine("face_brightness_target_max", machine_type, 220)
+    max_delta = 15.0  # safety envelope для face_skin
+
+    target_min = default_min
+    target_max = default_max
+    if machine_cfg:
+        target_min = machine_cfg.get("face_brightness_target_min", default_min)
+        target_max = machine_cfg.get("face_brightness_target_max", default_max)
+
+    median = analytics.get('median_brightness', 128.0)
+
+    if median < target_min:
+        target_delta = min(target_min - median, max_delta)
+    elif median > target_max:
+        target_delta = max(target_max - median, -max_delta)
+    else:
+        target_delta = 0.0
+
+    logger.info(
+        "Bounded delta: machine=%s, median=%.1f, target=[%d,%d], delta=%.1f",
+        machine_type, median, target_min, target_max, target_delta,
+    )
+    return target_delta
+
+
+def _get_default_for_machine(key: str, machine_type: str | None, fallback=160) -> int | float:
+    """FIX-5: Получить значение из DEFAULTS для данного machine_type."""
     if machine_type is None:
         return fallback
     from retouch.config import DEFAULTS as _DEFAULTS
     mc = _DEFAULTS.get("processing", {}).get(machine_type, {})
     return mc.get(key, fallback)
-
-
-def _adaptive_levels_factor(analytics: dict, machine_type: str | None, machine_cfg: dict | None = None) -> float:
-    """P2: Рассчитать адаптивный фактор яркости на основе аналитики.
-
-    ВАЖНО: target_pre_fb рассчитывается как "предварительная" яркость ПЕРЕД
-    Face Brightness Correction. Levels лишь "подтягивает" средние тона,
-    а финальную настройку лица делает check_face_brightness().
-
-    Когда передан machine_cfg:
-    - brightness используется как корректирующий коэффициент (умножается на фактор)
-    - white_ceiling читается из конфига вместо хардкода
-    - target_pre_fb может быть переопределён через конфиг (ключ target_pre_fb)
-
-    FIX-5: Хардкод-словари удалены. Значения берутся из DEFAULTS (config.py).
-
-    Args:
-        analytics: dict с метриками от analyze_input()
-        machine_type: тип станка
-        machine_cfg: dict — параметры станка из config.yaml (опционально)
-
-    Returns:
-        float: множитель яркости
-    """
-    # target_pre_fb — целевая МЕДИАНА grayscale ПОСЛЕ Levels, ПЕРЕД Face Brightness.
-    # FIX-5: Приоритет: machine_cfg > DEFAULTS > fallback
-    default_pre_fb = _get_default_for_machine("target_pre_fb", machine_type, fallback=160)
-    target_pre_fb = default_pre_fb
-    if machine_cfg:
-        target_pre_fb = machine_cfg.get("target_pre_fb", default_pre_fb)
-
-    median = analytics['median_brightness']
-    factor = target_pre_fb / max(median, 1)
-    # FIX #1: единый clamp, brightness убран (заменён на stone_gamma)
-    factor = max(0.50, min(1.50, factor))
-
-    # Защита от клиппинга: не выталкиваем p95 за white_ceiling
-    # FIX-ORD-007: p95 вместо p90 — p90 не ловит горячие пиксели на лбу.
-    # median_brightness теперь считается по лицу (не по субъекту),
-    # поэтому factor адекватный даже при чёрной одежде.
-    # FIX-5: Приоритет: machine_cfg > DEFAULTS > fallback
-    default_ceiling = _get_default_for_machine("white_ceiling", machine_type, fallback=248)
-    white_ceiling = default_ceiling
-    if machine_cfg:
-        white_ceiling = machine_cfg.get("white_ceiling", default_ceiling)
-
-    p95 = analytics.get('p95_brightness', analytics['p90_brightness'])
-    if p95 * factor > white_ceiling:
-        safe_factor = (white_ceiling - 2) / max(p95, 1)
-        # Разрешаем factor < 1.0 для защиты от клиппинга, но ограничиваем
-        # снизу чтобы не затемнять слишком агрессивно. Ранее max(safe_factor, 1.0)
-        # полностью отключало защиту когда safe_factor < 1.0, и пиксели выше
-        # white_ceiling уходили в клиппинг (см. баг #5: p90=252, ceiling=250).
-        # Нижний порог 0.85 позволяет мягко сдержать пересвет, не затемняя
-        # изображение радикально. Жёсткий clamp (pipeline.py: clamp_masked)
-        # обрезает остаточный пересвет в пост-обработке.
-        factor = min(factor, max(safe_factor, 0.85))
-
-    logger.info(
-        "Adaptive levels: machine=%s, median=%.1f, target=%d, factor=%.3f",
-        machine_type, median, target_pre_fb, factor,
-    )
-    return factor

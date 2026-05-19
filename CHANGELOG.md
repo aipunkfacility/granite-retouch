@@ -2,6 +2,40 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.4.0] - 2026-05-20
+
+### Рефакторинг пайплайна (pipeline-refactor-plan)
+
+Модульная архитектура обработки: 5 новых модулей, zone-based метрики, quality gates, bounded delta для levels.
+
+### ✨ Новые модули
+
+- **`zones.py`** — `ZoneMasks`, `build_zone_masks()`, `resolve_zone_priority()` — зональное разделение (face_skin, face_dark, hair, clothes, background) с гарантией дизъюнктности масок
+- **`plan.py`** — `PipelinePlan`, `SafetyEnvelope`, `ValidatedPlan`, `validate_plan()` — структурированный план обработки с лимитами коррекций
+- **`metrics.py`** — `ZoneMetrics`, `StepMetricsRecord`, `compute_zone_metrics()` — метрики по зонам после каждого шага
+- **`rolloff.py`** — `soft_rolloff_masked()` — унифицированный soft knee для highlights, заменяет inline `np.clip`
+- **`gates.py`** — 7 quality gates (3 pre-check, 4 post-check) — `GateResult` с severity и message
+
+### 🔧 Изменения
+
+- **`levels.py` переписан**: `factor` заменён на двустороннюю bounded delta формулу (`delta = target - median`, `factor = 1 + delta/median`)
+- **Shadow floor для laser**: ограничен `face_mask` — не применяется к hair/clothes (fix: ранее применялся ко всему изображению)
+- **`unsharp.py`**: удалён hard clamp до `white_ceiling` (теперь через `soft_rolloff_masked`)
+- **`pipeline.py`**: добавлены поля `profile`, `step_metrics`, `plan`, `validated_plan`, `zone_masks`, `gate_state`
+- **Hair diagnostics**: `hair_mask`, `hair_anomaly`, `hair_ratio` в `PipelineContext` и `PipelineResult` — автоматическое обнаружение аномалий hair-зоны
+- **`export_defaults.py`**: добавлен `--check` режим для CI
+- **`Makefile`**: добавлен `check-defaults-sync` target
+
+### 📚 Документация
+
+- **`pipeline.md`**: обновлены секции Levels, Shadow Floor, White Ceiling, PipelineContext, PipelineResult
+- **Новая секция**: «Новые модули обработки (v6.4)» — описание zones, plan, metrics, rolloff, gates
+
+### 🧪 Тестирование
+
+- 463 passed, 14 pre-existing failures (не связаны с рефакторингом)
+- 81+ новых тестов для модулей zones, plan, metrics, rolloff, gates
+
 ## [6.3.0] - 2026-05-15
 
 ### UI-рефакторинг (audit-ui-v7)

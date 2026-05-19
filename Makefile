@@ -5,7 +5,8 @@ PYTHON ?= uv run python
 RETOUCH := uv run python -m retouch
 
 .PHONY: install install-dev process validate gimp test lint clean \
-        ui-backend ui-frontend ui ui-install ui-force-install ui-build ui-prod
+        ui-backend ui-frontend ui ui-install ui-force-install ui-build ui-prod \
+        check-defaults-sync
 
 # --- Установка ---
 
@@ -29,7 +30,10 @@ gimp: ## GIMP-обработка: make gimp I=input.png O=output.tiff M=impact
 # --- Тесты ---
 
 test:
-        $(PYTHON) -m pytest tests/ -v
+	$(PYTHON) -m pytest tests/ -v
+
+check-defaults-sync: ## Проверить синхронизацию config-defaults.json с DEFAULTS
+	$(PYTHON) scripts/export_defaults.py --check
 
 # --- Очистка ---
 
@@ -80,8 +84,9 @@ help:
         @echo "  make process          — Pillow-обработка (I= M= O=)"
         @echo "  make validate         — валидация изображения (I=)"
         @echo "  make gimp             — GIMP-обработка (I= O= M=)"
-        @echo "  make test             — запустить тесты"
-        @echo "  make clean            — очистить кэш Python"
+	@echo "  make test             — запустить тесты"
+	@echo "  make check-defaults-sync — проверить синхронизацию config-defaults.json"
+	@echo "  make clean            — очистить кэш Python"
         @echo "  make ui               — запустить backend + frontend (dev-режим)"
         @echo "  make ui-backend       — запустить FastAPI backend (dev-режим)"
         @echo "  make ui-frontend      — запустить Vite frontend (dev-режим)"

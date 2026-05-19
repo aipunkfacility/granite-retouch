@@ -132,9 +132,10 @@ useEffect(() => {
 
 **Модуль:** `retouch/processing/levels.py`
 
-Фактор яркости вычисляется из analytics (адаптивный режим):
+Двусторонняя bounded delta формула (рефакторинг v6.4):
 - `target_pre_fb`: laser_standard=210, laser_80w=170, impact=180
-- `factor = target_pre_fb / median_brightness`, ограничен диапазоном [0.70, 1.35]
+- `delta = target_pre_fb - median_brightness`, ограничен `±max_delta`
+- `factor = 1 + delta / median_brightness`, ограничен `[min_factor, max_factor]`
 - Защита от клиппинга: если `p90 * factor > 250` → фактор снижается
 - Без analytics — legacy mode (фиксированный `brightness_factor` из конфига)
 
@@ -189,11 +190,13 @@ useEffect(() => {
 
 Отдельный шаг для impact: `np.maximum(arr, shadow_floor)`. Предотвращает уход теней в 0 — игла застревает на чистом чёрном. Shadow floor — machine-specific логика, вынесена из `_curves_correction()` чтобы не нарушать SRP.
 
-### 8c. White Ceiling Clamp
+Для `laser_standard` и `laser_80w` shadow floor ограничен `face_mask` — применяется только к коже лица, не затрагивая волосы и одежду (v6.4 fix).
 
-**Встроен в:** `retouch/processing/pipeline.py`
+### 8c. White Ceiling Clamp + Soft Rolloff
 
-Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. После shadow_noise и виньетки могут появиться пиксели > white_ceiling — clamp гарантирует что ни один пиксель (кроме зрачков) не превышает потолок.
+**Встроен в:** `retouch/processing/pipeline.py`, `retouch/processing/rolloff.py`
+
+Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — плавное сжатие яркости в зоне highlights. Заменяет hard clamp `np.clip` — сохраняет текстуру в зоне пересвета. Используется в levels и face_correction.
 
 ### 9. Арховая виньетка
 
@@ -252,13 +255,69 @@ Hard clamp: `np.clip(arr, 0, white_ceiling)` перед виньеткой. По
 `PipelineContext` dataclass — внутренняя упаковка параметров пайплайна (только внутри `pipeline.py`). Публичный API функций обработки НЕ меняется — они сохраняют текущие сигнатуры.
 
 Поля:
-- `img_gray`, `subject_mask`, `face_mask`, `hair_mask` — изображения и маски
+- `img_gray`, `img_chromakey`, `subject_mask`, `face_mask`, `hair_mask` — изображения и маски
+- `hair_anomaly`, `hair_ratio` — диагностика hair-зоны (v6.4)
 - `analytics` — ImageAnalytics или dict
 - `machine_type`, `config`, `stone_type`, `stone_heterogeneity`, `step_mm` — параметры конфигурации
 - `face_brightness_before`, `face_brightness_after`, `correction_factor` — диагностические метрики
-- `img_chromakey` — промежуточное RGBA-изображение после хромакея (отклонение от плана: сохранено для preview и диагностики)
+- `warnings`, `debug_dir` — предупреждения и директория отладки
 
-`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`), параметры овала лица (`face_oval` — для передачи preview → export без повторной детекции) и метод `release_intermediates()` для освобождения памяти.
+`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`), параметры овала лица (`face_oval` — для передачи preview → export без повторной детекции), диагностику hair-зоны (`hair_mask`, `hair_anomaly`, `hair_ratio`) и метод `release_intermediates()` для освобождения памяти.
+
+---
+
+## Новые модули обработки (v6.4)
+
+### ZoneMasks
+
+**Модуль:** `retouch/processing/zones.py`
+
+Зональное разделение изображения для дифференцированной обработки:
+- `face_skin` — кожа лица (адаптивный порог по `median_brightness`)
+- `face_dark` — тёмные участки лица (брови, тени)
+- `hair` — волосы (субъект выше овала лица)
+- `clothes` — одежда (субъект ниже овала лица)
+- `background` — фон (вне маски субъекта)
+
+`build_zone_masks()` возвращает `ZoneMasks` dataclass. `resolve_zone_priority()` гарантирует дизъюнктность масок (каждый пиксель принадлежит только одной зоне). `background` явно исключён из priority resolution — не получает тональных коррекций.
+
+### PipelinePlan
+
+**Модуль:** `retouch/processing/plan.py`
+
+Структурированное описание плана обработки:
+- `PipelinePlan` — активные шаги, параметры (skin_delta, glow_size, unsharp_*, stone_gamma, shadow_floor, white_ceiling)
+- `SafetyEnvelope` — лимиты коррекций по зонам: `face_skin ±15`, `face_dark ±5`, `hair ±3`, `clothes 0`
+- `ValidatedPlan` — результат `validate_plan()` с флагами нарушений
+- Профили: `standard` (все шаги), `soft` (без face_correction), `impact` (с shadow_noise)
+
+### ZoneMetrics
+
+**Модуль:** `retouch/processing/metrics.py`
+
+Метрики по зонам после каждого шага обработки:
+- `ZoneMetrics` — median, mean, p10, p90, tonal_range для каждой зоны
+- `StepMetricsRecord` — снимок метрик после конкретного шага пайплайна
+- `compute_zone_metrics()` — вычисление метрик по `ZoneMasks`
+
+### Soft Rolloff
+
+**Модуль:** `retouch/processing/rolloff.py`
+
+Унифицированная функция `soft_rolloff_masked(arr, mask, knee, ceiling, compression)`:
+- Плавное сжатие яркости в зоне highlights (soft knee)
+- Заменяет inline `np.clip` — сохраняет текстуру в зоне пересвета
+- Используется в levels и face_correction
+
+### Quality Gates
+
+**Модуль:** `retouch/processing/gates.py`
+
+7 контрольных точек качества пайплайна:
+- **Pre-check (3):** `gate_chromakey_ratio`, `gate_face_detected`, `gate_analytics_valid`
+- **Post-check (4):** `gate_clipping`, `gate_shadow_crush`, `gate_tonal_range`, `gate_face_brightness`
+
+Каждый gate возвращает `GateResult(pass/fail, severity, message)`. `gate_state` в `PipelineResult` — сводка всех gate'ов.
 
 ---
 

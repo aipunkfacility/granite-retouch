@@ -64,6 +64,8 @@ make ui-prod     # production: один процесс uvicorn, статику �
 | [docs/guides/style-guide-laser-80w.md](docs/guides/style-guide-laser-80w.md) | Стиль генерации для мощных лазеров (60-80W+) |
 | [docs/guides/style-guide-impact.md](docs/guides/style-guide-impact.md) | Стиль ударной генерации |
 | [docs/architecture/pipeline.md](docs/architecture/pipeline.md) | Пайплайн обработки |
+| [docs/zones.md](docs/zones.md) | Зональное разделение (ZoneMasks) |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Расшифровка diagnostics warnings |
 | [docs/integration/crm.md](docs/integration/crm.md) | Интеграция с granite-crm |
 
 ## Агентная архитектура
@@ -84,6 +86,10 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - **Детекция лица:** трёхуровневая стратегия (профиль ширины маски → ручной овал → mediapipe в будущем)
 - **PipelineContext:** внутренняя упаковка параметров для уменьшения связности между шагами пайплайна
 - **Антиалиасный контур:** векторная трассировка через OpenCV (`cv2.LINE_AA`) — гладкий контур хромакея без лесенки на диагоналях. Без cv2 — fallback на GaussianBlur
+- **ZoneMasks:** автоматическое зональное разделение (face_skin, face_dark, hair, clothes, highlights) — коррекция применяется только к нужным зонам
+- **Processing profiles:** `standard` (полная обработка), `preserve` (минимальное вмешательство), `diagnostic` (расширенный сбор метрик)
+- **Quality gates:** 7 контрольных точек (3 pre-check, 4 post-check) — автоматическое ослабление агрессивных шагов
+- **Step metrics:** метрики по зонам после каждого шага — видно какой шаг ухудшил результат
 
 ## Known Limitations
 

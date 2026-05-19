@@ -84,3 +84,67 @@ class TestPipelineMemory:
         config = DEFAULTS.copy()
         # Должно пройти — max_resolution=4096 в DEFAULTS
         assert validate_image_input(str(path), config) is True
+
+
+class TestZoneMasksMemory8K:
+    """Проверка что ZoneMasks на 8K не превышает budget.
+
+    План: 800 MB для 7680×4320 single-pass.
+    Каждая uint8 маска: 7680×4320 = 33.2 MB.
+    9 масок = ~300 MB + grayscale + рабочие массивы.
+    Реальный пик ~1 GB из-за промежуточных numpy операций.
+    """
+
+    def test_zone_masks_memory_8k(self):
+        """ZoneMasks на 8K (7680×4320) — пик < 1200 MB."""
+        import gc
+        import tracemalloc
+
+        from retouch.processing.zones import build_zone_masks
+
+        gc.collect()
+        tracemalloc.stop()
+
+        # Создаём synthetic masks для 8K
+        width, height = 7680, 4320
+
+        # Subject mask — эллипс в центре
+        subj_arr = np.zeros((height, width), dtype=np.uint8)
+        cy, cx = height // 2, width // 2
+        ry, rx = height // 3, width // 4
+        y_idx, x_idx = np.ogrid[:height, :width]
+        ellipse = ((x_idx - cx) / rx) ** 2 + ((y_idx - cy) / ry) ** 2 <= 1.0
+        subj_arr[ellipse] = 255
+        subject_mask = Image.fromarray(subj_arr, mode='L')
+
+        # Face mask — эллипс поменьше
+        face_arr = np.zeros((height, width), dtype=np.uint8)
+        fy, fx = height // 2 - 100, width // 2
+        fry, frx = height // 6, width // 8
+        face_ellipse = ((x_idx - fx) / frx) ** 2 + ((y_idx - fy) / fry) ** 2 <= 1.0
+        face_arr[face_ellipse] = 255
+        face_mask = Image.fromarray(face_arr, mode='L')
+
+        # Grayscale — synthetic
+        gray_arr = np.full((height, width), 150, dtype=np.uint8)
+        img_gray = Image.fromarray(gray_arr, mode='L')
+
+        tracemalloc.start()
+        try:
+            zones = build_zone_masks(subject_mask, face_mask, img_gray)
+            _, peak = tracemalloc.get_traced_memory()
+            # Save zone sums before deletion
+            face_skin_sum = np.sum(zones.face_skin)
+            clothes_sum = np.sum(zones.clothes)
+        finally:
+            tracemalloc.stop()
+            gc.collect()
+
+        peak_mb = peak / 1e6
+        assert peak < 1_200_000_000, (
+            f"ZoneMasks на 8K аномально высокое: {peak_mb:.1f} MB (порог 1200 MB)"
+        )
+
+        # Verify zones are not empty
+        assert face_skin_sum > 0, "face_skin mask is empty"
+        assert clothes_sum > 0, "clothes mask is empty"

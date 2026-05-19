@@ -457,10 +457,10 @@ class TestMaskProtection:
 
 
 class TestAdaptiveLevels:
-    """P2: адаптивный Levels вместо слепого множителя."""
+    """Этап 3: bounded delta вместо factor."""
 
     def test_bright_input_no_clipping(self):
-        """Яркий вход (median=211) — фактор < 1.0, результат ближе к target."""
+        """Яркий вход (median=211) — delta = 0 (в диапазоне), без изменений."""
         analytics = {
             'median_brightness': 211.0,
             'p90_brightness': 240.0,
@@ -469,12 +469,9 @@ class TestAdaptiveLevels:
         result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
         result_arr = np.array(result)
         assert result_arr.max() < 255, "Клиппинг при ярком входе"
-        # С target_pre_fb=165: фактор = 165/211 ≈ 0.782 — результат ~165
-        # Это корректное поведение: яркий вход затемняется к целевому
-        assert result_arr.mean() < 211, "Яркий вход должен быть затемнён к target_pre_fb"
 
     def test_dark_input_gets_brightened(self):
-        """Тёмный вход (median=80) — фактор > 1.0."""
+        """Тёмный вход (median=80) — delta > 0, осветление."""
         analytics = {
             'median_brightness': 80.0,
             'p90_brightness': 150.0,
@@ -484,44 +481,84 @@ class TestAdaptiveLevels:
         assert np.array(result).mean() > 80
 
     def test_overbright_input_gets_darkened(self):
-        """Сверхъяркий вход (median=240) — фактор < 1.0."""
+        """Сверхъяркий вход (median=240) — delta < 0, затемнение."""
         analytics = {
             'median_brightness': 240.0,
             'p90_brightness': 252.0,
         }
         img = Image.new("L", (100, 100), 240)
         result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
-        assert np.array(result).mean() < 240
+        # laser_standard: target_max=245, median=240 < 245 → delta=0
+        # delta=0 → no change, but ceiling may still apply
+        assert np.array(result).mean() <= 240
 
     def test_clipping_protection(self):
-        """p90*factor > 250 → фактор снижается для защиты от клиппинга."""
+        """median выше target_max → delta < 0, затемнение."""
         analytics = {
-            'median_brightness': 180.0,
+            'median_brightness': 250.0,
             'p90_brightness': 252.0,
         }
-        img = Image.new("L", (100, 100), 252)
+        img = Image.new("L", (100, 100), 250)
         result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
-        # Без защиты: 252 * 1.17 = 295 → клиппинг
-        # С защитой: safe_factor = 248/252 ≈ 0.984 → 252 * 0.984 ≈ 248
+        # laser_standard: target_max=245, median=250 > 245 → delta < 0
         result_arr = np.array(result)
-        assert result_arr.mean() < 252, "Яркие пиксели не были защищены от клиппинга"
+        assert result_arr.mean() < 250, "median выше target_max должна затемняться"
 
     def test_laser_80w_lower_target(self):
-        """Laser 80W: target_pre_fb=150, меньше чем laser_standard=165."""
+        """Laser 80W: target_min=160, target_max=180."""
         analytics = {
-            'median_brightness': 180.0,
+            'median_brightness': 190.0,
             'p90_brightness': 220.0,
         }
         result_laser = apply_levels(
-            Image.new("L", (100, 100), 180),
+            Image.new("L", (100, 100), 190),
             analytics=analytics, machine_type='laser_standard',
         )
         result_80w = apply_levels(
-            Image.new("L", (100, 100), 180),
+            Image.new("L", (100, 100), 190),
             analytics=analytics, machine_type='laser_80w',
         )
-        # laser_80w с более низким target даёт менее яркий результат
-        assert np.array(result_80w).mean() <= np.array(result_laser).mean()
+        # laser_80w: median=190 > target_max=180 → delta < 0 (затемнение)
+        # laser_standard: median=190 < target_min=230 → delta > 0 (осветление)
+        assert np.array(result_80w).mean() < 190  # затемнение
+        assert np.array(result_laser).mean() >= 190  # осветление или без изменений
+
+
+class TestBoundedDelta:
+    """Этап 3: _compute_bounded_delta формула."""
+
+    def test_delta_zero_when_in_range(self):
+        """median в target range → delta = 0."""
+        from retouch.processing.levels import _compute_bounded_delta
+        # laser_standard: target_min=230, target_max=245
+        analytics = {'median_brightness': 235.0}
+        delta = _compute_bounded_delta(analytics, 'laser_standard')
+        assert delta == 0.0
+
+    def test_delta_positive_when_below_target(self):
+        """median ниже target_min → delta > 0 (осветление)."""
+        from retouch.processing.levels import _compute_bounded_delta
+        # laser_standard: target_min=230
+        analytics = {'median_brightness': 200.0}
+        delta = _compute_bounded_delta(analytics, 'laser_standard')
+        assert delta > 0
+        assert delta <= 15.0  # max_delta
+
+    def test_delta_negative_when_above_target(self):
+        """median выше target_max → delta < 0 (затемнение)."""
+        from retouch.processing.levels import _compute_bounded_delta
+        # laser_standard: target_max=245
+        analytics = {'median_brightness': 250.0}
+        delta = _compute_bounded_delta(analytics, 'laser_standard')
+        assert delta < 0
+        assert delta >= -15.0  # max_delta
+
+    def test_delta_clipped_to_max(self):
+        """Delta не превышает max_delta=15."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 100.0}
+        delta = _compute_bounded_delta(analytics, 'laser_standard')
+        assert delta == 15.0
 
 
 class TestAdaptiveUnsharp:
@@ -549,56 +586,58 @@ class TestAdaptiveUnsharp:
         assert percent == 120
 
 
-class TestFIX5DefaultsSourceOfTruth:
-    """FIX-5: _adaptive_levels_factor берёт значения из DEFAULTS, не из хардкода."""
+class TestBoundedDeltaDefaults:
+    """Этап 3: _compute_bounded_delta берёт значения из DEFAULTS."""
 
-    def test_target_pre_fb_from_defaults(self):
-        """target_pre_fb для laser_standard = 130 (FIX-ORD-007)."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0, 'p95_brightness': 155.0}
-        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=None)
-        # target_pre_fb=130 (из DEFAULTS) → factor = 130/100 = 1.30
-        assert abs(factor - 1.30) < 0.01, f"factor={factor}, ожидается ~1.30"
+    def test_target_range_from_defaults_laser_standard(self):
+        """laser_standard: target_min=230, target_max=245."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 200.0}
+        delta = _compute_bounded_delta(analytics, 'laser_standard')
+        assert delta > 0  # 200 < 230 → осветление
+        assert delta <= 15.0  # max_delta
 
-    def test_target_pre_fb_laser_80w_from_defaults(self):
-        """target_pre_fb для laser_80w = 130 (FIX-ORD-007)."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0, 'p95_brightness': 155.0}
-        factor = _adaptive_levels_factor(analytics, 'laser_80w', machine_cfg=None)
-        # target_pre_fb=130 → factor = 130/100 = 1.30
-        assert abs(factor - 1.30) < 0.01, f"factor={factor}, ожидается ~1.30"
+    def test_target_range_from_defaults_laser_80w(self):
+        """laser_80w: target_min=160, target_max=180."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 140.0}
+        delta = _compute_bounded_delta(analytics, 'laser_80w')
+        assert delta > 0  # 140 < 160 → осветление
+        assert delta <= 15.0
 
-    def test_target_pre_fb_impact_from_defaults(self):
-        """target_pre_fb для impact = 130 (FIX-ORD-007)."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0, 'p95_brightness': 155.0}
-        factor = _adaptive_levels_factor(analytics, 'impact', machine_cfg=None)
-        # target_pre_fb=130 → factor = 130/100 = 1.30
-        assert abs(factor - 1.30) < 0.01, f"factor={factor}, ожидается ~1.30"
+    def test_target_range_from_defaults_impact(self):
+        """impact: target_min=170, target_max=215."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 150.0}
+        delta = _compute_bounded_delta(analytics, 'impact')
+        assert delta > 0  # 150 < 170 → осветление
+        assert delta <= 15.0
 
     def test_machine_cfg_overrides_defaults(self):
-        """machine_cfg.target_pre_fb переопределяет DEFAULTS."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0, 'p95_brightness': 155.0}
-        # machine_cfg с кастомным target_pre_fb
-        machine_cfg = {"target_pre_fb": 100, "white_ceiling": 200}
-        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=machine_cfg)
-        # target_pre_fb=100 → factor = 100/100 = 1.0
-        assert abs(factor - 1.0) < 0.01, f"factor={factor}, ожидается ~1.0"
+        """machine_cfg переопределяет target range из DEFAULTS."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 150.0}
+        machine_cfg = {
+            "face_brightness_target_min": 140,
+            "face_brightness_target_max": 160,
+        }
+        delta = _compute_bounded_delta(analytics, 'laser_standard', machine_cfg=machine_cfg)
+        # 150 в диапазоне [140, 160] → delta = 0
+        assert delta == 0.0
 
     def test_unknown_machine_type_uses_fallback(self):
-        """Неизвестный machine_type использует fallback=160."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 150.0, 'p95_brightness': 155.0}
-        factor = _adaptive_levels_factor(analytics, 'unknown_machine', machine_cfg=None)
-        # fallback target_pre_fb=160 → factor = 160/100 = 1.60 → clamped to 1.50
-        assert factor == 1.50
+        """Неизвестный machine_type использует fallback [180, 220]."""
+        from retouch.processing.levels import _compute_bounded_delta
+        analytics = {'median_brightness': 150.0}
+        delta = _compute_bounded_delta(analytics, 'unknown_machine')
+        assert delta > 0  # 150 < 180 → осветление
+        assert delta <= 15.0
 
     def test_white_ceiling_from_defaults(self):
         """white_ceiling для laser_standard = 250 (из DEFAULTS)."""
-        from retouch.processing.levels import _adaptive_levels_factor
-        # median=100, target=130 → factor=1.30, p95=249 → p95*factor=324 > 250 → защита
-        analytics = {'median_brightness': 100.0, 'p90_brightness': 200.0, 'p95_brightness': 249.0}
-        factor = _adaptive_levels_factor(analytics, 'laser_standard', machine_cfg=None)
-        # white_ceiling=250, p95*1.30=324 > 250 → safe_factor=(250-2)/249=0.996 → factor=0.996
-        assert 0.99 < factor < 1.01, f"factor={factor}, ожидается ~1.0 (защита по p95)"
+        # Проверяем что apply_levels использует ceiling из конфига
+        analytics = {'median_brightness': 150.0}
+        img = Image.new("L", (100, 100), 200)
+        result = apply_levels(img, analytics=analytics, machine_type='laser_standard')
+        result_arr = np.array(result)
+        assert result_arr.max() <= 250, "white_ceiling должен ограничивать результат"

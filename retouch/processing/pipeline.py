@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,11 +22,35 @@ from retouch.processing.levels import apply_levels
 from retouch.processing.unsharp import apply_unsharp_mask
 from retouch.processing.face_correction import check_face_brightness
 from retouch.processing.shadow_noise import add_shadow_noise
-from retouch.processing.face_region import detect_face_oval, generate_face_mask
+from retouch.processing.face_region import detect_face_oval, generate_face_mask, generate_hair_mask
 from retouch.processing.export import export_result
 from retouch.processing.vignette import apply_vignette
 from retouch.processing.mask_utils import clamp_masked
 from retouch.processing.gamma import apply_stone_gamma_masked
+from retouch.processing.zones import build_zone_masks, ZoneMasks
+from retouch.processing.plan import (
+    PipelinePlan,
+    ValidatedPlan,
+    SafetyEnvelope,
+    validate_plan,
+    PROFILE_STANDARD,
+    PROFILE_PRESERVE,
+    PROFILE_DIAGNOSTIC,
+)
+from retouch.processing.metrics import compute_zone_metrics, make_step_record, StepMetricsRecord
+from retouch.processing.rolloff import soft_rolloff_masked
+from retouch.processing.gates import (
+    GateState,
+    pre_check_face_dark_small,
+    pre_check_contour_inner_quality,
+    post_check_variance_loss,
+    post_check_clipped_pct,
+    post_check_p95_shift,
+    post_check_shadow_crush,
+)
+
+# Pre-computed step order for post-check gates
+_POST_CHECK_STEPS = ["glow", "levels", "face_correction", "unsharp", "postproc"]
 
 import numpy as np
 
@@ -53,6 +78,9 @@ class PipelineContext:
     img_chromakey: Image.Image | None = None
     subject_mask: Image.Image | None = None
     face_mask: Image.Image | None = None
+    hair_mask: Image.Image | None = None
+    hair_anomaly: bool = False
+    hair_ratio: float = 0.0
     face_oval: dict[str, float] | None = None
     analytics: dict | None = None
     machine_type: str = "laser_standard"
@@ -86,6 +114,7 @@ class PipelineResult:
     arch_mask: Image.Image | None           # Маска виньетки (L)
     subject_mask: Image.Image | None        # Маска субъекта (L)
     face_mask: Image.Image | None           # Маска лица (L) — из face_region
+    hair_mask: Image.Image | None           # Маска волос (L) — approximate
 
     # Диагностика
     glow_size: int
@@ -106,6 +135,19 @@ class PipelineResult:
     quality_warnings: list[str] = field(default_factory=list)
     # AUDIT-3.1: Параметры овала лица для передачи preview → export
     face_oval: dict | None = None
+    # Step metrics: метрики после каждого шага
+    step_metrics: list[StepMetricsRecord] = field(default_factory=list)
+    # Pipeline plan: план обработки
+    plan: PipelinePlan | None = None
+    # Validated plan: валидированный план
+    validated_plan: ValidatedPlan | None = None
+    # Zone masks: зональные маски
+    zone_masks: ZoneMasks | None = None
+    # Hair diagnostics
+    hair_anomaly: bool = False
+    hair_ratio: float = 0.0
+    # Gate state: состояние quality gates
+    gate_state: GateState | None = None
 
     def release_intermediates(self):
         """Освободить память от промежуточных изображений.
@@ -231,6 +273,7 @@ def process_steps(
     keep_intermediates: bool = True,
     input_image: Image.Image | None = None,
     debug_dir: str | None = None,
+    profile: str = PROFILE_STANDARD,
 ) -> PipelineResult:
     """Полный пайплайн с доступом к каждому шагу.
 
@@ -256,6 +299,8 @@ def process_steps(
         input_image: PIL.Image — входное изображение напрямую (без disk I/O).
             При передаче input_path игнорируется. Если оба None — ошибка.
             Изображение конвертируется в RGBA внутри функции.
+        debug_dir: директория для отладочных масок
+        profile: профиль обработки — preserve/standard/diagnostic
 
     Raises:
         FileNotFoundError: input_path не существует
@@ -327,6 +372,28 @@ def process_steps(
     # 2b. Генерация маски лица из овала (C.2)
     face_mask = generate_face_mask(width, height, face_oval, subject_mask)
 
+    # 2d. Генерация маски волос (Этап 0: hair_mask в diagnostics)
+    hair_mask = generate_hair_mask(face_mask, subject_mask)
+    hair_mask_arr = np.array(hair_mask) > 128
+    hair_area = int(np.sum(hair_mask_arr))
+    subject_area = int(np.sum(np.array(subject_mask) > 128))
+    hair_ratio = hair_area / max(subject_area, 1)
+
+    # Anomaly detection: hair-зона подозрительно велика или мала
+    hair_anomaly = False
+    hair_anomaly_reason = ""
+    if subject_area > 0:
+        if hair_ratio > 0.50:
+            hair_anomaly = True
+            hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} > 0.50 (подозрительно велика)"
+        elif hair_ratio < 0.02 and hair_area > 0:
+            hair_anomaly = True
+            hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} < 0.02 (подозрительно мала)"
+
+    if hair_anomaly:
+        ctx.warnings.append(f"hair_mask anomaly: {hair_anomaly_reason}")
+        logger.warning("Hair mask anomaly: %s", hair_anomaly_reason)
+
     # 2c. Преданализ — метрики по лицу (не по субъекту с одеждой)
     analytics = analyze_input(img_gray, np.array(subject_mask), np.array(face_mask))
 
@@ -337,6 +404,9 @@ def process_steps(
         img_gray=img_gray,
         subject_mask=subject_mask,
         face_mask=face_mask,
+        hair_mask=hair_mask,
+        hair_anomaly=hair_anomaly,
+        hair_ratio=hair_ratio,
         face_oval=face_oval,
         analytics=analytics,
         machine_type=machine_type,
@@ -362,6 +432,7 @@ def process_steps(
         glow_opacity_override=glow_opacity_override,
         no_validate=no_validate,
         blue_ratio=blue_ratio,
+        profile=profile,
     )
 
     # Сохраняем промежуточные для отладки (до release_intermediates)
@@ -390,14 +461,113 @@ def _run_pipeline_steps(
     glow_opacity_override: float | None = None,
     no_validate: bool = False,
     blue_ratio: float = 0.0,
+    profile: str = PROFILE_STANDARD,
 ) -> PipelineResult:
     """B.1: Выполнение шагов пайплайна с использованием PipelineContext.
 
     Все параметры извлекаются из ctx, а не пробрасываются отдельно.
     Публичный API функций обработки НЕ меняется — ctx только упаковка.
+
+    Интеграция новых модулей:
+    - PipelinePlan: план обработки из профиля
+    - ValidatedPlan: валидация параметров
+    - ZoneMasks: зональные маски
+    - Step metrics: метрики после каждого шага
+    - Quality gates: pre/post-check
+    - soft_rolloff_masked: единый ceiling helper
     """
     width = ctx.img_gray.width
     height = ctx.img_gray.height
+
+    # PipelinePlan + ValidatedPlan
+    plan = PipelinePlan.from_profile(profile, ctx.machine_cfg)
+    envelope = SafetyEnvelope.from_config(ctx.config)
+    validated = validate_plan(plan, profile, ctx.machine_cfg, envelope=envelope)
+
+    # Gate state
+    gate_state = GateState()
+
+    # Step metrics
+    step_metrics: list[StepMetricsRecord] = []
+    _pipeline_start_ms = int(time.monotonic() * 1000)
+
+    # ZoneMasks (если профиль не preserve)
+    zone_masks: ZoneMasks | None = None
+    if "levels" in validated.plan.active_steps or "face_correction" in validated.plan.active_steps:
+        try:
+            zone_masks = build_zone_masks(
+                subject_mask=ctx.subject_mask,
+                face_mask=ctx.face_mask,
+                img_gray=ctx.img_gray,
+                skin_threshold=ctx.machine_cfg.get("face_skin_threshold", 100),
+                highlight_threshold=ctx.machine_cfg.get("highlight_start", 200),
+            )
+            # Pre-check gates
+            if zone_masks:
+                face_dark_area = int(np.sum(zone_masks.face_dark))
+                face_area = int(np.sum(zone_masks.face))
+                gate = pre_check_face_dark_small(face_dark_area, face_area)
+                gate_state.results.append(gate)
+
+                contour_area = int(np.sum(zone_masks.contour_inner))
+                subject_area = int(np.sum(zone_masks.subject))
+                gate = pre_check_contour_inner_quality(contour_area, subject_area)
+                gate_state.results.append(gate)
+        except ValueError:
+            # face_mask не построен — пропускаем зоны
+            logger.warning("ZoneMasks не построены: face_mask unavailable")
+
+    def _record_step(step_name: str, img: Image.Image | None):
+        """Записать метрики шага в step_metrics + post-check gates."""
+        nonlocal step_metrics, zone_masks
+        if img is None or zone_masks is None:
+            return
+        arr = np.array(img, dtype=np.float32)
+        masks_dict = {
+            "face_skin": zone_masks.face_skin,
+            "face_dark": zone_masks.face_dark,
+            "hair": zone_masks.hair,
+            "clothes": zone_masks.clothes,
+            "highlights": zone_masks.highlights,
+        }
+        wc = ctx.machine_cfg.get("white_ceiling", 250)
+        zm = compute_zone_metrics(arr, masks_dict, white_ceiling=wc)
+
+        # Post-check gates
+        warnings = []
+        if len(step_metrics) > 0:
+            prev = step_metrics[-1]
+            fs_prev = prev.zone_metrics.get("face_skin")
+            fs_curr = zm.get("face_skin")
+
+            if fs_prev and fs_curr:
+                # Variance loss
+                gate = post_check_variance_loss(
+                    fs_prev.variance, fs_curr.variance, step_name=step_name,
+                )
+                if gate.triggered:
+                    gate_state.results.append(gate)
+                    warnings.append(gate.reason)
+
+                # P95 shift
+                gate = post_check_p95_shift(
+                    fs_prev.p95, fs_curr.p95, step_name=step_name,
+                )
+                if gate.triggered:
+                    gate_state.results.append(gate)
+                    warnings.append(gate.reason)
+
+            # Clipped pct (always check)
+            subj_clipped = zm.get("face_skin")
+            if subj_clipped and subj_clipped.clipped_pct > 0:
+                gate = post_check_clipped_pct(
+                    subj_clipped.clipped_pct, step_name=step_name,
+                )
+                if gate.triggered:
+                    gate_state.results.append(gate)
+                    warnings.append(gate.reason)
+
+        step_metrics.append(make_step_record(step_name, zm, warnings))
 
     # 3. Glow
     img_glow, glow_size, glow_opacity = apply_glow(
@@ -407,16 +577,21 @@ def _run_pipeline_steps(
         analytics=ctx.analytics,
         machine_type=ctx.machine_type,
     )
+    _record_step("glow", img_glow)
 
     # Определяем порядок шагов (A.3)
     legacy_order = proc_cfg.get("legacy_step_order", False)
 
     # 4. Levels
+    face_skin_mask_for_levels = None
+    if zone_masks is not None:
+        face_skin_mask_for_levels = zone_masks.face_skin
     img_leveled = apply_levels(
         img_glow, analytics=ctx.analytics,
         machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
-        machine_cfg=ctx.machine_cfg,
+        machine_cfg=ctx.machine_cfg, face_skin_mask=face_skin_mask_for_levels,
     )
+    _record_step("levels", img_leveled)
 
     if legacy_order:
         # СТАРЫЙ порядок (до A.3): unsharp ДО face_brightness
@@ -425,19 +600,47 @@ def _run_pipeline_steps(
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
             white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
         )
+        _record_step("unsharp", img_temp)
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
+        _record_step("face_correction", img_face_corrected)
         img_postproc = img_face_corrected  # В legacy-порядке unsharp уже применён
     else:
         # НОВЫЙ порядок (A.3): face_brightness ПЕРЕД unsharp
         img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
             img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
         )
+        _record_step("face_correction", img_face_corrected)
         img_postproc = apply_unsharp_mask(
             img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
             white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
+        )
+        _record_step("unsharp", img_postproc)
+
+    # Gates enforcement перед postproc: если сработали gates, ослабляем параметры
+    triggered = {g.gate_name: g for g in gate_state.triggered_gates}
+    if "variance_loss" in triggered and stone_gamma is not None and stone_gamma != 1.0:
+        original_gamma = stone_gamma
+        stone_gamma = 1.0 + (stone_gamma - 1.0) * 0.5
+        logger.info(
+            "Gates enforcement: variance_loss triggered, stone_gamma %.2f → %.2f",
+            original_gamma, stone_gamma,
+        )
+        ctx.warnings.append(
+            f"stone_gamma weakened: {original_gamma:.2f} → {stone_gamma:.2f} (variance_loss gate)"
+        )
+
+    if "clipped_pct" in triggered:
+        orig_compression = compression
+        compression = min(orig_compression * 1.2, 0.80)
+        logger.info(
+            "Gates enforcement: clipped_pct triggered, compression %.2f → %.2f",
+            orig_compression, compression,
+        )
+        ctx.warnings.append(
+            f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
         )
 
     # Сохраняем результаты в контекст
@@ -468,6 +671,7 @@ def _run_pipeline_steps(
     # Было 3× PIL→numpy→PIL (3 аллокации), стало 1× PIL→numpy→PIL.
     stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
     white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
+    compression = ctx.machine_cfg.get("rolloff_compression", 0.35)
 
     needs_numpy = (
         (shadow_floor > 0) or
@@ -480,9 +684,28 @@ def _run_pipeline_steps(
         mask_bool = np.array(ctx.subject_mask) > 128
 
         # Shadow floor
+        # Этап 0: для laser — только в face_mask, не в hair/clothes
+        # impact — по всей subject_mask (needle floor)
         if shadow_floor > 0:
-            arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor, mask_bool=mask_bool)
-            logger.info("Shadow floor applied: %d (%s)", shadow_floor, ctx.machine_type)
+            if ctx.machine_type == "impact":
+                arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor, mask_bool=mask_bool)
+                logger.info("Shadow floor applied: %d (impact, full subject)", shadow_floor)
+            else:
+                # laser_standard, laser_80w — только в зоне лица
+                if ctx.face_mask is not None:
+                    face_mask_bool = np.array(ctx.face_mask) > 128
+                    floor_mask = mask_bool & face_mask_bool
+                    if floor_mask.any():
+                        arr[floor_mask] = np.maximum(arr[floor_mask], float(shadow_floor))
+                        logger.info(
+                            "Shadow floor applied: %d (laser, face_mask only, %d px)",
+                            shadow_floor, int(floor_mask.sum()),
+                        )
+                    else:
+                        logger.info("Shadow floor skipped: no face_mask overlap")
+                else:
+                    # Fallback: без face_mask не применяем floor для laser
+                    logger.warning("Shadow floor skipped for laser: face_mask unavailable")
 
         # Stone gamma (SOP 5.1)
         if stone_gamma is not None and stone_gamma != 1.0:
@@ -490,20 +713,19 @@ def _run_pipeline_steps(
             logger.info("Stone gamma applied: %.2f", stone_gamma)
 
         # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
-        # v6: soft knee вместо clamp_masked (hard-clip даёт плато)
+        # v6: soft_rolloff_masked вместо inline knee (единый helper)
         if white_ceiling is not None:
             knee = white_ceiling * 0.90
-            over = arr[mask_bool] > knee
-            if over.any():
-                excess = arr[mask_bool][over] - knee
-                arr[mask_bool][over] = knee + excess * 0.35
-            arr[mask_bool] = np.clip(arr[mask_bool], 0, float(white_ceiling))
-            logger.info("White ceiling knee (post-gamma): %d", white_ceiling)
+            subj_mask_arr = np.array(ctx.subject_mask, dtype=np.uint8)
+            arr = soft_rolloff_masked(arr, subj_mask_arr, knee, float(white_ceiling), compression)
+            logger.info("White ceiling rolloff (post-gamma): %d, compression=%.2f", white_ceiling, compression)
             # Per-region face clamp удалён (v4—v5): создавал серое плато
             # по границе маски лица на всех трёх типах станка.
             # Защита от пересвета: levels→white_ceiling + face_correction→target_ceiling.
 
         img_postproc = Image.fromarray(arr.astype(np.uint8))
+
+    _record_step("postproc", img_postproc)
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
@@ -538,6 +760,9 @@ def _run_pipeline_steps(
         arch_mask=arch_mask,
         subject_mask=ctx.subject_mask,
         face_mask=ctx.face_mask,
+        hair_mask=ctx.hair_mask,
+        hair_anomaly=ctx.hair_anomaly,
+        hair_ratio=ctx.hair_ratio,
         glow_size=glow_size,
         glow_opacity=glow_opacity,
         face_brightness_before=face_before,
@@ -554,6 +779,11 @@ def _run_pipeline_steps(
         tonal_range_output=quality["tonal_range_output"],
         quality_warnings=quality["quality_warnings"],
         face_oval=ctx.face_oval,
+        step_metrics=step_metrics,
+        plan=validated.plan,
+        validated_plan=validated,
+        zone_masks=zone_masks,
+        gate_state=gate_state,
     )
 
 
@@ -665,6 +895,7 @@ def process_export(
     overwrite: bool = True,
     no_validate: bool = False,
     debug_dir: str | None = None,
+    face_oval: dict | None = None,
     **kwargs,
 ) -> PipelineResult:
     """Полная обработка + сохранение BMP/PNG.
@@ -704,6 +935,7 @@ def process_export(
         config=config,
         no_validate=no_validate,
         debug_dir=debug_dir,
+        face_oval=face_oval,
         **kwargs,
     )
 
