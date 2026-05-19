@@ -143,6 +143,9 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     edge_img = Image.fromarray(edge.astype(np.uint8) * 255)
     edge_blurred = edge_img.filter(ImageFilter.GaussianBlur(glow_size / 2))  # BE-L4: float
 
+    # Mask edge blur by subject mask to prevent background leak
+    edge_blurred = Image.composite(edge_blurred, Image.new('L', img_gray.size, 0), subject_mask)
+
     # Composite: белый через размытый край поверх оригинала
     glow_layer = Image.new("L", img_gray.size, glow_color)
     result = Image.composite(glow_layer, img_gray, edge_blurred)

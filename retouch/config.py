@@ -143,26 +143,26 @@ DEFAULTS = {
             "highlight_start": 195,
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "export_mode": "8bit",  # 8-bit grayscale — Engrave модулирует мощность по яркости
-            "step_mm": 0.250,  # по мануалу САУНО: 0.125–0.250 мм для лазера
+            "step_mm": 0.250,  # по мануалу САУНО: 0.125?0.250 мм для лазера
             "dither_method_1bit": "jarvis",  # метод дизеринга если оператор переключит на 1bit
         },
         "impact": {
             "glow_size_min": 10, "glow_size_max": 25,
             "glow_opacity_min": 60, "glow_opacity_max": 80,
-            "glow_style": "outer",
-            "stone_gamma": 0.90,  # FIX #8: SOP 5.1
-            "unsharp_threshold": 2,  # FIX #11: SOP 3.1
+            "glow_style": "inner",
+            "stone_gamma": 0.88,  # эталон: P25=168, gamma компенсирует lower target
+            "unsharp_threshold": 1,  # эталон: gradient P99=43.5, порог 1 для структурной резкости
             "target_pre_fb": 160,
-            "face_brightness_target_min": 200,
-            "face_brightness_target_max": 225,
-            "white_ceiling": 240,
+            "face_brightness_target_min": 170,  # эталон: P25=168
+            "face_brightness_target_max": 215,  # эталон: P95=217
+            "white_ceiling": 245,  # эталон: max лица=244
             "face_region_top": 0.45,
-            "highlight_start": 200,
+            "highlight_start": 185,  # эталон: лоб=192
             "face_skin_threshold": 100,  # порог кожи: волосы < 100, кожа >= 100
             "shadow_noise_min": 5,
-            "shadow_noise_max": 15,
+            "shadow_noise_max": 15,  # эталон: больше текстуры в тенях
             "shadow_noise_threshold": 30,  # A.1: порог для shadow noise
-            "shadow_floor": 8,  # A.2: минимальная яркость для impact
+            "shadow_floor": 2,  # эталон: тени глазниц=2-5
             "export_mode": "8bit",  # 8-bit grayscale — 256 уровней силы удара
             "step_mm": 0.300,  # шаг ЧПУ для impact
             "dither_method_1bit": "stucki",  # метод дизеринга если оператор переключит на 1bit
@@ -177,7 +177,6 @@ DEFAULTS = {
         "heterogeneity": None,  # None = auto по material → MATERIAL_PROFILES
     },
     "vignette": {
-        "enabled": True,
         "vertical_offset": 0.10,  # FIX #3: восстановлено (было 0.30)
         "vertical_diameter": 0.55,
         "blur_radius": 60,
@@ -409,10 +408,10 @@ try:
             export_mode="8bit", step_mm=0.250, dither_method_1bit="jarvis"))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=10, glow_size_max=25, glow_opacity_min=60, glow_opacity_max=80,
-            glow_style="outer", stone_gamma=0.90, unsharp_threshold=2, target_pre_fb=160,
-            face_brightness_target_min=200, face_brightness_target_max=225,
-            white_ceiling=240, highlight_start=200,
-            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=8, dither_method="none",
+            glow_style="inner", stone_gamma=0.88, unsharp_threshold=1, target_pre_fb=160,
+            face_brightness_target_min=170, face_brightness_target_max=215,
+            white_ceiling=245, highlight_start=185,
+            shadow_noise_min=5, shadow_noise_max=15, shadow_floor=2, dither_method="none",
             export_mode="8bit", step_mm=0.300, dither_method_1bit="stucki"))
 
     class MachineGlobalConfig(BaseModel):
@@ -433,7 +432,6 @@ try:
             return self
 
     class VignetteConfig(BaseModel):
-        enabled: bool = True
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
         vertical_diameter: float = Field(0.50, ge=0.2, le=0.8)
         blur_radius: int = Field(60, ge=10, le=120)
