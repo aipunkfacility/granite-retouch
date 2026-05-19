@@ -2,8 +2,92 @@
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from retouch.processing.plan import PipelinePlan, SafetyEnvelope, validate_plan
+
+
+class TestFaceBrightnessSoftLightening:
+    """Мягкое осветление кожи с bounded delta."""
+
+    def test_face_brightness_lightens_dark_skin(self):
+        """Тёмное лицо (median=160) при target_min=180 → осветление."""
+        from retouch.processing.face_correction import check_face_brightness
+
+        arr = np.full((100, 100), 160.0, dtype=np.uint8)
+        img = Image.fromarray(arr, mode="L")
+        subject = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+        face = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+
+        result, before, after, factor = check_face_brightness(
+            img, [180, 220], subject, face_mask_img=face,
+        )
+        assert after > before, f"Осветление не сработало: {before} → {after}"
+
+    def test_face_brightness_does_not_lighten_bright_skin(self):
+        """Светлое лицо (median=200) при target_max=190 → затемнение или без изменений."""
+        from retouch.processing.face_correction import check_face_brightness
+
+        arr = np.full((100, 100), 200.0, dtype=np.uint8)
+        img = Image.fromarray(arr, mode="L")
+        subject = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+        face = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+
+        result, before, after, factor = check_face_brightness(
+            img, [180, 190], subject, face_mask_img=face,
+        )
+        assert after <= before, f"Затемнение не сработало: {before} → {after}"
+
+    def test_face_brightness_no_change_in_target_range(self):
+        """Лицо в target_range → без изменений (factor=1.0)."""
+        from retouch.processing.face_correction import check_face_brightness
+
+        arr = np.full((100, 100), 200.0, dtype=np.uint8)
+        img = Image.fromarray(arr, mode="L")
+        subject = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+        face = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+
+        result, before, after, factor = check_face_brightness(
+            img, [190, 210], subject, face_mask_img=face,
+        )
+        assert factor == 1.0, f"Factor должен быть 1.0, получен {factor}"
+
+    def test_face_brightness_lightening_bounded_by_delta(self):
+        """Осветление не превышает delta=15."""
+        from retouch.processing.face_correction import check_face_brightness
+
+        arr = np.full((100, 100), 100.0, dtype=np.uint8)
+        img = Image.fromarray(arr, mode="L")
+        subject = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+        face = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+
+        result, before, after, factor = check_face_brightness(
+            img, [180, 220], subject, face_mask_img=face,
+        )
+        # delta не больше 15: after <= before + 15
+        assert after <= before + 15.0, f"Осветление превысило delta: {before} → {after}"
+
+    def test_face_brightness_lightening_preserves_highlights(self):
+        """Светлые участки (> highlight_start) не осветляются."""
+        from retouch.processing.face_correction import check_face_brightness
+
+        arr = np.full((100, 100), 180.0, dtype=np.uint8)
+        arr[20:40, 20:40] = 240  # highlights
+        img = Image.fromarray(arr.astype(np.uint8), mode="L")
+        subject = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+        face = Image.fromarray(np.ones((100, 100), dtype=np.uint8) * 255, mode="L")
+
+        result, before, after, factor = check_face_brightness(
+            img, [200, 220], subject, face_mask_img=face,
+            highlight_start=200,
+        )
+        result_arr = np.array(result, dtype=np.float32)
+        # highlights не должны осветлиться
+        highlight_before = arr[20:40, 20:40].mean()
+        highlight_after = result_arr[20:40, 20:40].mean()
+        assert highlight_after <= highlight_before + 2.0, (
+            f"Highlights осветлились: {highlight_before:.0f} → {highlight_after:.0f}"
+        )
 
 
 class TestSkinOnlyBoundedCorrection:

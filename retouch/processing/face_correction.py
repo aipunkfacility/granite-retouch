@@ -244,16 +244,29 @@ def check_face_brightness(img_gray, face_target, subject_mask, glow_size=0,
         avg_brightness, face_p75, face_p90, target_min, target_max,
     )
 
-    # v7: Только затемнение, никогда осветление.
-    # Nano Banana выдаёт нормальные лица — не нужно их трогать.
-    # Face correction нужен только когда лицо слишком яркое для станка.
+    # v6.5: Двусторонняя коррекция — затемнение и мягкое осветление.
+    # Затемнение: лицо ярче target_max → затемняем.
+    # Осветление: лицо темнее target_min → осветляем с bounded delta ±15.
+    # Если в диапазоне — без изменений.
     if avg_brightness > target_max:
         correction = target_mid / max(avg_brightness, 1)
         correction = max(0.70, min(1.00, correction))
+        logger.info(
+            "Face brightness darkening: median=%.1f > target_max=%d, correction=%.3f",
+            avg_brightness, target_max, correction,
+        )
+    elif avg_brightness < target_min:
+        delta = min(target_min - avg_brightness, 15.0)
+        correction = (avg_brightness + delta) / max(avg_brightness, 1)
+        correction = max(1.00, min(1.15, correction))
+        logger.info(
+            "Face brightness lightening: median=%.1f < target_min=%d, delta=%.1f, correction=%.3f",
+            avg_brightness, target_min, delta, correction,
+        )
     else:
         logger.info(
-            "Face brightness OK: median=%.1f ≤ target_max=%d, no correction",
-            avg_brightness, target_max,
+            "Face brightness OK: median=%.1f in range [%d,%d], no correction",
+            avg_brightness, target_min, target_max,
         )
         return img_gray, float(avg_brightness), float(avg_brightness), 1.0
 
