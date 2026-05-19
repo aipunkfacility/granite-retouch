@@ -215,7 +215,7 @@ async def upload_image(file: UploadFile = File(...)):
 
 
 def _params_to_overrides(params: PreviewParams | None,
-                         machine_type: str | None = None) -> tuple[dict, dict | None]:
+                         machine_type: str | None = None) -> tuple[dict, dict | None, str | None]:
     """Преобразовать PreviewParams в dict для deep_merge в конфиг.
 
     Поддерживает два формата:
@@ -231,10 +231,10 @@ def _params_to_overrides(params: PreviewParams | None,
     Без machine_type — fallback на machine.step_mm (обратная совместимость).
 
     Returns:
-        tuple: (overrides_dict, face_oval_dict или None)
+        tuple: (overrides_dict, face_oval_dict или None, profile или None)
     """
     if params is None:
-        return {}, None
+        return {}, None, None
 
     overrides = {}
     p = params.model_dump(exclude_none=True)
@@ -250,6 +250,9 @@ def _params_to_overrides(params: PreviewParams | None,
     effective_material = material or stone_type
     if effective_material:
         overrides["stone"] = {"material": effective_material, "type": effective_material}
+
+    # profile → отдельный параметр (не в конфиг)
+    profile_val = p.pop("profile", None)
 
     # preset → загрузить YAML-пресет, deep_merge в overrides ДО material overrides
     preset_key = p.pop("preset", None)
@@ -276,7 +279,7 @@ def _params_to_overrides(params: PreviewParams | None,
             else:
                 overrides[key] = value
 
-    return overrides, face_oval
+    return overrides, face_oval, profile_val
 
 
 def _apply_preset_to_overrides(overrides: dict, preset_key: str,
@@ -336,7 +339,7 @@ async def preview_image(
     # Собрать конфиг: загрузить полный, затем наложить params
     full_config = load_config()
     overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
-    overrides, face_oval_dict = overrides_data
+    overrides, face_oval_dict, profile_val = overrides_data
 
     if overrides:
         full_config = deep_merge(full_config, overrides)
@@ -346,6 +349,9 @@ async def preview_image(
 
     # D.3: full_steps — какие шаги возвращать
     full_steps = request.full_steps
+
+    # profile: из params или дефолт
+    profile = profile_val or request.params.profile if request.params else "standard"
 
     # D.5: Увеличиваем ref_count
     _ref_inc(request.file_id)
@@ -360,6 +366,7 @@ async def preview_image(
                 config=full_config,
                 max_size=768,
                 face_oval=face_oval,
+                profile=profile,
             ),
             timeout=45.0,
         )
@@ -409,6 +416,29 @@ async def preview_image(
     # Освободить память PipelineResult (после кодирования!)
     result.release_intermediates()
 
+    # Сериализовать step_metrics в JSON-safe dicts
+    step_metrics_serialized = None
+    if result.step_metrics:
+        step_metrics_serialized = []
+        for rec in result.step_metrics:
+            rec_dict = {
+                "step_name": rec.step_name,
+                "timestamp_ms": rec.timestamp_ms,
+                "zone_metrics": {},
+                "warnings": rec.warnings,
+            }
+            for zone_name, zm in rec.zone_metrics.items():
+                rec_dict["zone_metrics"][zone_name] = {
+                    "median": zm.median,
+                    "p10": zm.p10,
+                    "p90": zm.p90,
+                    "p95": zm.p95,
+                    "max": zm.max,
+                    "variance": zm.variance,
+                    "clipped_pct": zm.clipped_pct,
+                }
+            step_metrics_serialized.append(rec_dict)
+
     diagnostics = PreviewDiagnostics(
         glow_size=result.glow_size,
         glow_opacity=result.glow_opacity,
@@ -423,6 +453,8 @@ async def preview_image(
         face_oval=result.face_oval,
         # Numba availability — False = дизеринг на чистом Python (медленно)
         numba_available=_get_numba_available(),
+        profile=profile,
+        step_metrics=step_metrics_serialized,
     )
 
     response_data = {
@@ -463,13 +495,15 @@ async def export_image(
     # Собрать конфиг
     full_config = load_config()
     overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
-    overrides, face_oval_dict = overrides_data
+    overrides, face_oval_dict, profile_val = overrides_data
 
     if overrides:
         full_config = deep_merge(full_config, overrides)
 
     # E.2: face_oval из запроса
     face_oval = face_oval_dict
+
+    profile = profile_val or request.params.profile if request.params else "standard"
 
     fmt = request.format  # "bmp", "bmp_1bit", "bmp_8bit", "png", "tiff"
 
@@ -485,6 +519,7 @@ async def export_image(
                 machine_type=request.machine,
                 config=full_config,
                 face_oval=face_oval,
+                profile=profile,
             ),
             timeout=180.0,
         )
@@ -587,7 +622,7 @@ async def dither_preview(request: DitherPreviewRequest):
     # Собрать конфиг
     full_config = load_config()
     overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
-    overrides, face_oval_dict = overrides_data
+    overrides, face_oval_dict, _ = overrides_data
 
     if overrides:
         full_config = deep_merge(full_config, overrides)

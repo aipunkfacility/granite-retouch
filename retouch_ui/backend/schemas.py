@@ -43,6 +43,9 @@ class PreviewParams(BaseModel):
     preset: str | None = Field(None,
                                   pattern="^[a-zA-Z0-9_-]+$",
                                   description="Ключ пресета из PRESET_CATALOG")
+    profile: str | None = Field(None,
+                                   pattern="^(preserve|standard|diagnostic)$",
+                                   description="Профиль обработки")
 
 
 # ─── Запросы ──────────────────────────────────────────────────────────
@@ -114,6 +117,10 @@ class PreviewDiagnostics(BaseModel):
     face_oval: dict | None = None
     # Numba availability — False = дизеринг на чистом Python (30-120 сек)
     numba_available: bool = True
+    # Processing profile
+    profile: str | None = None
+    # Step metrics — per-step per-zone метрики
+    step_metrics: list[dict] | None = None
 
 
 class PreviewResponse(BaseModel):
