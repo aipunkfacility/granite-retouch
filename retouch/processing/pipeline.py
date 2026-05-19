@@ -650,6 +650,11 @@ def _run_pipeline_steps(
         _record_step("unsharp", img_postproc)
 
     # Gates enforcement перед postproc: если сработали gates, ослабляем параметры
+    # Читаем конфиг ДО enforcement, чтобы gates могли ослабить параметры
+    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
+    stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
+    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
+    compression = ctx.machine_cfg.get("rolloff_compression", 0.35)
     triggered = {g.gate_name: g for g in gate_state.triggered_gates}
     if "variance_loss" in triggered and stone_gamma is not None and stone_gamma != 1.0:
         original_gamma = stone_gamma
@@ -708,7 +713,6 @@ def _run_pipeline_steps(
     shadow_noise_min = ctx.machine_cfg.get("shadow_noise_min", 0)
     shadow_noise_max = ctx.machine_cfg.get("shadow_noise_max", 0)
     shadow_threshold = ctx.machine_cfg.get("shadow_noise_threshold", 30)
-    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
     if shadow_noise_max > 0 and ctx.machine_type == "impact":
         img_postproc = add_shadow_noise(
             img_postproc, ctx.subject_mask,
@@ -723,9 +727,7 @@ def _run_pipeline_steps(
     #
     # PERF: Объединяем shadow_floor + stone_gamma + white_ceiling в ОДИН numpy-проход.
     # Было 3× PIL→numpy→PIL (3 аллокации), стало 1× PIL→numpy→PIL.
-    stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
-    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
-    compression = ctx.machine_cfg.get("rolloff_compression", 0.35)
+    # stone_gamma, white_ceiling, compression прочитаны ДО enforcement (выше).
 
     needs_numpy = (
         (shadow_floor > 0) or
