@@ -1,4 +1,4 @@
-import type { MachineType, MaterialType, ConfigTree } from "./types";
+import type { MachineType, MaterialType, ConfigTree, ProfileType } from "./types";
 import type { FaceOvalParams } from "./face-oval-geometry";
 import type { VignetteParams } from "./vignette-geometry";
 import type { MaterialApplyResult, PresetCatalogEntry, MaterialProfile } from "./types";
@@ -109,16 +109,20 @@ export async function fetchPreview(
   signal?: AbortSignal,
   faceOval?: FaceOvalParams | null,
   fullSteps: boolean = true,
+  profile?: ProfileType,
 ): Promise<PreviewResult> {
   const body: Record<string, unknown> = {
     file_id: fileId,
     machine: machineType,
     full_steps: fullSteps,
   };
-  if (configOverride || faceOval) {
+  if (configOverride || faceOval || profile) {
     const params: Record<string, unknown> = configOverride ? { ...configOverride } : {};
     if (faceOval) {
       params.face_oval = faceOval;
+    }
+    if (profile) {
+      params.profile = profile;
     }
     body.params = params;
   }
@@ -145,16 +149,20 @@ export async function fetchExport(
   format: "bmp" | "bmp_1bit" | "bmp_8bit" | "png" | "tiff",
   configOverride?: ConfigTree,
   faceOval?: FaceOvalParams | null,
+  profile?: ProfileType,
 ): Promise<Blob> {
   const body: Record<string, unknown> = {
     file_id: fileId,
     machine: machineType,
     format,
   };
-  if (configOverride || faceOval) {
+  if (configOverride || faceOval || profile) {
     const params: Record<string, unknown> = configOverride ? { ...configOverride } : {};
     if (faceOval) {
       params.face_oval = faceOval;
+    }
+    if (profile) {
+      params.profile = profile;
     }
     body.params = params;
   }

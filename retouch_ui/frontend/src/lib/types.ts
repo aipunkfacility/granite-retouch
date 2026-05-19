@@ -3,6 +3,9 @@
 /** Machine type — matches backend schema regex: ^(laser_standard|laser_80w|impact)$ */
 export type MachineType = "laser_standard" | "laser_80w" | "impact";
 
+/** Processing profile — controls which gates/checks are applied */
+export type ProfileType = "preserve" | "standard" | "diagnostic";
+
 /** Material type — matches backend StoneConfig.material pattern (v4) */
 export type MaterialType = "granite" | "marble" | "gabbro" | "basalt" | "acrylic";
 

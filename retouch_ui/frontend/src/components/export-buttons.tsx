@@ -1,7 +1,7 @@
 /** BMP/PNG export by fileId — CNC stone engraving output formats */
 import { useState, useRef, useCallback } from "react";
 import { fetchExport } from "../lib/api";
-import type { MachineType, ConfigTree } from "../lib/types";
+import type { MachineType, ConfigTree, ProfileType } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
 import { useToast } from "./toast-provider";
 
@@ -15,6 +15,7 @@ interface Props {
   config: ConfigTree;
   faceOval?: FaceOvalParams | null;
   processing?: boolean;
+  profile?: ProfileType;
 }
 
 /** Default export format per machine type */
@@ -44,7 +45,7 @@ function formatLabel(format: ExportFormat): string {
   }
 }
 
-export function ExportButtons({ fileId, machineType, config, faceOval, processing }: Props) {
+export function ExportButtons({ fileId, machineType, config, faceOval, processing, profile }: Props) {
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -58,7 +59,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval, processin
     setExportFormat(format);
     setDropdownOpen(false);
     try {
-      const blob = await fetchExport(fileId, machineType, format, config, faceOval);
+      const blob = await fetchExport(fileId, machineType, format, config, faceOval, profile);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -72,7 +73,7 @@ export function ExportButtons({ fileId, machineType, config, faceOval, processin
       setExporting(false);
       setExportFormat(null);
     }
-  }, [fileId, machineType, config, faceOval, showToast]);
+  }, [fileId, machineType, config, faceOval, profile, showToast]);
 
   const handleDropdownKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

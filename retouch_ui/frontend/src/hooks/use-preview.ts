@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchPreview } from "../lib/api";
 import type { PreviewResult } from "../lib/api";
-import type { MachineType, ConfigTree } from "../lib/types";
+import type { MachineType, ConfigTree, ProfileType } from "../lib/types";
 import type { FaceOvalParams } from "../lib/face-oval-geometry";
 
 interface UsePreviewReturn {
@@ -13,6 +13,7 @@ interface UsePreviewReturn {
     machineType: MachineType,
     config?: ConfigTree,
     faceOval?: FaceOvalParams | null,
+    profile?: ProfileType,
   ) => void;
 }
 
@@ -32,6 +33,7 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
       machineType: MachineType,
       config?: ConfigTree,
       faceOval?: FaceOvalParams | null,
+      profile?: ProfileType,
     ) => {
       // Cancel previous request
       if (abortRef.current) {
@@ -61,6 +63,7 @@ export function usePreview(debounceMs = 300): UsePreviewReturn {
             controller.signal,
             faceOval,
             true,  // full_steps
+            profile,
           );
           // D.8.3: Only accept result if this is still the latest request
           if (!controller.signal.aborted && versionRef.current === thisVersion) {

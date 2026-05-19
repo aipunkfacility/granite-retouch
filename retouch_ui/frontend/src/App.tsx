@@ -10,11 +10,12 @@ import { MaterialSelector } from "./components/material-selector";
 import { DiagnosticsPanel } from "./components/diagnostics-panel";
 import { ConfigActions } from "./components/config-actions";
 import { ExportButtons } from "./components/export-buttons";
+import { ProfileSelector } from "./components/profile-selector";
 import { useToast } from "./components/toast-provider";
 import { usePreview } from "./hooks/use-preview";
 import { useConfig } from "./hooks/use-config";
 import { usePresetMaterial } from "./hooks/use-preset-material";
-import type { MachineType, MaterialType, ConfigTree } from "./lib/types";
+import type { MachineType, MaterialType, ConfigTree, ProfileType } from "./lib/types";
 import { isConfigTree } from "./lib/types";
 import type { VignetteParams } from "./lib/vignette-geometry";
 import type { FaceOvalParams } from "./lib/face-oval-geometry";
@@ -65,6 +66,8 @@ export default function App() {
   const [ditherImageUrl, setDitherImageUrl] = useState<string | null>(null);
   const [ditherLoading, setDitherLoading] = useState(false);
   const ditherAbortRef = useRef<AbortController | null>(null);
+
+  const [profile, setProfile] = useState<ProfileType>("standard");
 
   const { result: previewResult, loading, error: previewError, requestPreview } = usePreview(300);
   const { config, updateConfig, resetConfig, warnings: configWarnings } = useConfig();
@@ -126,9 +129,9 @@ export default function App() {
   const requestPreviewWithOval = useCallback(
     (fid: string, mt: MachineType, cfg: ConfigTree) => {
       const oval = faceOvalOverlayEnabled ? faceOval : null;
-      requestPreview(fid, mt, cfg, oval);
+      requestPreview(fid, mt, cfg, oval, profile);
     },
-    [faceOvalOverlayEnabled, faceOval, requestPreview],
+    [faceOvalOverlayEnabled, faceOval, requestPreview, profile],
   );
 
   const handleImageUploaded = useCallback(
@@ -138,9 +141,9 @@ export default function App() {
       setFaceOval({ ...DEFAULT_FACE_OVAL });
       setFaceOvalPinned(false);
       setDitherImageUrl(null);
-      requestPreview(newFileId, pm.machineType, config, faceOvalOverlayEnabled ? faceOval : null);
+      requestPreview(newFileId, pm.machineType, config, faceOvalOverlayEnabled ? faceOval : null, profile);
     },
-    [pm.machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval],
+    [pm.machineType, config, requestPreview, faceOvalOverlayEnabled, faceOval, profile],
   );
 
   const handleChangeImage = useCallback(() => {
@@ -348,6 +351,13 @@ export default function App() {
             presetsCache={pm.presetsCache}
             onSelect={handlePresetSelect}
           />
+          <ProfileSelector
+            profile={profile}
+            onChange={(p) => {
+              setProfile(p);
+              if (fileId) requestPreviewWithOval(fileId, pm.machineType, config);
+            }}
+          />
           {fileId && (
             <MaterialSelector
               material={pm.material}
@@ -402,7 +412,7 @@ export default function App() {
               </div>
             </>
           )}
-          <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} processing={loading} />
+          <ExportButtons fileId={fileId} machineType={pm.machineType} config={config} faceOval={faceOval} processing={loading} profile={profile} />
         </div>
       </header>
 
