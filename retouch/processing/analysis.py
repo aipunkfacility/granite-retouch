@@ -10,6 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ZoneAnalytics:
+    """Метрики одной зоны (face_skin, face_dark, hair и т.д.)."""
+    median: float = 0.0
+    p10: float = 0.0
+    p90: float = 0.0
+    p95: float = 0.0
+    max: float = 0.0
+    variance: float = 0.0
+    clipped_pct: float = 0.0
+
+
+@dataclass
 class ImageAnalytics:
     """Структурированные метрики входного изображения (B.3).
 
@@ -29,19 +41,32 @@ class ImageAnalytics:
     bg_mean_brightness: float = 0.0
     subject_separation: float = 0.0
     input_class: str = 'dark'
+    per_zone: dict[str, ZoneAnalytics] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: dict) -> "ImageAnalytics":
         """Создать из dict (обратная совместимость)."""
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+        known = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        if "per_zone" in known and isinstance(known["per_zone"], dict):
+            known["per_zone"] = {
+                k: ZoneAnalytics(**v) if isinstance(v, dict) else v
+                for k, v in known["per_zone"].items()
+            }
+        return cls(**known)
 
     def to_dict(self) -> dict:
         """Конвертировать в dict (обратная совместимость)."""
-        return asdict(self)
+        d = asdict(self)
+        if self.per_zone:
+            d["per_zone"] = {
+                k: asdict(v) for k, v in self.per_zone.items()
+            }
+        return d
 
 
 def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray,
-                  face_mask: np.ndarray | None = None) -> dict:
+                  face_mask: np.ndarray | None = None,
+                  zone_masks: object | None = None) -> dict:
     """Измеряет тональные характеристики входного grayscale-файла.
 
     Вызывается ОДИН раз после шага 2 (Grayscale), когда доступны
@@ -57,6 +82,8 @@ def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray,
         subject_mask: numpy array — маска субъекта (bool или 0/255)
         face_mask: numpy array — маска лица (bool или 0/255).
             Если None — метрики считаются по subject_mask (legacy).
+        zone_masks: ZoneMasks или None. Если передан — добавляет
+            per-zone метрики в поле per_zone результата.
 
     Returns:
         dict с метриками для адаптивных доработок пайплайна.
@@ -114,6 +141,30 @@ def analyze_input(gray_image: Image.Image, subject_mask: np.ndarray,
         'input_class': _classify_input(metric_pixels),
     }
 
+    # Per-zone метрики (v6.5)
+    if zone_masks is not None and hasattr(zone_masks, "face_skin"):
+        zp = {}
+        for zone_name in ("face_skin", "face_dark", "hair", "clothes", "highlights"):
+            zmask = getattr(zone_masks, zone_name, None)
+            if zmask is None:
+                continue
+            zarr = zmask.astype(bool) if zmask.dtype != bool else zmask
+            zpx = img_arr[zarr]
+            if len(zpx) < 10:
+                continue
+            z95 = float(np.percentile(zpx, 95))
+            zp[zone_name] = {
+                "median": float(np.median(zpx)),
+                "p10": float(np.percentile(zpx, 10)),
+                "p90": float(np.percentile(zpx, 90)),
+                "p95": z95,
+                "max": float(zpx.max()),
+                "variance": float(np.var(zpx)),
+                "clipped_pct": float(np.sum(zpx >= 250) / len(zpx) * 100),
+            }
+        if zp:
+            result["per_zone"] = zp
+
     logger.info(
         "Input analysis: median=%.1f, class=%s, range=%.1f, p90=%.1f, p95=%.1f, clipping=%.1f%%",
         result['median_brightness'], result['input_class'],
@@ -148,4 +199,5 @@ def _empty_result() -> dict:
         'bg_median_brightness': 0, 'bg_mean_brightness': 0,
         'subject_separation': 0,
         'input_class': 'dark',
+        'per_zone': {},
     }

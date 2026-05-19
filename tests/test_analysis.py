@@ -112,3 +112,67 @@ class TestAnalyzeInput:
                    result_small['median_brightness']) <= 2
         assert abs(result_full['p90_brightness'] -
                    result_small['p90_brightness']) <= 2
+
+
+class TestZoneAnalytics:
+    """Per-zone метрики через zone_masks (v6.5)."""
+
+    @staticmethod
+    def _make_zones(arr, face_skin_val=200, face_dark_val=50):
+        """Создать минимальный ZoneMasks-подобный объект."""
+        h, w = arr.shape[:2]
+        class FakeZones:
+            pass
+        z = FakeZones()
+        z.face_skin = np.zeros((h, w), dtype=np.uint8)
+        z.face_dark = np.zeros((h, w), dtype=np.uint8)
+        z.hair = np.zeros((h, w), dtype=np.uint8)
+        z.clothes = np.zeros((h, w), dtype=np.uint8)
+        z.highlights = np.zeros((h, w), dtype=np.uint8)
+        # Заполняем
+        cy, cx = h // 2, w // 2
+        z.face_skin[cy-30:cy+30, cx-30:cx+30] = 255
+        z.face_dark[cy-50:cy-30, cx-30:cx+30] = 255
+        z.hair[0:20, :] = 255
+        z.clothes[cy+30:h, :] = 255
+        z.highlights[cy-10:cy+10, cx-10:cx+10] = 255
+        return z
+
+    def test_per_zone_contains_expected_keys(self):
+        arr = np.zeros((200, 200), dtype=np.uint8)
+        arr[70:130, 70:130] = 200
+        img = Image.fromarray(arr)
+        mask = np.zeros((200, 200), dtype=bool)
+        mask[50:150, 50:150] = True
+        zones = self._make_zones(arr)
+        result = analyze_input(img, mask, zone_masks=zones)
+        assert "per_zone" in result
+        assert "face_skin" in result["per_zone"]
+        assert "face_dark" in result["per_zone"]
+
+    def test_per_zone_metrics_correct(self):
+        arr = np.full((200, 200), 50, dtype=np.uint8)
+        arr[70:130, 70:130] = 180
+        img = Image.fromarray(arr)
+        mask = np.ones((200, 200), dtype=bool)
+        zones = self._make_zones(arr)
+        result = analyze_input(img, mask, zone_masks=zones)
+        fs = result["per_zone"]["face_skin"]
+        assert fs["median"] == 180
+        assert fs["max"] == 180
+        assert 0 <= fs["clipped_pct"] < 100
+
+    def test_per_zone_without_zone_masks(self):
+        arr = np.full((200, 200), 128, dtype=np.uint8)
+        img = Image.fromarray(arr)
+        mask = np.ones((200, 200), dtype=bool)
+        result = analyze_input(img, mask, zone_masks=None)
+        assert "per_zone" not in result or result["per_zone"] == {}
+
+    def test_per_zone_backward_compatible(self):
+        """Старый вызов без zone_masks должен работать как раньше."""
+        arr = np.full((200, 200), 180, dtype=np.uint8)
+        img = Image.fromarray(arr)
+        mask = np.ones((200, 200), dtype=bool)
+        result = analyze_input(img, mask)
+        assert result["median_brightness"] == 180
