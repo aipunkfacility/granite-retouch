@@ -96,8 +96,35 @@ class PipelineContext:
 
 
 # ---------------------------------------------------------------------------
-# PipelineResult
+# PipelineResult + consistency helpers
 # ---------------------------------------------------------------------------
+
+
+def _run_consistency_check(
+    passed_oval: dict | None,
+    result_oval: dict | None,
+    warnings: list[str],
+) -> None:
+    """Проверить расхождение face_oval > 2% между переданным и результатом.
+
+    Добавляет warning в список если расхождение > 0.02 по любому ключу.
+    Используется в process_steps для consistency check preview → export.
+    """
+    if passed_oval is None or result_oval is None:
+        return
+    warn_keys = []
+    for key in ("cx", "cy", "rx", "ry"):
+        if key in passed_oval and key in result_oval:
+            diff = abs(passed_oval[key] - result_oval[key])
+            if diff > 0.02:
+                warn_keys.append(f"{key}: {diff:.3f}")
+    if warn_keys:
+        msg = (
+            f"consistency_mismatch: face_oval расхождение >2%: "
+            f"{', '.join(warn_keys)}"
+        )
+        warnings.append(msg)
+        logger.warning(msg)
 
 @dataclass
 class PipelineResult:
@@ -434,6 +461,9 @@ def process_steps(
         blue_ratio=blue_ratio,
         profile=profile,
     )
+
+    # Consistency check: переданный face_oval vs результирующий
+    _run_consistency_check(face_oval, result.face_oval, result.warnings)
 
     # Сохраняем промежуточные для отладки (до release_intermediates)
     if debug_dir:

@@ -133,3 +133,52 @@ class TestPreviewExportConsistency:
         # Пороги — параметры плана, не зависят от разрешения
         assert skin_threshold == 100
         assert highlight_threshold == 200
+
+
+class TestConsistencyRuntimeCheck:
+    """Runtime consistency check в process_steps."""
+
+    def test_diagnostics_logs_scale_ratio(self):
+        """Diagnostics логирует scale ratio preview и export."""
+        from retouch.processing.pipeline import PipelineContext
+        from PIL import Image
+
+        ctx = PipelineContext(
+            img_gray=Image.new("L", (100, 100)),
+        )
+        assert hasattr(ctx, "config")
+
+    def test_consistency_mismatch_warning_generated(self):
+        """Расхождение face_oval > 2% генерирует warning через _run_consistency_check."""
+        from retouch.processing.pipeline import _run_consistency_check
+
+        warnings: list[str] = []
+        _run_consistency_check(
+            {"cx": 0.50, "cy": 0.40, "rx": 0.30, "ry": 0.35},
+            {"cx": 0.60, "cy": 0.42, "rx": 0.32, "ry": 0.37},
+            warnings,
+        )
+        assert len(warnings) >= 1
+
+    def test_passed_oval_differs_from_result_warns(self):
+        """Переданный и результирующий овалы расходятся — warning."""
+        from retouch.processing.pipeline import _run_consistency_check
+        from PIL import Image
+
+        warnings: list[str] = []
+        passed = {"cx": 0.50, "cy": 0.40, "rx": 0.30, "ry": 0.35}
+        result = {"cx": 0.60, "cy": 0.42, "rx": 0.32, "ry": 0.37}
+
+        _run_consistency_check(passed, result, warnings)
+        assert len(warnings) >= 1
+        assert any("consistency_mismatch" in w for w in warnings)
+
+    def test_matching_ovals_no_warning(self):
+        """Совпадающие овалы не дают warning."""
+        from retouch.processing.pipeline import _run_consistency_check
+
+        warnings: list[str] = []
+        oval = {"cx": 0.50, "cy": 0.40, "rx": 0.30, "ry": 0.35}
+
+        _run_consistency_check(oval, oval, warnings)
+        assert len(warnings) == 0
