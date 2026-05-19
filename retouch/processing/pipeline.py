@@ -643,6 +643,30 @@ def _run_pipeline_steps(
             f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
         )
 
+    if "p95_shift" in triggered:
+        orig_delta = validated.plan.skin_delta
+        validated.plan.skin_delta *= 0.5
+        logger.info(
+            "Gates enforcement: p95_shift triggered, skin_delta %.1f → %.1f",
+            orig_delta, validated.plan.skin_delta,
+        )
+        ctx.warnings.append(
+            f"skin_delta halved: {orig_delta:.1f} → {validated.plan.skin_delta:.1f} (p95_shift gate)"
+        )
+
+    if "shadow_crush" in triggered:
+        orig_floor = shadow_floor
+        shadow_floor = 0
+        orig_gamma = stone_gamma
+        stone_gamma = 1.0
+        logger.info(
+            "Gates enforcement: shadow_crush triggered, shadow_floor %d → 0, gamma %.2f → 1.0",
+            orig_floor, orig_gamma if orig_gamma else 1.0,
+        )
+        ctx.warnings.append(
+            f"shadow_floor и gamma отключены (shadow_crush gate)"
+        )
+
     # Сохраняем результаты в контекст
     ctx.face_brightness_before = face_before
     ctx.face_brightness_after = face_after

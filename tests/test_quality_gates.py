@@ -166,3 +166,32 @@ class TestGateState:
         assert len(state.triggered_gates) == 1
         assert len(state.warnings) == 1
         assert "variance_loss" in state.warnings[0]
+
+
+class TestGateEnforcement:
+    """Quality gates enforcement ослабляет параметры."""
+
+    def test_p95_shift_enforcement_weakens_delta(self):
+        """p95_shift > 20 ослабляет delta на 50%."""
+        from retouch.processing.gates import post_check_p95_shift
+
+        gate = post_check_p95_shift(180.0, 210.0, threshold_levels=20.0)
+        assert gate.triggered
+        assert "weaken" in gate.reason.lower()
+
+    def test_shadow_crush_enforcement_skips_floor(self):
+        """shadow_crush > 10% отключает floor/gamma."""
+        from retouch.processing.gates import post_check_shadow_crush
+
+        gate = post_check_shadow_crush(15.0, threshold_pct=10.0)
+        assert gate.triggered
+        assert "skip" in gate.reason.lower()
+
+    def test_multiple_gates_enforcement_chain(self):
+        """Несколько gates срабатывают последовательно."""
+        from retouch.processing.gates import GateState, GateResult
+
+        state = GateState()
+        state.results.append(GateResult("variance_loss", "levels", True, reason="variance loss 40%"))
+        state.results.append(GateResult("p95_shift", "levels", True, reason="p95 shift 25"))
+        assert len(state.triggered_gates) == 2
