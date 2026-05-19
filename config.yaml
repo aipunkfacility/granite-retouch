@@ -66,6 +66,15 @@ processing:
   result_min_black_ratio: 0.25
   mask_soft_sigma: 1.5       # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
   contour_smooth_epsilon: 0.002  # Сглаживание контура cv2: 0.001=мин, 0.005=агрессивное
+# Safety envelope — максимальные дельты коррекции по зонам
+safety_envelope:
+  face_skin_max_delta: 15.0    # ±15 уровней на 256-шкале ≈ 6%
+  face_dark_max_delta: 5.0     # ±5 — минимальное вмешательство
+  hair_max_delta: 3.0          # ±3 — почти не трогаем
+  clothes_max_delta: 0.0       # 0 — одежда не меняется по решению лица
+  highlights_rolloff_only: true      # только сжатие, без подъёма
+  contour_inner_glow_only: true      # только glow/edge логика
+  contour_outer_antifringe_only: true # только антифринги/фон
 config_version: 4
 machine:
   step_mm: 0.300

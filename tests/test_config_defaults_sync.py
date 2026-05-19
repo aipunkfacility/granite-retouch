@@ -246,3 +246,18 @@ class TestExportDefaults:
         from scripts.export_defaults import check_defaults_sync
 
         assert check_defaults_sync(Path("/nonexistent/path/config-defaults.json")) is False
+
+
+class TestSafetyEnvelopeConfig:
+
+    def test_safety_envelope_section_in_config_yaml(self):
+        """config.yaml содержит секцию safety_envelope."""
+        from retouch.config import load_config
+        from retouch.processing.plan import SafetyEnvelope
+
+        config = load_config()
+        env = SafetyEnvelope.from_config(config)
+        assert env.face_skin_max_delta == 15.0
+        assert env.face_dark_max_delta == 5.0
+        assert env.hair_max_delta == 3.0
+        assert env.clothes_max_delta == 0.0
