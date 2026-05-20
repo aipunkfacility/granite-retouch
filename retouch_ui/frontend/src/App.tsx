@@ -26,6 +26,7 @@ import type { MachineType as MT } from "./lib/types";
 function getVignetteParams(config: ConfigTree): VignetteParams {
   const v = (config.vignette ?? {}) as Record<string, unknown>;
   return {
+    enabled: (v.enabled as boolean) ?? true,
     vertical_offset: (v.vertical_offset as number) ?? 0.1,
     vertical_diameter: (v.vertical_diameter as number) ?? 0.5,
     blur_radius: (v.blur_radius as number) ?? 60,
