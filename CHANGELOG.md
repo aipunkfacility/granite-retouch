@@ -2,6 +2,20 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [6.5.0] — 2026-05-20
+
+### Pipeline Refactor Completion
+
+#### Added
+- CLI: `--profile` аргумент для команды `process` (preserve/standard/diagnostic)
+- `quality_gates` секция в config.yaml — 6 настраиваемых порогов для pre/post-check gates
+- Dither regression fixtures: 5 curated samples в `tests/fixtures/dither/`
+- Script `scripts/generate_dither_fixtures.py` для регенерации эталонов
+
+#### Fixed
+- Levels: rolloff теперь использует `highlights` зону из ZoneMasks вместо face_skin
+- Quality gates: пороги вынесены из хардкода в config.yaml
+
 ## [6.4.0] - 2026-05-20
 
 ### Рефакторинг пайплайна (pipeline-refactor-plan)

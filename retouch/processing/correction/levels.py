@@ -61,7 +61,7 @@ for _name, _module in _DEPRECATED_REEXPORTS.items():
 # ─── Levels — основная функция ────────────────────────────────────────
 
 def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None,
-                 subject_mask=None, machine_cfg=None, face_skin_mask=None):
+                 subject_mask=None, machine_cfg=None, face_skin_mask=None, zone_masks=None):
     """Применить Levels (bounded delta correction).
 
     Этап 3: Вместо factor — двусторонняя bounded delta формула.
@@ -76,6 +76,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         machine_cfg: dict — параметры станка
         face_skin_mask: numpy array или None — маска кожи лица для зональной коррекции.
             Если None, коррекция применяется ко всей subject_mask (fallback).
+        zone_masks: ZoneMasks или None — если предоставлен, rolloff использует highlights зону
 
     Returns:
         PIL.Image: скорректированное изображение
@@ -125,8 +126,10 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         if machine_cfg:
             ceiling = float(machine_cfg.get("white_ceiling", 255))
         compression = machine_cfg.get("rolloff_compression", 0.35) if machine_cfg else 0.35
-        # v6.5: rolloff по face_skin (если маска есть), иначе по subject_mask
-        if face_skin_mask is not None:
+        # v6.5: rolloff по highlights (если ZoneMasks доступен), иначе face_skin, иначе subject_mask
+        if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
+            rolloff_mask_arr = (zone_masks.highlights > 128).astype(np.uint8) * 255
+        elif face_skin_mask is not None:
             rolloff_mask_arr = face_skin_bool.astype(np.uint8) * 255
         else:
             rolloff_mask_arr = np.array(subject_mask, dtype=np.uint8)

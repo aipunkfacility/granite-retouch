@@ -136,6 +136,7 @@ def cmd_process(args):
             fmt=getattr(args, 'format', 'bmp'),
             overwrite=args.overwrite,
             no_validate=args.no_validate,
+            profile=args.profile,
         )
     except ValidationError as e:
         print(f"VALIDATION ERROR: {e}", file=sys.stderr)
@@ -387,6 +388,8 @@ def main():
     p_process.add_argument("--config", "-c", help="Путь к config.yaml")
     p_process.add_argument("--no-validate", action="store_true", help="Пропустить валидацию")
     p_process.add_argument("--overwrite", action="store_true", help="D.7: Перезаписать выходной файл без подтверждения")
+    p_process.add_argument("--profile", choices=["preserve", "standard", "diagnostic"],
+                           default=None, help="Processing profile (default: standard)")
     p_process.set_defaults(func=cmd_process)
 
     # --- validate ---

@@ -66,6 +66,14 @@ processing:
   result_min_black_ratio: 0.25
   mask_soft_sigma: 1.5       # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
   contour_smooth_epsilon: 0.002  # Сглаживание контура cv2: 0.001=мин, 0.005=агрессивное
+  # Quality gates — thresholds for pre-check and post-check
+  quality_gates:
+    variance_loss_threshold: 35.0       # % variance loss before weakening delta
+    clipped_pct_threshold: 5.0          # % clipped pixels before reducing rolloff
+    p95_shift_threshold: 20.0           # levels p95 shift before weakening delta
+    shadow_crush_threshold: 10.0        # % shadow crush before skipping floor/gamma
+    face_dark_small_threshold: 5.0      # % face_dark ratio before skipping correction
+    contour_inner_quality_threshold: 30.0  # % contour_inner ratio before morphological fallback
 # Safety envelope — максимальные дельты коррекции по зонам
 safety_envelope:
   face_skin_max_delta: 15.0    # ±15 уровней на 256-шкале ≈ 6%

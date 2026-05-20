@@ -312,6 +312,32 @@ safety_envelope:
 
 ---
 
+## quality_gates (v6.5)
+
+Пороги для pre-check и post-check quality gates. Все значения — числа с плавающей точкой.
+
+| Параметр | Default | Описание |
+|----------|---------|----------|
+| `variance_loss_threshold` | 35.0 | % потери variance по face_skin, после которого delta ослабляется на 50% |
+| `clipped_pct_threshold` | 5.0 | % clipped пикселей по subject, после которого rolloff уменьшается на 20% |
+| `p95_shift_threshold` | 20.0 | Сдвиг p95 по face_skin в уровнях, после которого delta ослабляется на 50% |
+| `shadow_crush_threshold` | 10.0 | % пикселей < 5 в subject, после которого floor/gamma пропускаются |
+| `face_dark_small_threshold` | 5.0 | % face_dark от face_mask, ниже которого коррекция пропускается |
+| `contour_inner_quality_threshold` | 30.0 | % contour_inner от subject, выше которого — morphological fallback |
+
+Пример:
+```yaml
+quality_gates:
+  variance_loss_threshold: 35.0
+  clipped_pct_threshold: 5.0
+  p95_shift_threshold: 20.0
+  shadow_crush_threshold: 10.0
+  face_dark_small_threshold: 5.0
+  contour_inner_quality_threshold: 30.0
+```
+
+---
+
 ## export
 
 По умолчанию пайплайн экспортирует **BMP** — стандартный формат для ЧПУ станков. Начиная с v3, формат определяется по `export_mode` из per-machine конфига:

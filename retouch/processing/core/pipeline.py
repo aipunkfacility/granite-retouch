@@ -57,6 +57,20 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def _get_gate_thresholds(config: dict) -> dict:
+    """Extract quality gate thresholds from config."""
+    processing = config.get("processing", {})
+    quality_gates = processing.get("quality_gates") or {}
+    return {
+        "variance_loss_threshold": quality_gates.get("variance_loss_threshold", 35.0),
+        "clipped_pct_threshold": quality_gates.get("clipped_pct_threshold", 5.0),
+        "p95_shift_threshold": quality_gates.get("p95_shift_threshold", 20.0),
+        "shadow_crush_threshold": quality_gates.get("shadow_crush_threshold", 10.0),
+        "face_dark_small_threshold": quality_gates.get("face_dark_small_threshold", 5.0),
+        "contour_inner_quality_threshold": quality_gates.get("contour_inner_quality_threshold", 30.0),
+    }
+
+
 # ---------------------------------------------------------------------------
 # PipelineContext — внутренняя упаковка (B.1)
 # ---------------------------------------------------------------------------
@@ -509,6 +523,8 @@ def _run_pipeline_steps(
     width = ctx.img_gray.width
     height = ctx.img_gray.height
 
+    thresholds = _get_gate_thresholds(ctx.config)
+
     # PipelinePlan + ValidatedPlan
     plan = PipelinePlan.from_profile(profile, ctx.machine_cfg)
     envelope = SafetyEnvelope.from_config(ctx.config)
@@ -536,12 +552,12 @@ def _run_pipeline_steps(
             if zone_masks:
                 face_dark_area = int(np.sum(zone_masks.face_dark))
                 face_area = int(np.sum(zone_masks.face))
-                gate = pre_check_face_dark_small(face_dark_area, face_area)
+                gate = pre_check_face_dark_small(face_dark_area, face_area, threshold_pct=thresholds["face_dark_small_threshold"])
                 gate_state.results.append(gate)
 
                 contour_area = int(np.sum(zone_masks.contour_inner))
                 subject_area = int(np.sum(zone_masks.subject))
-                gate = pre_check_contour_inner_quality(contour_area, subject_area)
+                gate = pre_check_contour_inner_quality(contour_area, subject_area, threshold_pct=thresholds["contour_inner_quality_threshold"])
                 gate_state.results.append(gate)
 
                 # Gate: skin_delta_envelope
@@ -587,6 +603,7 @@ def _run_pipeline_steps(
                 # Variance loss
                 gate = post_check_variance_loss(
                     fs_prev.variance, fs_curr.variance, step_name=step_name,
+                    threshold_pct=thresholds["variance_loss_threshold"],
                 )
                 if gate.triggered:
                     gate_state.results.append(gate)
@@ -595,6 +612,7 @@ def _run_pipeline_steps(
                 # P95 shift
                 gate = post_check_p95_shift(
                     fs_prev.p95, fs_curr.p95, step_name=step_name,
+                    threshold_levels=thresholds["p95_shift_threshold"],
                 )
                 if gate.triggered:
                     gate_state.results.append(gate)
@@ -605,6 +623,7 @@ def _run_pipeline_steps(
             if subj_clipped and subj_clipped.clipped_pct > 0:
                 gate = post_check_clipped_pct(
                     subj_clipped.clipped_pct, step_name=step_name,
+                    threshold_pct=thresholds["clipped_pct_threshold"],
                 )
                 if gate.triggered:
                     gate_state.results.append(gate)
@@ -633,6 +652,7 @@ def _run_pipeline_steps(
         img_glow, analytics=ctx.analytics,
         machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
         machine_cfg=ctx.machine_cfg, face_skin_mask=face_skin_mask_for_levels,
+        zone_masks=zone_masks,
     )
     _record_step("levels", img_leveled)
 
@@ -770,6 +790,7 @@ def _run_pipeline_steps(
     # Post-check: shadow_crush
     sc_gate = post_check_shadow_crush(
         quality["shadow_crush_pct"],
+        threshold_pct=thresholds["shadow_crush_threshold"],
     )
     if sc_gate.triggered:
         gate_state.results.append(sc_gate)
@@ -1035,8 +1056,27 @@ def process(input_path: str, output_path: str, machine_type: str = "laser_standa
             config: dict | None = None, fmt: str = "bmp", overwrite: bool = True,
             no_validate: bool = False,
             face_oval: dict[str, float] | None = None,
-            debug_dir: str | None = None) -> PipelineResult:
-    """Обратная совместимая обёртка. CLI не ломается."""
+            debug_dir: str | None = None,
+            profile: str | None = None) -> PipelineResult:
+    """Обратная совместимая обёртка. CLI не ломается.
+
+    Args:
+        input_path: путь к входному изображению
+        output_path: путь к выходному файлу
+        machine_type: тип станка
+        glow_size_override: ручное переопределение glow size
+        glow_opacity_override: ручное переопределение glow opacity
+        config: конфигурация
+        fmt: формат экспорта
+        overwrite: разрешить перезапись выходного файла
+        no_validate: отключить валидацию
+        face_oval: ручное переопределение овала лица
+        debug_dir: директория для отладочных масок
+        profile: профиль обработки (preserve/standard/diagnostic). Default: standard.
+    """
+    kwargs: dict = {}
+    if profile is not None:
+        kwargs["profile"] = profile
     return process_export(
         input_path=input_path,
         output_path=output_path,
@@ -1047,6 +1087,7 @@ def process(input_path: str, output_path: str, machine_type: str = "laser_standa
         no_validate=no_validate,
         glow_size_override=glow_size_override,
         glow_opacity_override=glow_opacity_override,
-        face_oval=face_oval,  # AUDIT-3.1: проброс овала лица
+        face_oval=face_oval,
         debug_dir=debug_dir,
+        **kwargs,
     )

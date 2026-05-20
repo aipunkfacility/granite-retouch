@@ -195,3 +195,78 @@ class TestGateEnforcement:
         state.results.append(GateResult("variance_loss", "levels", True, reason="variance loss 40%"))
         state.results.append(GateResult("p95_shift", "levels", True, reason="p95 shift 25"))
         assert len(state.triggered_gates) == 2
+
+
+class TestQualityGatesFromConfig:
+    """Quality gate thresholds are configurable from config.yaml."""
+
+    def test_gate_thresholds_from_config_yaml(self):
+        """Gate thresholds are readable from config.yaml quality_gates section."""
+        from retouch.config import load_config
+        config = load_config()
+        processing = config.get("processing", {})
+        quality_gates = processing.get("quality_gates", {})
+
+        assert "variance_loss_threshold" in quality_gates
+        assert "clipped_pct_threshold" in quality_gates
+        assert "p95_shift_threshold" in quality_gates
+        assert "shadow_crush_threshold" in quality_gates
+        assert "face_dark_small_threshold" in quality_gates
+        assert "contour_inner_quality_threshold" in quality_gates
+
+        # Verify defaults match current hardcoded values
+        assert quality_gates["variance_loss_threshold"] == 35.0
+        assert quality_gates["clipped_pct_threshold"] == 5.0
+        assert quality_gates["p95_shift_threshold"] == 20.0
+        assert quality_gates["shadow_crush_threshold"] == 10.0
+        assert quality_gates["face_dark_small_threshold"] == 5.0
+        assert quality_gates["contour_inner_quality_threshold"] == 30.0
+
+    def test_get_gate_thresholds_returns_all_keys(self):
+        """_get_gate_thresholds returns all 6 threshold keys."""
+        from retouch.processing.core.pipeline import _get_gate_thresholds
+        thresholds = _get_gate_thresholds({"processing": {"quality_gates": {}}})
+        assert len(thresholds) == 6
+        assert all(k in thresholds for k in [
+            "variance_loss_threshold", "clipped_pct_threshold", "p95_shift_threshold",
+            "shadow_crush_threshold", "face_dark_small_threshold", "contour_inner_quality_threshold",
+        ])
+
+    def test_get_gate_thresholds_uses_custom_values(self):
+        """_get_gate_thresholds uses custom values from config, not defaults."""
+        from retouch.processing.core.pipeline import _get_gate_thresholds
+        config = {
+            "processing": {
+                "quality_gates": {
+                    "variance_loss_threshold": 50.0,
+                    "clipped_pct_threshold": 10.0,
+                }
+            }
+        }
+        thresholds = _get_gate_thresholds(config)
+        assert thresholds["variance_loss_threshold"] == 50.0
+        assert thresholds["clipped_pct_threshold"] == 10.0
+        # Others should be defaults
+        assert thresholds["p95_shift_threshold"] == 20.0
+
+    def test_get_gate_thresholds_missing_quality_gates_section(self):
+        """_get_gate_thresholds returns defaults when quality_gates section is absent."""
+        from retouch.processing.core.pipeline import _get_gate_thresholds
+        thresholds = _get_gate_thresholds({"processing": {}})
+        assert thresholds["variance_loss_threshold"] == 35.0
+        assert thresholds["clipped_pct_threshold"] == 5.0
+
+    def test_get_gate_thresholds_missing_processing_section(self):
+        """_get_gate_thresholds returns defaults when processing section is absent."""
+        from retouch.processing.core.pipeline import _get_gate_thresholds
+        thresholds = _get_gate_thresholds({})
+        assert thresholds["variance_loss_threshold"] == 35.0
+        assert thresholds["shadow_crush_threshold"] == 10.0
+
+    def test_get_gate_thresholds_null_quality_gates(self):
+        """_get_gate_thresholds handles quality_gates: null gracefully."""
+        from retouch.processing.core.pipeline import _get_gate_thresholds
+        config = {"processing": {"quality_gates": None}}
+        thresholds = _get_gate_thresholds(config)
+        assert len(thresholds) == 6
+        assert thresholds["variance_loss_threshold"] == 35.0

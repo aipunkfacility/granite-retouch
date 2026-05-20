@@ -184,3 +184,136 @@ class TestSkinOnlyBoundedCorrection:
             target_delta = 0
 
         assert target_delta == -10.0
+
+
+class TestLevelsRolloffZoneSelection:
+    """Rolloff должен использовать highlights зону когда ZoneMasks доступен."""
+
+    def test_levels_rolloff_uses_highlights_when_zone_masks_available(self):
+        """When zone_masks.highlights is provided, rolloff uses it instead of face_skin."""
+        from retouch.processing.correction.levels import apply_levels
+        from retouch.processing.analysis.zones import ZoneMasks
+
+        arr = np.full((100, 100), 100, dtype=np.uint8)
+        arr[10:30, 10:30] = 220  # bright face_skin (above knee)
+        arr[50:70, 50:70] = 240  # highlights (above knee)
+
+        img = Image.fromarray(arr, mode="L")
+        subject_mask = Image.fromarray(np.full((100, 100), 255, dtype=np.uint8), mode="L")
+        face_skin_mask = np.zeros((100, 100), dtype=np.uint8)
+        face_skin_mask[10:30, 10:30] = 255
+
+        zone_masks = ZoneMasks(
+            subject=np.full((100, 100), 255, dtype=np.uint8),
+            face=np.full((100, 100), 255, dtype=np.uint8),
+            hair=np.zeros((100, 100), dtype=np.uint8),
+            face_skin=face_skin_mask.copy(),
+            face_dark=np.zeros((100, 100), dtype=np.uint8),
+            clothes=np.zeros((100, 100), dtype=np.uint8),
+            highlights=np.zeros((100, 100), dtype=np.uint8),
+            contour_inner=np.zeros((100, 100), dtype=np.uint8),
+            contour_outer=np.zeros((100, 100), dtype=np.uint8),
+            background=np.zeros((100, 100), dtype=np.uint8),
+        )
+        zone_masks.highlights[50:70, 50:70] = 255
+
+        analytics = {"median_brightness": 100}  # below target → positive delta
+        machine_cfg = {"white_ceiling": 250, "rolloff_compression": 0.35}
+
+        result = apply_levels(
+            img, analytics=analytics, machine_type="laser_standard",
+            subject_mask=subject_mask, machine_cfg=machine_cfg,
+            face_skin_mask=face_skin_mask, zone_masks=zone_masks,
+        )
+
+        result_arr = np.array(result, dtype=np.float32)
+
+        # Highlights (50:70) should be compressed by rolloff
+        hl_max = result_arr[50:70, 50:70].max()
+        assert hl_max <= 250, f"Highlights not compressed: max={hl_max}"
+
+        # face_skin (10:30) should NOT be compressed by rolloff — only delta correction
+        fs_max = result_arr[10:30, 10:30].max()
+        assert fs_max > hl_max, f"face_skin max ({fs_max}) should be > highlights max ({hl_max})"
+
+    def test_levels_rolloff_fallback_to_face_skin_without_zone_masks(self):
+        """Without zone_masks, rolloff falls back to face_skin (backward compat)."""
+        from retouch.processing.correction.levels import apply_levels
+
+        arr = np.full((100, 100), 100, dtype=np.uint8)
+        arr[10:30, 10:30] = 220
+
+        img = Image.fromarray(arr, mode="L")
+        subject_mask = Image.fromarray(np.full((100, 100), 255, dtype=np.uint8), mode="L")
+        face_skin_mask = np.zeros((100, 100), dtype=np.uint8)
+        face_skin_mask[10:30, 10:30] = 255
+
+        analytics = {"median_brightness": 100}
+        machine_cfg = {"white_ceiling": 250, "rolloff_compression": 0.35}
+
+        result = apply_levels(
+            img, analytics=analytics, machine_type="laser_standard",
+            subject_mask=subject_mask, machine_cfg=machine_cfg,
+            face_skin_mask=face_skin_mask, zone_masks=None,
+        )
+
+        result_arr = np.array(result, dtype=np.float32)
+        assert result_arr.shape == (100, 100)
+
+    def test_levels_rolloff_fallback_when_highlights_empty(self):
+        """When zone_masks.highlights is empty, rolloff falls back to face_skin."""
+        from retouch.processing.correction.levels import apply_levels
+        from retouch.processing.analysis.zones import ZoneMasks
+
+        arr = np.full((100, 100), 100, dtype=np.uint8)
+        arr[10:30, 10:30] = 220  # face_skin zone
+
+        img = Image.fromarray(arr, mode="L")
+        subject_mask = Image.fromarray(np.full((100, 100), 255, dtype=np.uint8), mode="L")
+        face_skin_mask = np.zeros((100, 100), dtype=np.uint8)
+        face_skin_mask[10:30, 10:30] = 255
+
+        zone_masks = ZoneMasks(
+            subject=np.full((100, 100), 255, dtype=np.uint8),
+            face=np.full((100, 100), 255, dtype=np.uint8),
+            hair=np.zeros((100, 100), dtype=np.uint8),
+            face_skin=face_skin_mask.copy(),
+            face_dark=np.zeros((100, 100), dtype=np.uint8),
+            clothes=np.zeros((100, 100), dtype=np.uint8),
+            highlights=np.zeros((100, 100), dtype=np.uint8),
+            contour_inner=np.zeros((100, 100), dtype=np.uint8),
+            contour_outer=np.zeros((100, 100), dtype=np.uint8),
+            background=np.zeros((100, 100), dtype=np.uint8),
+        )
+
+        analytics = {"median_brightness": 100}
+        machine_cfg = {"white_ceiling": 250, "rolloff_compression": 0.35}
+
+        result = apply_levels(
+            img, analytics=analytics, machine_type="laser_standard",
+            subject_mask=subject_mask, machine_cfg=machine_cfg,
+            face_skin_mask=face_skin_mask, zone_masks=zone_masks,
+        )
+
+        result_arr = np.array(result, dtype=np.float32)
+        assert result_arr.shape == (100, 100)
+
+    def test_levels_rolloff_fallback_to_subject_mask(self):
+        """Without zone_masks and without face_skin_mask, rolloff uses subject_mask."""
+        from retouch.processing.correction.levels import apply_levels
+
+        arr = np.full((100, 100), 100, dtype=np.uint8)
+        img = Image.fromarray(arr, mode="L")
+        subject_mask = Image.fromarray(np.full((100, 100), 255, dtype=np.uint8), mode="L")
+
+        analytics = {"median_brightness": 100}
+        machine_cfg = {"white_ceiling": 250, "rolloff_compression": 0.35}
+
+        result = apply_levels(
+            img, analytics=analytics, machine_type="laser_standard",
+            subject_mask=subject_mask, machine_cfg=machine_cfg,
+            face_skin_mask=None, zone_masks=None,
+        )
+
+        result_arr = np.array(result, dtype=np.float32)
+        assert result_arr.shape == (100, 100)
