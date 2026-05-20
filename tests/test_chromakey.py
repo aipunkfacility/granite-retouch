@@ -544,7 +544,7 @@ class TestSmoothMask:
         monkeypatch.setattr(ck, "HAS_CV2", False)
         mask = np.zeros((50, 50), dtype=bool)
         mask[10:40, 10:40] = True
-        with caplog.at_level(logging.WARNING, logger="retouch.processing.chromakey"):
+        with caplog.at_level(logging.WARNING, logger="retouch.processing.detection.chromakey"):
             result = ck._make_smooth_mask(mask, smooth_epsilon=0.002)
         assert result.dtype == np.uint8
         assert any(

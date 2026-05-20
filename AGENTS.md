@@ -1,4 +1,4 @@
-# AGENTS.md — Навигатор для ИИ-агентов
+﻿# AGENTS.md — Навигатор для ИИ-агентов
 
 ## Обзор
 
@@ -7,17 +7,17 @@ granite-retouch — система автоматизации подготовк
 **Важно:** Агенты генерируют только текстовые промпты для Nano Banana, а не изображения напрямую. Генерация выполняется оператором вручную.
 
 **Модули обработки (v6.0.0):**
-- `retouch/processing/chromakey.py` — удаление синего фона + fringe removal
-- `retouch/processing/analysis.py` — преданализ: 13 метрик + ImageAnalytics dataclass
-- `retouch/processing/glow.py` — Glow: inner + outer, детерминированный
-- `retouch/processing/levels.py` — Levels (адаптивный)
-- `retouch/processing/face_region.py` — детекция лица + генерация масок
-- `retouch/processing/face_correction.py` — check_face_brightness + curves
-- `retouch/processing/unsharp.py` — unsharp mask
-- `retouch/processing/shadow_noise.py` — shadow noise для impact
-- `retouch/processing/export.py` — BMP/PNG экспорт + Jarvis/Stucki дизеринг
-- `retouch/processing/vignette.py` — арховая виньетка
-- `retouch/processing/pipeline.py` — полный пайплайн + PipelineContext + PipelineResult
+- `retouch/processing/detection/chromakey.py` — удаление синего фона + fringe removal
+- `retouch/processing/analysis/analysis.py` — преданализ: 13 метрик + ImageAnalytics dataclass
+- `retouch/processing/correction/glow.py` — Glow: inner + outer, детерминированный
+- `retouch/processing/correction/levels.py` — Levels (адаптивный)
+- `retouch/processing/detection/face_region.py` — детекция лица + генерация масок
+- `retouch/processing/correction/face_correction.py` — check_face_brightness + curves
+- `retouch/processing/correction/unsharp.py` — unsharp mask
+- `retouch/processing/correction/shadow_noise.py` — shadow noise для impact
+- `retouch/processing/output/export.py` — BMP/PNG экспорт + Jarvis/Stucki дизеринг
+- `retouch/processing/output/vignette.py` — арховая виньетка
+- `retouch/processing/core/pipeline.py` — полный пайплайн + PipelineContext + PipelineResult
 
 ## Документация
 

@@ -1,4 +1,4 @@
-# Пайплайн обработки
+﻿# Пайплайн обработки
 
 Полный конвейер обработки портрета: от PNG с синим хромакеем до BMP с чёрным фоном.
 
@@ -28,7 +28,7 @@ img = Image.open(input_path).convert("RGBA")
 
 ### 3. Удаление синего хромакея + fringe removal + градиентная маска
 
-**Модуль:** `retouch/processing/chromakey.py`
+**Модуль:** `retouch/processing/detection/chromakey.py`
 
 - **Градиентная маска**: вместо бинарного порога вычисляет «степень синевы» через soft-step. Альфа-канал = 1 − blue_strength. Плавный переход на контуре следует за реальным градиентом синевы, а не за пиксельной решёткой
 - Fringe removal: расширяет бинарную маску на `fringe_radius` пикселей и плавно гасит синий канал в переходной зоне (использует бинарный порог отдельно от градиентной альфы)
@@ -47,7 +47,7 @@ img_gray = img.convert("L")
 
 ### 4a. Преданализ (analytics)
 
-**Модуль:** `retouch/processing/analysis.py`
+**Модуль:** `retouch/processing/analysis/analysis.py`
 
 После конвертации в grayscale pipeline измеряет 13 метрик входного изображения внутри маски субъекта:
 
@@ -67,7 +67,7 @@ img_gray = img.convert("L")
 
 ### 4b. Детекция зоны лица (C.1)
 
-**Модуль:** `retouch/processing/face_region.py`
+**Модуль:** `retouch/processing/detection/face_region.py`
 
 Трёхуровневая стратегия определения зоны лица:
 
@@ -104,7 +104,7 @@ useEffect(() => {
 
 ### 4c. Генерация маски лица и волос из овала (C.2)
 
-**Модуль:** `retouch/processing/face_region.py`
+**Модуль:** `retouch/processing/detection/face_region.py`
 
 - `generate_face_mask(width, height, face_oval, subject_mask)` — создаёт эллипс по овалу ∩ subject_mask. Если `face_oval` не задан — legacy fallback (верхние 45%)
 - `generate_hair_mask(face_mask, subject_mask, gap_ratio=0.05)` — маска волос = субъект выше овала лица с зазором `gap_ratio` (доля высоты изображения)
@@ -113,7 +113,7 @@ useEffect(() => {
 
 ### 5. Glow (inner | outer, детерминированный)
 
-**Модуль:** `retouch/processing/glow.py`
+**Модуль:** `retouch/processing/correction/glow.py`
 
 Параметры glow **детерминированы** (D.1): при наличии analytics — midpoint адаптивного диапазона через `_calculate_glow_params()`, без analytics — midpoint диапазона из конфига. Рандомизация полностью устранена для preview-export consistency.
 
@@ -130,7 +130,7 @@ useEffect(() => {
 
 ### 6. Levels (яркость)
 
-**Модуль:** `retouch/processing/levels.py`
+**Модуль:** `retouch/processing/correction/levels.py`
 
 Двусторонняя bounded delta формула (рефакторинг v6.4):
 - `target_pre_fb`: laser_standard=210, laser_80w=170, impact=180
@@ -145,7 +145,7 @@ useEffect(() => {
 
 ### 7. Face Brightness (по маске лица)
 
-**Модуль:** `retouch/processing/face_correction.py` → `check_face_brightness()`
+**Модуль:** `retouch/processing/correction/face_correction.py` → `check_face_brightness()`
 
 Начиная с этапа C.3, `check_face_brightness()` принимает `face_mask_img` (маску лица из овала) вместо топологического `face_region_top`. Маска лица точнее — овал ограничивает замер яркости зоной лица, исключая лоб/волосы/шею.
 
@@ -165,7 +165,7 @@ useEffect(() => {
 
 ### 8. Unsharp Mask (адаптивный)
 
-**Модуль:** `retouch/processing/unsharp.py`
+**Модуль:** `retouch/processing/correction/unsharp.py`
 
 Порядок шагов изменён (A.3): unsharp mask теперь **ПОСЛЕ** face_brightness correction. Старый порядок доступен через `legacy_step_order: true` в config.yaml.
 
@@ -178,7 +178,7 @@ useEffect(() => {
 
 ### 8a. Shadow Noise (impact)
 
-**Модуль:** `retouch/processing/shadow_noise.py`
+**Модуль:** `retouch/processing/correction/shadow_noise.py`
 
 Для `machine_type == "impact"`: к пикселям с яркостью < `shadow_noise_threshold` (default: 30) **внутри маски субъекта** добавляется случайный шум в диапазоне `shadow_noise_min`–`shadow_noise_max` (default: 5–15). Шум добавляется только в субъект (`subject_dark = mask_bool & (arr < threshold)`), а не на фоне — это исправление бага A.1.
 
@@ -186,7 +186,7 @@ useEffect(() => {
 
 ### 8b. Shadow Floor (impact)
 
-**Встроен в:** `retouch/processing/pipeline.py`
+**Встроен в:** `retouch/processing/core/pipeline.py`
 
 Отдельный шаг для impact: `np.maximum(arr, shadow_floor)`. Предотвращает уход теней в 0 — игла застревает на чистом чёрном. Shadow floor — machine-specific логика, вынесена из `_curves_correction()` чтобы не нарушать SRP.
 
@@ -194,13 +194,13 @@ useEffect(() => {
 
 ### 8c. White Ceiling Clamp + Soft Rolloff
 
-**Встроен в:** `retouch/processing/pipeline.py`, `retouch/processing/rolloff.py`
+**Встроен в:** `retouch/processing/core/pipeline.py`, `retouch/processing/correction/rolloff.py`
 
 Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — плавное сжатие яркости в зоне highlights. Заменяет hard clamp `np.clip` — сохраняет текстуру в зоне пересвета. Используется в levels и face_correction.
 
 ### 9. Арховая виньетка
 
-**Модуль:** `retouch/processing/vignette.py`
+**Модуль:** `retouch/processing/output/vignette.py`
 
 - Рисует эллипс на чёрной маске, вынесенный выше изображения (headroom)
 - Размывает край Gaussian Blur
@@ -218,7 +218,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### 11. Сохранение BMP/PNG
 
-**Модуль:** `retouch/processing/export.py`
+**Модуль:** `retouch/processing/output/export.py`
 
 - **BMP** — основной формат для ЧПУ станков (v3: формат по export_mode):
   - Все машины по умолчанию (export_mode='8bit'): 8-bit grayscale BMP (256 оттенков, палитра R=G=B)
@@ -229,7 +229,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### 11a. BMP Post-Validation (F.3)
 
-**Встроен в:** `retouch/processing/pipeline.py`
+**Встроен в:** `retouch/processing/core/pipeline.py`
 
 Автоматическая проверка после сохранения: `_validate_export()` проверяет что mode и size сохранённого BMP совпадают с ожидаемыми. Гарантирует целостность выходного файла для ЧПУ станка.
 
@@ -250,7 +250,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ## PipelineContext (B.1)
 
-**Модуль:** `retouch/processing/pipeline.py`
+**Модуль:** `retouch/processing/core/pipeline.py`
 
 `PipelineContext` dataclass — внутренняя упаковка параметров пайплайна (только внутри `pipeline.py`). Публичный API функций обработки НЕ меняется — они сохраняют текущие сигнатуры.
 
@@ -270,7 +270,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### ZoneMasks
 
-**Модуль:** `retouch/processing/zones.py`
+**Модуль:** `retouch/processing/analysis/zones.py`
 
 Зональное разделение изображения для дифференцированной обработки:
 - `face_skin` — кожа лица (адаптивный порог по `median_brightness`)
@@ -283,7 +283,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### PipelinePlan
 
-**Модуль:** `retouch/processing/plan.py`
+**Модуль:** `retouch/processing/core/plan.py`
 
 Структурированное описание плана обработки:
 - `PipelinePlan` — активные шаги, параметры (skin_delta, glow_size, unsharp_*, stone_gamma, shadow_floor, white_ceiling)
@@ -293,7 +293,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### ZoneMetrics
 
-**Модуль:** `retouch/processing/metrics.py`
+**Модуль:** `retouch/processing/analysis/metrics.py`
 
 Метрики по зонам после каждого шага обработки:
 - `ZoneMetrics` — median, mean, p10, p90, tonal_range для каждой зоны
@@ -302,7 +302,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### Soft Rolloff
 
-**Модуль:** `retouch/processing/rolloff.py`
+**Модуль:** `retouch/processing/correction/rolloff.py`
 
 Унифицированная функция `soft_rolloff_masked(arr, mask, knee, ceiling, compression)`:
 - Плавное сжатие яркости в зоне highlights (soft knee)
@@ -311,7 +311,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ### Quality Gates
 
-**Модуль:** `retouch/processing/gates.py`
+**Модуль:** `retouch/processing/core/gates.py`
 
 7 контрольных точек качества пайплайна:
 - **Pre-check (3):** `pre_check_face_dark_small`, `pre_check_contour_inner_quality`, `pre_check_skin_delta_envelope`

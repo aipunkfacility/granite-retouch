@@ -168,7 +168,7 @@ class TestApplyInnerGlowDeprecated:
     """AUDIT-5.5: доступ к apply_inner_glow выдаёт DeprecationWarning."""
 
     def test_apply_inner_glow_deprecated(self):
-        """apply_inner_glow из retouch.processing.glow выдаёт DeprecationWarning."""
+        """apply_inner_glow из retouch.processing.correction.glow выдаёт DeprecationWarning."""
         import warnings
 
         import retouch.processing.correction.glow as glow_mod
