@@ -689,3 +689,86 @@ class TestDeprecationWarnings:
             assert len(deprecation) == 0, (
                 "img_postproc НЕ должен выдавать DeprecationWarning"
             )
+
+
+class TestProfileIntegration:
+    """Интеграционные тесты профилей обработки."""
+
+    def _save_chromakey_png(self, tmp_path, width=512, height=512):
+        """Создать синтетический PNG с хромакеем."""
+        arr = np.zeros((height, width, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = width // 2, height // 2
+        rx, ry = int(width * 0.25), int(height * 0.30)
+        y_c, x_c = np.ogrid[:height, :width]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 180
+        arr[ellipse, 1] = 140
+        arr[ellipse, 2] = 120
+        arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "input.png")
+        img.save(path, "PNG")
+        return path
+
+    def test_preserve_profile_skips_levels(self, tmp_path):
+        """Preserve profile пропускает levels, face_correction, unsharp."""
+        from retouch.processing.core.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+            profile="preserve",
+        )
+
+        # step_metrics не должен содержать записей для пропущенных шагов
+        step_names = [r.step_name for r in result.step_metrics]
+        assert "levels" not in step_names, "levels не должен выполняться в preserve"
+        assert "face_correction" not in step_names, "face_correction не должен выполняться в preserve"
+        assert "unsharp" not in step_names, "unsharp не должен выполняться в preserve"
+        assert "postproc" not in step_names, "postproc не должен выполняться в preserve"
+        assert "glow" in step_names, "glow должен выполняться в preserve"
+        assert "highlight_rolloff" in step_names, "highlight_rolloff должен выполняться в preserve"
+
+    def test_standard_profile_runs_all_steps(self, tmp_path):
+        """Standard profile выполняет все шаги."""
+        from retouch.processing.core.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+            profile="standard",
+        )
+
+        step_names = [r.step_name for r in result.step_metrics]
+        assert "levels" in step_names
+        assert "face_correction" in step_names
+        assert "unsharp" in step_names
+        assert "postproc" in step_names
+        assert "glow" in step_names
+        # highlight_rolloff НЕ должен быть отдельным шагом в standard
+        # (он часть postprocess)
+        assert "highlight_rolloff" not in step_names
+
+    def test_preserve_and_standard_produce_different_results(self, tmp_path):
+        """Preserve и standard дают разный результат."""
+        from retouch.processing.core.pipeline import process_steps
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result_preserve = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+            profile="preserve",
+        )
+        result_standard = process_steps(
+            input_path, machine_type="laser_standard", config=DEFAULTS,
+            profile="standard",
+        )
+
+        arr_p = np.array(result_preserve.img_final, dtype=np.float32)
+        arr_s = np.array(result_standard.img_final, dtype=np.float32)
+
+        # Результаты должны отличаться (preserve не применяет levels/face_correction/unsharp)
+        assert not np.allclose(arr_p, arr_s), (
+            "preserve и standard должны давать разный результат"
+        )

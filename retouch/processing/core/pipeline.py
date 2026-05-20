@@ -579,59 +579,63 @@ def _run_pipeline_steps(
     def _record_step(step_name: str, img: Image.Image | None):
         """Записать метрики шага в step_metrics + post-check gates."""
         nonlocal step_metrics, zone_masks
-        if img is None or zone_masks is None:
+        if img is None:
             return
+
         arr = np.array(img, dtype=np.float32)
-        masks_dict = {
-            "face_skin": zone_masks.face_skin,
-            "face_dark": zone_masks.face_dark,
-            "hair": zone_masks.hair,
-            "clothes": zone_masks.clothes,
-            "highlights": zone_masks.highlights,
-        }
-        wc = ctx.machine_cfg.get("white_ceiling", 250)
-        zm = compute_zone_metrics(arr, masks_dict, white_ceiling=wc)
+        zm: dict[str, ZoneMetrics] = {}
 
-        # Post-check gates
-        warnings = []
-        if len(step_metrics) > 0:
-            prev = step_metrics[-1]
-            fs_prev = prev.zone_metrics.get("face_skin")
-            fs_curr = zm.get("face_skin")
+        if zone_masks is not None:
+            masks_dict = {
+                "face_skin": zone_masks.face_skin,
+                "face_dark": zone_masks.face_dark,
+                "hair": zone_masks.hair,
+                "clothes": zone_masks.clothes,
+                "highlights": zone_masks.highlights,
+            }
+            wc = ctx.machine_cfg.get("white_ceiling", 250)
+            zm = compute_zone_metrics(arr, masks_dict, white_ceiling=wc)
 
-            if fs_prev and fs_curr:
-                # Variance loss
-                gate = post_check_variance_loss(
-                    fs_prev.variance, fs_curr.variance, step_name=step_name,
-                    threshold_pct=thresholds["variance_loss_threshold"],
-                )
-                if gate.triggered:
-                    gate_state.results.append(gate)
-                    warnings.append(gate.reason)
+            # Post-check gates (only when zone_masks available)
+            warnings = []
+            if len(step_metrics) > 0:
+                prev = step_metrics[-1]
+                fs_prev = prev.zone_metrics.get("face_skin")
+                fs_curr = zm.get("face_skin")
 
-                # P95 shift
-                gate = post_check_p95_shift(
-                    fs_prev.p95, fs_curr.p95, step_name=step_name,
-                    threshold_levels=thresholds["p95_shift_threshold"],
-                )
-                if gate.triggered:
-                    gate_state.results.append(gate)
-                    warnings.append(gate.reason)
+                if fs_prev and fs_curr:
+                    gate = post_check_variance_loss(
+                        fs_prev.variance, fs_curr.variance, step_name=step_name,
+                        threshold_pct=thresholds["variance_loss_threshold"],
+                    )
+                    if gate.triggered:
+                        gate_state.results.append(gate)
+                        warnings.append(gate.reason)
 
-            # Clipped pct (always check)
-            subj_clipped = zm.get("face_skin")
-            if subj_clipped and subj_clipped.clipped_pct > 0:
-                gate = post_check_clipped_pct(
-                    subj_clipped.clipped_pct, step_name=step_name,
-                    threshold_pct=thresholds["clipped_pct_threshold"],
-                )
-                if gate.triggered:
-                    gate_state.results.append(gate)
-                    warnings.append(gate.reason)
+                    gate = post_check_p95_shift(
+                        fs_prev.p95, fs_curr.p95, step_name=step_name,
+                        threshold_levels=thresholds["p95_shift_threshold"],
+                    )
+                    if gate.triggered:
+                        gate_state.results.append(gate)
+                        warnings.append(gate.reason)
 
-        step_metrics.append(make_step_record(step_name, zm, warnings))
+                subj_clipped = zm.get("face_skin")
+                if subj_clipped and subj_clipped.clipped_pct > 0:
+                    gate = post_check_clipped_pct(
+                        subj_clipped.clipped_pct, step_name=step_name,
+                        threshold_pct=thresholds["clipped_pct_threshold"],
+                    )
+                    if gate.triggered:
+                        gate_state.results.append(gate)
+                        warnings.append(gate.reason)
 
-    # 3. Glow
+            step_metrics.append(make_step_record(step_name, zm, warnings))
+        else:
+            # No zone_masks (e.g. preserve profile) — record step without zone metrics
+            step_metrics.append(make_step_record(step_name, {}, []))
+
+    # 3. Glow (always active)
     img_glow, glow_size, glow_opacity = apply_glow(
         ctx.img_gray, ctx.subject_mask, ctx.machine_cfg,
         glow_size_override=glow_size_override,
@@ -644,43 +648,66 @@ def _run_pipeline_steps(
     # Определяем порядок шагов (A.3)
     legacy_order = proc_cfg.get("legacy_step_order", False)
 
-    # 4. Levels
-    face_skin_mask_for_levels = None
-    if zone_masks is not None:
-        face_skin_mask_for_levels = zone_masks.face_skin
-    img_leveled = apply_levels(
-        img_glow, analytics=ctx.analytics,
-        machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
-        machine_cfg=ctx.machine_cfg, face_skin_mask=face_skin_mask_for_levels,
-        zone_masks=zone_masks,
-    )
-    _record_step("levels", img_leveled)
+    # Initialize pass-through variables for skipped steps
+    img_leveled = img_glow
+    img_face_corrected = img_glow
+    img_postproc = img_glow
+    face_before = 0.0
+    face_after = 0.0
+    correction_factor = 1.0
+
+    # 4. Levels (conditional)
+    if "levels" in validated.plan.active_steps:
+        face_skin_mask_for_levels = None
+        if zone_masks is not None:
+            face_skin_mask_for_levels = zone_masks.face_skin
+        img_leveled = apply_levels(
+            img_glow, analytics=ctx.analytics,
+            machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
+            machine_cfg=ctx.machine_cfg, face_skin_mask=face_skin_mask_for_levels,
+            zone_masks=zone_masks,
+        )
+        _record_step("levels", img_leveled)
 
     if legacy_order:
         # СТАРЫЙ порядок (до A.3): unsharp ДО face_brightness
-        img_temp = apply_unsharp_mask(
-            img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
-            threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
-            white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
-        )
-        _record_step("unsharp", img_temp)
-        img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-            img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-        )
-        _record_step("face_correction", img_face_corrected)
-        img_postproc = img_face_corrected  # В legacy-порядке unsharp уже применён
+        if "unsharp" in validated.plan.active_steps:
+            img_temp = apply_unsharp_mask(
+                img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+                threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
+                white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
+            )
+            _record_step("unsharp", img_temp)
+        else:
+            img_temp = img_leveled
+
+        if "face_correction" in validated.plan.active_steps:
+            img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
+                img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
+            )
+            _record_step("face_correction", img_face_corrected)
+        else:
+            img_face_corrected = img_temp
+        img_postproc = img_face_corrected
     else:
         # НОВЫЙ порядок (A.3): face_brightness ПЕРЕД unsharp
-        img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-            img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-        )
-        _record_step("face_correction", img_face_corrected)
-        img_postproc = apply_unsharp_mask(
-            img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
-            threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
-            white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
-        )
-        _record_step("unsharp", img_postproc)
+        if "face_correction" in validated.plan.active_steps:
+            img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
+                img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
+            )
+            _record_step("face_correction", img_face_corrected)
+        else:
+            img_face_corrected = img_leveled
+
+        if "unsharp" in validated.plan.active_steps:
+            img_postproc = apply_unsharp_mask(
+                img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+                threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
+                white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
+            )
+            _record_step("unsharp", img_postproc)
+        else:
+            img_postproc = img_face_corrected
 
     # Gates enforcement перед postproc: если сработали gates, ослабляем параметры
     # Читаем конфиг ДО enforcement, чтобы gates могли ослабить параметры
@@ -740,13 +767,11 @@ def _run_pipeline_steps(
     ctx.face_brightness_after = face_after
     ctx.correction_factor = correction_factor
 
-    # 5a. Shadow noise for impact (prevents needle stagnation on pure black)
-    # ВАЖНО: shadow_noise ПЕРЕД shadow_floor! Шум добавляет текстуру,
-    # затем shadow_floor гарантирует что ничего не уйдёт ниже пола.
+    # 5a. Shadow noise for impact (conditional)
     shadow_noise_min = ctx.machine_cfg.get("shadow_noise_min", 0)
     shadow_noise_max = ctx.machine_cfg.get("shadow_noise_max", 0)
     shadow_threshold = ctx.machine_cfg.get("shadow_noise_threshold", 30)
-    if shadow_noise_max > 0 and ctx.machine_type == "impact":
+    if "shadow_noise" in validated.plan.active_steps and shadow_noise_max > 0 and ctx.machine_type == "impact":
         img_postproc = add_shadow_noise(
             img_postproc, ctx.subject_mask,
             noise_min=shadow_noise_min, noise_max=shadow_noise_max,
@@ -754,21 +779,30 @@ def _run_pipeline_steps(
             shadow_floor=shadow_floor,
         )
 
-    # A.2: Postprocess — shadow_floor + stone_gamma + white_ceiling в одном проходе.
-    # Предотвращает уход теней в 0, применяет gamma камня и ограничивает света.
-    img_postproc = apply_postprocess(
-        img_postproc,
-        subject_mask=ctx.subject_mask,
-        face_mask=ctx.face_mask,
-        zone_masks=zone_masks,
-        machine_type=ctx.machine_type,
-        shadow_floor=shadow_floor,
-        stone_gamma=stone_gamma,
-        white_ceiling=white_ceiling,
-        compression=compression,
-    )
-
-    _record_step("postproc", img_postproc)
+    # A.2: Postprocess — shadow_floor + stone_gamma + white_ceiling (conditional)
+    # Для preserve: вместо postprocess применяем только highlight_rolloff
+    if set(validated.plan.active_steps) & {"shadow_floor", "stone_gamma", "white_ceiling"}:
+        img_postproc = apply_postprocess(
+            img_postproc,
+            subject_mask=ctx.subject_mask,
+            face_mask=ctx.face_mask,
+            zone_masks=zone_masks,
+            machine_type=ctx.machine_type,
+            shadow_floor=shadow_floor,
+            stone_gamma=stone_gamma,
+            white_ceiling=white_ceiling,
+            compression=compression,
+        )
+        _record_step("postproc", img_postproc)
+    elif "highlight_rolloff" in validated.plan.active_steps:
+        # Preserve profile: только rolloff по highlights, без floor/gamma
+        if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
+            arr = np.array(img_postproc, dtype=np.float32)
+            rolloff_mask_arr = (zone_masks.highlights > 128).astype(np.uint8) * 255
+            ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
+            arr = soft_rolloff_masked(arr, rolloff_mask_arr, ceiling * 0.90, ceiling, compression)
+            img_postproc = Image.fromarray(arr.astype(np.uint8))
+        _record_step("highlight_rolloff", img_postproc)
 
     # 6. Vignette
     vign_cfg = ctx.config.get("vignette", {})
