@@ -4,7 +4,8 @@ PipelinePlan описывает КАКИЕ шаги будут применен�
 SafetyEnvelope задаёт максимальные допустимые дельты по зонам.
 ValidatedPlan клипует параметры до лимитов и возвращает warnings.
 
-validate_plan() работает с dataclass; Pydantic-схемы добавляются на этапе 6.
+Pydantic-схемы (PipelinePlanSchema, ValidatedPlanSchema) — в
+retouch_ui/backend/schemas.py для API-сериализации.
 """
 
 from __future__ import annotations
@@ -89,7 +90,7 @@ class SafetyEnvelope:
 class PipelinePlan:
     """Описание плана обработки — какие шаги и с какими параметрами.
 
-    На этапе 1-2 это dataclass. Pydantic-схема добавляется на этапе 6.
+    Pydantic-схемы для API-сериализации — в retouch_ui/backend/schemas.py.
     """
     profile: str = PROFILE_STANDARD
     active_steps: set[str] = field(default_factory=lambda: set(PROFILE_ACTIVE_STEPS[PROFILE_STANDARD]))
@@ -155,8 +156,8 @@ def validate_plan(
     ValidatedPlan клипует параметры до лимитов профиля и safety envelope,
     отключает шаги, запрещённые профилем, и возвращает warnings для diagnostics.
 
-    validate_plan() работает с dataclass; Pydantic-схема добавляется только
-    на этапе 6 для API-сериализации и не дублирует логику валидации.
+    Pydantic-схемы (PipelinePlanSchema, ValidatedPlanSchema) для API — в
+    retouch_ui/backend/schemas.py, не дублируют логику валидации.
 
     Args:
         plan: PipelinePlan для валидации
