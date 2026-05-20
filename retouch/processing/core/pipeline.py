@@ -431,10 +431,6 @@ def process_steps(
             hair_anomaly = True
             hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} < 0.02 (подозрительно мала)"
 
-    if hair_anomaly:
-        ctx.warnings.append(f"hair_mask anomaly: {hair_anomaly_reason}")
-        logger.warning("Hair mask anomaly: %s", hair_anomaly_reason)
-
     # 2c. Преданализ — метрики по лицу (не по субъекту с одеждой)
     analytics = analyze_input(img_gray, np.array(subject_mask), np.array(face_mask))
 
@@ -465,6 +461,10 @@ def process_steps(
         subject_mask.save(os.path.join(debug_dir, "subject_mask.png"))
         face_mask.save(os.path.join(debug_dir, "face_mask.png"))
         img_gray.save(os.path.join(debug_dir, "source_gray.png"))
+
+    if hair_anomaly:
+        ctx.warnings.append(f"hair_mask anomaly: {hair_anomaly_reason}")
+        logger.warning("Hair mask anomaly: %s", hair_anomaly_reason)
 
     # B.1: Выполнение шагов через PipelineContext
     result = _run_pipeline_steps(
