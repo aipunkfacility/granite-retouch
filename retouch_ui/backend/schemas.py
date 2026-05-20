@@ -121,6 +121,10 @@ class PreviewDiagnostics(BaseModel):
     profile: str | None = None
     # Step metrics — per-step per-zone метрики
     step_metrics: list[dict] | None = None
+    # Pipeline plan — что планировалось сделать
+    plan: PipelinePlanSchema | None = None
+    # Validated plan — что реально будет сделано (с клипами и warnings)
+    validated_plan: ValidatedPlanSchema | None = None
 
 
 class PreviewResponse(BaseModel):
@@ -207,3 +211,69 @@ class DitherPreviewResponse(BaseModel):
     """Ответ POST /api/process/dither-preview."""
     image: str = Field(..., description="data:image/png;base64,... дизеринг-превью")
     numba_available: bool = Field(True, description="Доступен ли Numba JIT")
+
+
+# ─── PipelinePlan / ValidatedPlan (Этап 6, API-сериализация) ──────────
+
+class PipelinePlanSchema(BaseModel):
+    """Сериализуемый PipelinePlan для API и diagnostics."""
+    profile: str = Field("standard", description="Профиль обработки")
+    active_steps: list[str] = Field(default_factory=list, description="Активные шаги пайплайна")
+    skin_delta: float = Field(0.0, description="Дельта коррекции кожи")
+    highlight_rolloff_knee: float = Field(0.90, description="Knee для highlight rolloff")
+    highlight_rolloff_compression: float = Field(0.35, description="Compression ratio rolloff")
+    glow_size: int = Field(40, description="Размер свечения (px)")
+    glow_opacity: float = Field(0.35, description="Непрозрачность свечения")
+    unsharp_percent: int = Field(120, description="Процент unsharp mask")
+    unsharp_radius: float = Field(1.5, description="Радиус unsharp mask")
+    unsharp_threshold: int = Field(0, description="Порог unsharp mask")
+    stone_gamma: float = Field(1.0, description="Gamma камня")
+    shadow_floor: int = Field(0, description="Пол теней")
+    white_ceiling: int = Field(250, description="Потолок яркости")
+    compression: float = Field(0.35, description="Общий compression ratio")
+
+
+class ValidatedPlanSchema(BaseModel):
+    """Сериализуемый ValidatedPlan для API — клипнутые параметры + warnings."""
+    plan: PipelinePlanSchema = Field(..., description="Валидированный план")
+    warnings: list[str] = Field(default_factory=list, description="Предупреждения валидации")
+    disabled_steps: list[str] = Field(default_factory=list, description="Отключённые шаги")
+    clipped_params: dict[str, list] = Field(
+        default_factory=dict,
+        description="Клипнутые параметры: {name: [old_value, new_value]}",
+    )
+
+
+# ─── Helpers: dataclass → Pydantic schema ─────────────────────────────
+
+def plan_to_schema(plan: object) -> PipelinePlanSchema:
+    """Конвертировать PipelinePlan dataclass в PipelinePlanSchema."""
+    return PipelinePlanSchema(
+        profile=plan.profile,
+        active_steps=sorted(plan.active_steps) if isinstance(plan.active_steps, set) else list(plan.active_steps),
+        skin_delta=plan.skin_delta,
+        highlight_rolloff_knee=plan.highlight_rolloff_knee,
+        highlight_rolloff_compression=plan.highlight_rolloff_compression,
+        glow_size=plan.glow_size,
+        glow_opacity=plan.glow_opacity,
+        unsharp_percent=plan.unsharp_percent,
+        unsharp_radius=plan.unsharp_radius,
+        unsharp_threshold=plan.unsharp_threshold,
+        stone_gamma=plan.stone_gamma,
+        shadow_floor=plan.shadow_floor,
+        white_ceiling=plan.white_ceiling,
+        compression=plan.compression,
+    )
+
+
+def validated_plan_to_schema(vp: object) -> ValidatedPlanSchema:
+    """Конвертировать ValidatedPlan dataclass в ValidatedPlanSchema."""
+    clipped = {}
+    for k, v in vp.clipped_params.items():
+        clipped[k] = list(v) if isinstance(v, tuple) else v
+    return ValidatedPlanSchema(
+        plan=plan_to_schema(vp.plan),
+        warnings=list(vp.warnings),
+        disabled_steps=list(vp.disabled_steps),
+        clipped_params=clipped,
+    )

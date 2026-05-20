@@ -25,8 +25,7 @@ from retouch.processing.correction.shadow_noise import add_shadow_noise
 from retouch.processing.detection.face_region import detect_face_oval, generate_face_mask, generate_hair_mask
 from retouch.processing.output.export import export_result
 from retouch.processing.output.vignette import apply_vignette
-from retouch.processing.correction.mask_utils import clamp_masked
-from retouch.processing.correction.gamma import apply_stone_gamma_masked
+from retouch.processing.correction.postprocess import apply_postprocess
 from retouch.processing.analysis.zones import build_zone_masks, ZoneMasks
 from retouch.processing.core.plan import (
     PipelinePlan,
@@ -735,70 +734,19 @@ def _run_pipeline_steps(
             shadow_floor=shadow_floor,
         )
 
-    # A.2: Shadow floor — отдельный шаг (FIX #12: теперь для всех станков)
-    # Предотвращает уход теней в 0 (игла застревает / «грязь» на камне).
-    # После shadow_noise: гарантирует что шум не создал значения < floor.
-    #
-    # PERF: Объединяем shadow_floor + stone_gamma + white_ceiling в ОДИН numpy-проход.
-    # Было 3× PIL→numpy→PIL (3 аллокации), стало 1× PIL→numpy→PIL.
-    # stone_gamma, white_ceiling, compression прочитаны ДО enforcement (выше).
-
-    needs_numpy = (
-        (shadow_floor > 0) or
-        (stone_gamma is not None and stone_gamma != 1.0) or
-        (white_ceiling is not None)
+    # A.2: Postprocess — shadow_floor + stone_gamma + white_ceiling в одном проходе.
+    # Предотвращает уход теней в 0, применяет gamma камня и ограничивает света.
+    img_postproc = apply_postprocess(
+        img_postproc,
+        subject_mask=ctx.subject_mask,
+        face_mask=ctx.face_mask,
+        zone_masks=zone_masks,
+        machine_type=ctx.machine_type,
+        shadow_floor=shadow_floor,
+        stone_gamma=stone_gamma,
+        white_ceiling=white_ceiling,
+        compression=compression,
     )
-
-    if needs_numpy:
-        arr = np.array(img_postproc, dtype=np.float32)
-        mask_bool = np.array(ctx.subject_mask) > 128
-
-        # Shadow floor
-        # Этап 0: для laser — только в face_mask, не в hair/clothes
-        # impact — по всей subject_mask (needle floor)
-        if shadow_floor > 0:
-            if ctx.machine_type == "impact":
-                arr = clamp_masked(arr, ctx.subject_mask, vmin=shadow_floor, mask_bool=mask_bool)
-                logger.info("Shadow floor applied: %d (impact, full subject)", shadow_floor)
-            else:
-                # laser_standard, laser_80w — только в зоне лица
-                if ctx.face_mask is not None:
-                    face_mask_bool = np.array(ctx.face_mask) > 128
-                    floor_mask = mask_bool & face_mask_bool
-                    if floor_mask.any():
-                        arr[floor_mask] = np.maximum(arr[floor_mask], float(shadow_floor))
-                        logger.info(
-                            "Shadow floor applied: %d (laser, face_mask only, %d px)",
-                            shadow_floor, int(floor_mask.sum()),
-                        )
-                    else:
-                        logger.info("Shadow floor skipped: no face_mask overlap")
-                else:
-                    # Fallback: без face_mask не применяем floor для laser
-                    logger.warning("Shadow floor skipped for laser: face_mask unavailable")
-
-        # Stone gamma (SOP 5.1)
-        if stone_gamma is not None and stone_gamma != 1.0:
-            arr = apply_stone_gamma_masked(arr, mask_bool, gamma=stone_gamma)
-            logger.info("Stone gamma applied: %.2f", stone_gamma)
-
-        # White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
-        # v6: soft_rolloff_masked вместо inline knee (единый helper)
-        # v6.5: rolloff только по highlights-зоне (не весь subject)
-        if white_ceiling is not None:
-            knee = white_ceiling * 0.90
-            if zone_masks is not None and zone_masks.highlights.any():
-                rolloff_mask = zone_masks.highlights
-                logger.info("White ceiling rolloff applied to highlights zone (%d px)", int(rolloff_mask.sum()))
-            else:
-                rolloff_mask = np.array(ctx.subject_mask, dtype=np.uint8)
-            arr = soft_rolloff_masked(arr, rolloff_mask, knee, float(white_ceiling), compression)
-            logger.info("White ceiling rolloff (post-gamma): %d, compression=%.2f", white_ceiling, compression)
-            # Per-region face clamp удалён (v4—v5): создавал серое плато
-            # по границе маски лица на всех трёх типах станка.
-            # Защита от пересвета: levels→white_ceiling + face_correction→target_ceiling.
-
-        img_postproc = Image.fromarray(arr.astype(np.uint8))
 
     _record_step("postproc", img_postproc)
 

@@ -46,6 +46,10 @@ from ..schemas import (
     VignetteMaskRequest,
     VignetteMaskResponse,
     VignetteMaskParams,
+    PipelinePlanSchema,
+    ValidatedPlanSchema,
+    plan_to_schema,
+    validated_plan_to_schema,
 )
 
 logger = logging.getLogger("retouch_ui.process")
@@ -455,6 +459,10 @@ async def preview_image(
         numba_available=_get_numba_available(),
         profile=profile,
         step_metrics=step_metrics_serialized,
+        # Pipeline plan — что планировалось сделать
+        plan=plan_to_schema(result.plan) if result.plan else None,
+        # Validated plan — что реально будет сделано (с клипами и warnings)
+        validated_plan=validated_plan_to_schema(result.validated_plan) if result.validated_plan else None,
     )
 
     response_data = {

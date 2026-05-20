@@ -13,6 +13,7 @@ from .core.plan import PipelinePlan, ValidatedPlan, SafetyEnvelope, validate_pla
 from .core.plan import PROFILE_PRESERVE, PROFILE_STANDARD, PROFILE_DIAGNOSTIC
 from .analysis.metrics import ZoneMetrics, StepMetricsRecord, compute_zone_metrics, make_step_record
 from .correction.rolloff import soft_rolloff_masked
+from .correction.postprocess import apply_postprocess
 from .core.gates import GateState, GateResult
 from .core.gates import (
     pre_check_face_dark_small,
@@ -58,6 +59,7 @@ __all__ = [
     "compute_zone_metrics",
     "make_step_record",
     "soft_rolloff_masked",
+    "apply_postprocess",
     "GateState",
     "GateResult",
     "pre_check_face_dark_small",
