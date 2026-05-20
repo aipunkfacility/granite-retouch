@@ -241,9 +241,9 @@ export default function App() {
       if (newOval.source === "manual" && !faceOvalPinned) {
         setFaceOvalPinned(true);
       }
-      if (fileId) requestPreview(fileId, pm.machineType, config, newOval);
+      if (fileId) requestPreview(fileId, pm.machineType, config, newOval, profile);
     },
-    [fileId, pm.machineType, config, requestPreview, faceOvalPinned],
+    [fileId, pm.machineType, config, requestPreview, faceOvalPinned, profile],
   );
 
   const handleFaceOvalPinToggle = useCallback(() => {
@@ -356,7 +356,10 @@ export default function App() {
             profile={profile}
             onChange={(p) => {
               setProfile(p);
-              if (fileId) requestPreviewWithOval(fileId, pm.machineType, config);
+              if (fileId) {
+                const oval = faceOvalOverlayEnabled ? faceOval : null;
+                requestPreview(fileId, pm.machineType, config, oval, p);
+              }
             }}
           />
           {fileId && (

@@ -630,7 +630,7 @@ async def dither_preview(request: DitherPreviewRequest):
     # Собрать конфиг
     full_config = load_config()
     overrides_data = _params_to_overrides(request.params, machine_type=request.machine)
-    overrides, face_oval_dict, _ = overrides_data
+    overrides, face_oval_dict, dither_profile = overrides_data
 
     if overrides:
         full_config = deep_merge(full_config, overrides)
@@ -659,6 +659,7 @@ async def dither_preview(request: DitherPreviewRequest):
                 machine_type=request.machine,
                 config=full_config,
                 face_oval=face_oval,
+                profile=dither_profile or "standard",
             ),
             timeout=180.0 if not numba_available else 30.0,
         )
