@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.levels import (
+from retouch.processing.correction.levels import (
     apply_levels,
     apply_unsharp_mask,
     check_face_brightness,
@@ -265,7 +265,7 @@ class TestCheckFaceBrightness:
 
     def test_no_double_brightening_beyond_target(self):
         """После apply_levels + check_face_brightness пиксели не улетают за target_max."""
-        from retouch.processing.levels import apply_levels
+        from retouch.processing.correction.levels import apply_levels
 
         # Симулируем пайплайн: apply_levels(1.18) → check_face_brightness
         arr = np.full((200, 200), 150, dtype=np.uint8)
@@ -533,7 +533,7 @@ class TestBoundedDelta:
 
     def test_delta_zero_when_in_range(self):
         """median в target range → delta = 0."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         # laser_standard: target_min=230, target_max=245
         analytics = {'median_brightness': 235.0}
         delta = _compute_bounded_delta(analytics, 'laser_standard')
@@ -541,7 +541,7 @@ class TestBoundedDelta:
 
     def test_delta_positive_when_below_target(self):
         """median ниже target_min → delta > 0 (осветление)."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         # laser_standard: target_min=230
         analytics = {'median_brightness': 200.0}
         delta = _compute_bounded_delta(analytics, 'laser_standard')
@@ -550,7 +550,7 @@ class TestBoundedDelta:
 
     def test_delta_negative_when_above_target(self):
         """median выше target_max → delta < 0 (затемнение)."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         # laser_standard: target_max=245
         analytics = {'median_brightness': 250.0}
         delta = _compute_bounded_delta(analytics, 'laser_standard')
@@ -559,7 +559,7 @@ class TestBoundedDelta:
 
     def test_delta_clipped_to_max(self):
         """Delta не превышает max_delta=15."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 100.0}
         delta = _compute_bounded_delta(analytics, 'laser_standard')
         assert delta == 15.0
@@ -570,21 +570,21 @@ class TestAdaptiveUnsharp:
 
     def test_overbright_reduced_sharpening(self):
         """Overbright → сниженный percent (80)."""
-        from retouch.processing.levels import _adaptive_unsharp_percent
+        from retouch.processing.correction.levels import _adaptive_unsharp_percent
         analytics = {'tonal_range': 80, 'input_class': 'overbright'}
         percent = _adaptive_unsharp_percent(analytics, 120)
         assert percent == 80
 
     def test_low_tonal_range_increased_sharpening(self):
         """Низкий tonal_range (<40) → усиленный percent (150)."""
-        from retouch.processing.levels import _adaptive_unsharp_percent
+        from retouch.processing.correction.levels import _adaptive_unsharp_percent
         analytics = {'tonal_range': 30, 'input_class': 'bright'}
         percent = _adaptive_unsharp_percent(analytics, 120)
         assert percent == 150
 
     def test_normal_tonal_range_default_sharpening(self):
         """Нормальный tonal_range (>80) → стандартный percent (120)."""
-        from retouch.processing.levels import _adaptive_unsharp_percent
+        from retouch.processing.correction.levels import _adaptive_unsharp_percent
         analytics = {'tonal_range': 100, 'input_class': 'bright'}
         percent = _adaptive_unsharp_percent(analytics, 120)
         assert percent == 120
@@ -595,7 +595,7 @@ class TestBoundedDeltaDefaults:
 
     def test_target_range_from_defaults_laser_standard(self):
         """laser_standard: target_min=230, target_max=245."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 200.0}
         delta = _compute_bounded_delta(analytics, 'laser_standard')
         assert delta > 0  # 200 < 230 → осветление
@@ -603,7 +603,7 @@ class TestBoundedDeltaDefaults:
 
     def test_target_range_from_defaults_laser_80w(self):
         """laser_80w: target_min=160, target_max=180."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 140.0}
         delta = _compute_bounded_delta(analytics, 'laser_80w')
         assert delta > 0  # 140 < 160 → осветление
@@ -611,7 +611,7 @@ class TestBoundedDeltaDefaults:
 
     def test_target_range_from_defaults_impact(self):
         """impact: target_min=170, target_max=215."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 150.0}
         delta = _compute_bounded_delta(analytics, 'impact')
         assert delta > 0  # 150 < 170 → осветление
@@ -619,7 +619,7 @@ class TestBoundedDeltaDefaults:
 
     def test_machine_cfg_overrides_defaults(self):
         """machine_cfg переопределяет target range из DEFAULTS."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 150.0}
         machine_cfg = {
             "face_brightness_target_min": 140,
@@ -631,7 +631,7 @@ class TestBoundedDeltaDefaults:
 
     def test_unknown_machine_type_uses_fallback(self):
         """Неизвестный machine_type использует fallback [180, 220]."""
-        from retouch.processing.levels import _compute_bounded_delta
+        from retouch.processing.correction.levels import _compute_bounded_delta
         analytics = {'median_brightness': 150.0}
         delta = _compute_bounded_delta(analytics, 'unknown_machine')
         assert delta > 0  # 150 < 180 → осветление

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from retouch.processing.face_region import (
+from retouch.processing.detection.face_region import (
     _detect_face_by_width_profile,
     detect_face_oval,
     generate_face_mask,

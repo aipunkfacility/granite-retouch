@@ -10,7 +10,7 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
-from retouch.processing.mask_utils import apply_masked
+from retouch.processing.correction.mask_utils import apply_masked
 
 logger = logging.getLogger(__name__)
 

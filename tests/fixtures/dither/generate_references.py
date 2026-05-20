@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from retouch.processing.export import export_result
+from retouch.processing.output.export import export_result
 
 FIXTURES_DIR = Path(__file__).parent
 

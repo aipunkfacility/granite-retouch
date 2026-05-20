@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from retouch.config import DEFAULTS
-from retouch.processing.pipeline import process_steps
+from retouch.processing.core.pipeline import process_steps
 
 
 class TestPipelineWithGates:

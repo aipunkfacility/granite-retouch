@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.plan import PipelinePlan, SafetyEnvelope, validate_plan
+from retouch.processing.core.plan import PipelinePlan, SafetyEnvelope, validate_plan
 
 
 class TestFaceBrightnessSoftLightening:
@@ -12,7 +12,7 @@ class TestFaceBrightnessSoftLightening:
 
     def test_face_brightness_lightens_dark_skin(self):
         """Тёмное лицо (median=160) при target_min=180 → осветление."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
 
         arr = np.full((100, 100), 160.0, dtype=np.uint8)
         img = Image.fromarray(arr, mode="L")
@@ -26,7 +26,7 @@ class TestFaceBrightnessSoftLightening:
 
     def test_face_brightness_does_not_lighten_bright_skin(self):
         """Светлое лицо (median=200) при target_max=190 → затемнение или без изменений."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
 
         arr = np.full((100, 100), 200.0, dtype=np.uint8)
         img = Image.fromarray(arr, mode="L")
@@ -40,7 +40,7 @@ class TestFaceBrightnessSoftLightening:
 
     def test_face_brightness_no_change_in_target_range(self):
         """Лицо в target_range → без изменений (factor=1.0)."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
 
         arr = np.full((100, 100), 200.0, dtype=np.uint8)
         img = Image.fromarray(arr, mode="L")
@@ -54,7 +54,7 @@ class TestFaceBrightnessSoftLightening:
 
     def test_face_brightness_lightening_bounded_by_delta(self):
         """Осветление не превышает delta=15."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
 
         arr = np.full((100, 100), 100.0, dtype=np.uint8)
         img = Image.fromarray(arr, mode="L")
@@ -69,7 +69,7 @@ class TestFaceBrightnessSoftLightening:
 
     def test_face_brightness_lightening_preserves_highlights(self):
         """Светлые участки (> highlight_start) не осветляются."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
 
         arr = np.full((100, 100), 180.0, dtype=np.uint8)
         arr[20:40, 20:40] = 240  # highlights

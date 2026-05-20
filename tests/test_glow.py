@@ -12,7 +12,7 @@ class TestGlowNumpyEquivalence:
 
     def test_outer_glow_numpy_result(self):
         """Outer glow: numpy clip+multiply даёт корректный результат."""
-        from retouch.processing.glow import apply_outer_glow
+        from retouch.processing.correction.glow import apply_outer_glow
 
         # Создаём простую маску с чётким прямоугольником
         arr = np.zeros((100, 100), dtype=np.uint8)
@@ -31,7 +31,7 @@ class TestGlowNumpyEquivalence:
 
     def test_outer_glow_with_full_mask(self):
         """Outer glow с полной маской — свечение некуда, результат ≈ оригинал."""
-        from retouch.processing.glow import apply_outer_glow
+        from retouch.processing.correction.glow import apply_outer_glow
 
         mask = Image.new("L", (80, 80), 255)  # Вся маска = субъект
         img_gray = Image.new("L", (80, 80), 128)
@@ -51,7 +51,7 @@ class TestCalculateGlowParamsLaser80wConfig:
     def test_laser_80w_custom_config_overrides_hardcode(self):
         """Кастомный конфиг laser_80w должен давать midpoint диапазона конфига,
         а не хардкод (20, 15)."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         custom_cfg = {
             'glow_size_min': 30, 'glow_size_max': 50,
@@ -65,7 +65,7 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_laser_80w_default_config_matches_current_hardcode(self):
         """При дефолтном конфиге результат = midpoint диапазона DEFAULTS."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         default_cfg = {
             'glow_size_min': 15, 'glow_size_max': 25,
@@ -76,14 +76,14 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_laser_80w_no_config_uses_defaults(self):
         """Без machine_cfg — fallback на дефолтные значения."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         result = _calculate_glow_params(analytics, 'laser_80w')
         assert result == (20, 15)
 
     def test_laser_standard_uses_config_ranges(self):
         """laser_standard читает glow-диапазоны из конфига, а не хардкод."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         # Дефолтный конфиг laser_standard: glow 40-80, opacity 30-40
         # tonal_range=100 → t=0.5 → glow=60, opacity=35
@@ -95,7 +95,7 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_laser_standard_custom_config(self):
         """laser_standard с кастомным конфигом — параметры из конфига."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'tonal_range': 100}
         custom_cfg = {
             'glow_size_min': 20, 'glow_size_max': 60,
@@ -107,7 +107,7 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_impact_uses_config_ranges(self):
         """impact читает glow-диапазоны из конфига, а не хардкод."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         # Дефолтный конфиг impact: glow 10-25, opacity 60-80
         # separation=100 (>80) → t=0.25 → glow=13, opacity=65
         analytics = {'subject_separation': 100}
@@ -119,7 +119,7 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_impact_custom_config(self):
         """impact с кастомным конфигом — параметры из конфига."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'subject_separation': 100}
         custom_cfg = {
             'glow_size_min': 20, 'glow_size_max': 40,
@@ -131,7 +131,7 @@ class TestCalculateGlowParamsLaser80wConfig:
 
     def test_impact_no_config_uses_defaults(self):
         """impact без machine_cfg — fallback на DEFAULTS."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         analytics = {'subject_separation': 100}
         result = _calculate_glow_params(analytics, 'impact')
         # DEFAULTS: glow 10-25, opacity 60-80; t=0.25 → (13, 65)
@@ -143,7 +143,7 @@ class TestGlowDeterminism:
 
     def test_same_analytics_same_result(self):
         """Одинаковые входы → одинаковый glow для всех machine_type."""
-        from retouch.processing.glow import _calculate_glow_params
+        from retouch.processing.correction.glow import _calculate_glow_params
         for machine_type in ('laser_standard', 'laser_80w', 'impact'):
             analytics = {'tonal_range': 100, 'subject_separation': 100}
             r1 = _calculate_glow_params(analytics, machine_type)
@@ -152,7 +152,7 @@ class TestGlowDeterminism:
 
     def test_preview_export_consistency(self):
         """D.1: preview и export получают одинаковый glow при одинаковых входах."""
-        from retouch.processing.glow import apply_glow
+        from retouch.processing.correction.glow import apply_glow
         img = Image.new('L', (200, 200), 128)
         mask = Image.new('L', (200, 200), 255)
         analytics = {'tonal_range': 100, 'subject_separation': 100}
@@ -171,7 +171,7 @@ class TestApplyInnerGlowDeprecated:
         """apply_inner_glow из retouch.processing.glow выдаёт DeprecationWarning."""
         import warnings
 
-        import retouch.processing.glow as glow_mod
+        import retouch.processing.correction.glow as glow_mod
         # Очищаем закешированный атрибут чтобы __getattr__ сработал снова
         glow_mod.__dict__.pop("apply_inner_glow", None)
 
@@ -183,7 +183,7 @@ class TestApplyInnerGlowDeprecated:
                 "Доступ к apply_inner_glow должен выдавать DeprecationWarning"
             )
 
-        from retouch.processing.glow import apply_glow
+        from retouch.processing.correction.glow import apply_glow
         assert func is apply_glow, (
             "apply_inner_glow должен быть alias для apply_glow"
         )

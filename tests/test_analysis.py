@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from PIL import Image
 
-from retouch.processing.analysis import analyze_input
+from retouch.processing.analysis.analysis import analyze_input
 
 
 def _make_synthetic(face_value: int, bg_value: int = 0,

@@ -2,9 +2,9 @@ import inspect
 import numpy as np
 import pytest
 from PIL import Image
-from retouch.processing.shadow_noise import add_shadow_noise
-from retouch.processing.rolloff import soft_rolloff_masked
-from retouch.processing.unsharp import apply_unsharp_mask
+from retouch.processing.correction.shadow_noise import add_shadow_noise
+from retouch.processing.correction.rolloff import soft_rolloff_masked
+from retouch.processing.correction.unsharp import apply_unsharp_mask
 
 
 @pytest.mark.parametrize("noise_min,noise_max,shadow_floor,exp_min,exp_max", [

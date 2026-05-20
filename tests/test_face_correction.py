@@ -11,13 +11,13 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from retouch.processing.face_correction import (
+from retouch.processing.correction.face_correction import (
     check_face_brightness,
     _curves_correction,
     _shrink_mask,
     HAS_NUMPY,
 )
-from retouch.processing.face_region import _detect_face_by_width_profile
+from retouch.processing.detection.face_region import _detect_face_by_width_profile
 
 
 # ─── Шов на овале лица ────────────────────────────────────────────────
@@ -255,7 +255,7 @@ class TestPillowFallbackPercentiles:
 
     def test_no_top_level_imagefilter_import(self):
         """BE-M3: ImageFilter не импортируется на уровне модуля."""
-        import retouch.processing.face_correction as fc
+        import retouch.processing.correction.face_correction as fc
         # Модульный ImageFilter не должен быть в глобальных импортах
         # (локальный импорт в _shrink_mask допустим)
         import inspect

@@ -3,7 +3,7 @@
 import numpy as np
 from PIL import Image
 import pytest
-from retouch.processing.shadow_noise import add_shadow_noise
+from retouch.processing.correction.shadow_noise import add_shadow_noise
 
 
 class TestShadowNoiseInvariants:

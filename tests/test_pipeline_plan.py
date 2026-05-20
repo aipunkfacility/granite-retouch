@@ -2,7 +2,7 @@
 
 import pytest
 
-from retouch.processing.plan import (
+from retouch.processing.core.plan import (
     PipelinePlan,
     ValidatedPlan,
     SafetyEnvelope,

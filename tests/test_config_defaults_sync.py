@@ -253,7 +253,7 @@ class TestSafetyEnvelopeConfig:
     def test_safety_envelope_section_in_config_yaml(self):
         """config.yaml содержит секцию safety_envelope."""
         from retouch.config import load_config
-        from retouch.processing.plan import SafetyEnvelope
+        from retouch.processing.core.plan import SafetyEnvelope
 
         config = load_config()
         env = SafetyEnvelope.from_config(config)

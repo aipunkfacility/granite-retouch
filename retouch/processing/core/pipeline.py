@@ -15,20 +15,20 @@ from retouch.validation.image import (
     validate_blue_chromakey,
     validate_result_black_ratio,
 )
-from retouch.processing.chromakey import remove_blue_background
-from retouch.processing.analysis import analyze_input, ImageAnalytics
-from retouch.processing.glow import apply_glow
-from retouch.processing.levels import apply_levels
-from retouch.processing.unsharp import apply_unsharp_mask
-from retouch.processing.face_correction import check_face_brightness
-from retouch.processing.shadow_noise import add_shadow_noise
-from retouch.processing.face_region import detect_face_oval, generate_face_mask, generate_hair_mask
-from retouch.processing.export import export_result
-from retouch.processing.vignette import apply_vignette
-from retouch.processing.mask_utils import clamp_masked
-from retouch.processing.gamma import apply_stone_gamma_masked
-from retouch.processing.zones import build_zone_masks, ZoneMasks
-from retouch.processing.plan import (
+from retouch.processing.detection.chromakey import remove_blue_background
+from retouch.processing.analysis.analysis import analyze_input, ImageAnalytics
+from retouch.processing.correction.glow import apply_glow
+from retouch.processing.correction.levels import apply_levels
+from retouch.processing.correction.unsharp import apply_unsharp_mask
+from retouch.processing.correction.face_correction import check_face_brightness
+from retouch.processing.correction.shadow_noise import add_shadow_noise
+from retouch.processing.detection.face_region import detect_face_oval, generate_face_mask, generate_hair_mask
+from retouch.processing.output.export import export_result
+from retouch.processing.output.vignette import apply_vignette
+from retouch.processing.correction.mask_utils import clamp_masked
+from retouch.processing.correction.gamma import apply_stone_gamma_masked
+from retouch.processing.analysis.zones import build_zone_masks, ZoneMasks
+from retouch.processing.core.plan import (
     PipelinePlan,
     ValidatedPlan,
     SafetyEnvelope,
@@ -37,9 +37,9 @@ from retouch.processing.plan import (
     PROFILE_PRESERVE,
     PROFILE_DIAGNOSTIC,
 )
-from retouch.processing.metrics import compute_zone_metrics, make_step_record, StepMetricsRecord
-from retouch.processing.rolloff import soft_rolloff_masked
-from retouch.processing.gates import (
+from retouch.processing.analysis.metrics import compute_zone_metrics, make_step_record, StepMetricsRecord
+from retouch.processing.correction.rolloff import soft_rolloff_masked
+from retouch.processing.core.gates import (
     GateState,
     pre_check_face_dark_small,
     pre_check_contour_inner_quality,

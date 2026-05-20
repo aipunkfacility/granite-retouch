@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from retouch.processing.metrics import (
+from retouch.processing.analysis.metrics import (
     ZoneMetrics,
     StepMetricsRecord,
     compute_zone_metrics,

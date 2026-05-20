@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.zones import build_zone_masks
+from retouch.processing.analysis.zones import build_zone_masks
 
 
 class TestPreviewExportConsistency:
@@ -65,7 +65,7 @@ class TestPreviewExportConsistency:
 
     def test_face_oval_passed_via_context(self):
         """face_oval передаётся через PipelineContext."""
-        from retouch.processing.pipeline import PipelineContext
+        from retouch.processing.core.pipeline import PipelineContext
 
         face_oval = {"cx": 0.5, "cy": 0.4, "rx": 0.3, "ry": 0.35}
         ctx = PipelineContext(
@@ -78,7 +78,7 @@ class TestPreviewExportConsistency:
         """Export не детектирует face_oval заново если передан."""
         import numpy as np
         from PIL import Image
-        from retouch.processing.pipeline import process_steps, process_export
+        from retouch.processing.core.pipeline import process_steps, process_export
         from retouch.config import DEFAULTS
 
         # Создаём тестовое изображение
@@ -140,7 +140,7 @@ class TestConsistencyRuntimeCheck:
 
     def test_diagnostics_logs_scale_ratio(self):
         """Diagnostics логирует scale ratio preview и export."""
-        from retouch.processing.pipeline import PipelineContext
+        from retouch.processing.core.pipeline import PipelineContext
         from PIL import Image
 
         ctx = PipelineContext(
@@ -150,7 +150,7 @@ class TestConsistencyRuntimeCheck:
 
     def test_consistency_mismatch_warning_generated(self):
         """Расхождение face_oval > 2% генерирует warning через _run_consistency_check."""
-        from retouch.processing.pipeline import _run_consistency_check
+        from retouch.processing.core.pipeline import _run_consistency_check
 
         warnings: list[str] = []
         _run_consistency_check(
@@ -162,7 +162,7 @@ class TestConsistencyRuntimeCheck:
 
     def test_passed_oval_differs_from_result_warns(self):
         """Переданный и результирующий овалы расходятся — warning."""
-        from retouch.processing.pipeline import _run_consistency_check
+        from retouch.processing.core.pipeline import _run_consistency_check
         from PIL import Image
 
         warnings: list[str] = []
@@ -175,7 +175,7 @@ class TestConsistencyRuntimeCheck:
 
     def test_matching_ovals_no_warning(self):
         """Совпадающие овалы не дают warning."""
-        from retouch.processing.pipeline import _run_consistency_check
+        from retouch.processing.core.pipeline import _run_consistency_check
 
         warnings: list[str] = []
         oval = {"cx": 0.50, "cy": 0.40, "rx": 0.30, "ry": 0.35}

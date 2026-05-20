@@ -20,7 +20,7 @@ class TestPipelineContext:
 
     def test_context_creation(self):
         """PipelineContext создаётся с параметрами."""
-        from retouch.processing.pipeline import PipelineContext
+        from retouch.processing.core.pipeline import PipelineContext
 
         img = Image.new("L", (100, 100), 128)
         ctx = PipelineContext(img_gray=img, machine_type="laser_standard")
@@ -32,7 +32,7 @@ class TestPipelineContext:
 
     def test_context_with_all_fields(self):
         """PipelineContext принимает все поля."""
-        from retouch.processing.pipeline import PipelineContext
+        from retouch.processing.core.pipeline import PipelineContext
 
         img = Image.new("L", (100, 100), 128)
         mask = Image.new("L", (100, 100), 255)
@@ -97,7 +97,7 @@ class TestStepOrder:
 
     def test_new_step_order_unsharp_after_face(self, tmp_path):
         """В новом порядке unsharp вызывается после face_brightness."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -122,7 +122,7 @@ class TestStepOrder:
 
     def test_legacy_step_order_rollback(self, tmp_path):
         """legacy_step_order=True возвращает старый порядок."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -152,7 +152,7 @@ class TestWhiteCeilingClamp:
 
     def test_no_pixels_above_white_ceiling(self, tmp_path):
         """Внутри маски субъекта нет пикселей > white_ceiling."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -211,7 +211,7 @@ class TestQualityMetrics:
 
     def test_quality_metrics_present(self, tmp_path):
         """PipelineResult содержит метрики качества."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -237,7 +237,7 @@ class TestQualityMetrics:
 
     def test_dark_image_triggers_warnings(self, tmp_path):
         """Тёмное изображение — quality_warnings список."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -265,7 +265,7 @@ class TestPipelineResultNewFields:
 
     def test_face_mask_in_result(self, tmp_path):
         """PipelineResult содержит face_mask."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -286,7 +286,7 @@ class TestPipelineResultNewFields:
 
     def test_img_postproc_in_result(self, tmp_path):
         """PipelineResult содержит img_postproc."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -307,7 +307,7 @@ class TestPipelineResultNewFields:
 
     def test_release_clears_new_fields(self, tmp_path):
         """release_intermediates очищает face_mask и img_postproc."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -342,7 +342,7 @@ class TestIntegration:
 
     def test_full_pipeline_laser(self, tmp_path):
         """Сквозной laser_standard: BMP + PNG созданы и валидны."""
-        from retouch.processing.pipeline import process_export
+        from retouch.processing.core.pipeline import process_export
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -377,7 +377,7 @@ class TestIntegration:
 
     def test_full_pipeline_impact(self, tmp_path):
         """Сквозной impact: shadow_floor + shadow_noise + white_ceiling."""
-        from retouch.processing.pipeline import process_export
+        from retouch.processing.core.pipeline import process_export
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -405,7 +405,7 @@ class TestIntegration:
 
     def test_face_oval_override(self, tmp_path):
         """Ручной овал (face_oval) интегрируется в пайплайн."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -432,7 +432,7 @@ class TestIntegration:
 
     def test_wide_image_preview_height(self, tmp_path):
         """Широкий кадр 4000x500 — height >= 200."""
-        from retouch.processing.pipeline import process_preview
+        from retouch.processing.core.pipeline import process_preview
 
         arr = np.zeros((500, 4000, 4), dtype=np.uint8)
         arr[..., 2] = 255

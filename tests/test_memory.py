@@ -37,7 +37,7 @@ class TestPipelineMemory:
         """
         import gc
 
-        from retouch.processing.pipeline import process_export
+        from retouch.processing.core.pipeline import process_export
         from retouch.config import DEFAULTS
 
         # T-F2: ensure tracemalloc is stopped and GC runs between tests
@@ -100,7 +100,7 @@ class TestZoneMasksMemory8K:
         import gc
         import tracemalloc
 
-        from retouch.processing.zones import build_zone_masks
+        from retouch.processing.analysis.zones import build_zone_masks
 
         gc.collect()
         tracemalloc.stop()

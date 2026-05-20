@@ -152,38 +152,38 @@ class TestReexports:
 
     def test_import_check_face_brightness_from_levels(self):
         """check_face_brightness доступен из levels.py (re-export)."""
-        from retouch.processing.levels import check_face_brightness
+        from retouch.processing.correction.levels import check_face_brightness
         assert callable(check_face_brightness)
 
     def test_import_add_shadow_noise_from_levels(self):
         """add_shadow_noise доступен из levels.py (re-export)."""
-        from retouch.processing.levels import add_shadow_noise
+        from retouch.processing.correction.levels import add_shadow_noise
         assert callable(add_shadow_noise)
 
     def test_import_apply_unsharp_mask_from_levels(self):
         """apply_unsharp_mask доступен из levels.py (re-export)."""
-        from retouch.processing.levels import apply_unsharp_mask
+        from retouch.processing.correction.levels import apply_unsharp_mask
         assert callable(apply_unsharp_mask)
 
     def test_direct_import_face_correction(self):
         """face_correction.py — прямой импорт."""
-        from retouch.processing.face_correction import check_face_brightness
+        from retouch.processing.correction.face_correction import check_face_brightness
         assert callable(check_face_brightness)
 
     def test_direct_import_unsharp(self):
         """unsharp.py — прямой импорт."""
-        from retouch.processing.unsharp import apply_unsharp_mask
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
         assert callable(apply_unsharp_mask)
 
     def test_direct_import_shadow_noise(self):
         """shadow_noise.py — прямой импорт."""
-        from retouch.processing.shadow_noise import add_shadow_noise
+        from retouch.processing.correction.shadow_noise import add_shadow_noise
         assert callable(add_shadow_noise)
 
     def test_reexport_same_function(self):
         """Re-export — это та же функция (identity check)."""
-        from retouch.processing.levels import check_face_brightness as from_levels
-        from retouch.processing.face_correction import check_face_brightness as from_direct
+        from retouch.processing.correction.levels import check_face_brightness as from_levels
+        from retouch.processing.correction.face_correction import check_face_brightness as from_direct
 
         assert from_levels is from_direct, "Re-export должен быть той же функцией"
 
@@ -233,5 +233,5 @@ class TestNumbaAvailableInDiagnostics:
 
     def test_export_module_exposes_has_numba(self):
         """export.py экспортирует HAS_NUMBA для использования в backend."""
-        from retouch.processing.export import HAS_NUMBA
+        from retouch.processing.output.export import HAS_NUMBA
         assert isinstance(HAS_NUMBA, bool)

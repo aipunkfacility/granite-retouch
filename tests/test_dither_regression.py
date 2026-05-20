@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.export import export_result
+from retouch.processing.output.export import export_result
 
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "dither")
@@ -50,7 +50,7 @@ class TestDitherRegression:
 
     def test_dither_preview_available(self):
         """Dither preview доступен для 1bit режима."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         assert callable(export_result)
 
     def test_curated_set_has_fixtures(self):

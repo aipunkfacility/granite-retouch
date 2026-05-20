@@ -25,13 +25,13 @@ from fastapi.responses import FileResponse
 from PIL import Image
 
 from retouch.config import load_config, deep_merge
-from retouch.processing.pipeline import (
+from retouch.processing.core.pipeline import (
     process_preview,
     process_steps,
     PipelineResult,
 )
-from retouch.processing.vignette import generate_arch_mask
-from retouch.processing.export import export_result
+from retouch.processing.output.vignette import generate_arch_mask
+from retouch.processing.output.export import export_result
 
 from ..schemas import (
     UploadResponse,
@@ -122,7 +122,7 @@ _PREVIEW_CACHE_MAX = 30  # Максимум записей в кэше
 def _get_numba_available() -> bool:
     """Проверить доступность Numba для дизеринга (кешируется)."""
     try:
-        from retouch.processing.export import HAS_NUMBA
+        from retouch.processing.output.export import HAS_NUMBA
         return HAS_NUMBA
     except ImportError:
         return False
@@ -669,7 +669,7 @@ async def dither_preview(request: DitherPreviewRequest):
 
     # Применить дизеринг методом из конфига станка (dither_method_1bit)
     try:
-        from retouch.processing.export import _apply_dither
+        from retouch.processing.output.export import _apply_dither
         dithered = await asyncio.wait_for(
             asyncio.to_thread(_apply_dither, result.img_final, dither_method_name),
             timeout=120.0 if not numba_available else 10.0,

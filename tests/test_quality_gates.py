@@ -2,7 +2,7 @@
 
 import pytest
 
-from retouch.processing.gates import (
+from retouch.processing.core.gates import (
     GateState,
     GateResult,
     pre_check_face_dark_small,
@@ -173,7 +173,7 @@ class TestGateEnforcement:
 
     def test_p95_shift_enforcement_weakens_delta(self):
         """p95_shift > 20 ослабляет delta на 50%."""
-        from retouch.processing.gates import post_check_p95_shift
+        from retouch.processing.core.gates import post_check_p95_shift
 
         gate = post_check_p95_shift(180.0, 210.0, threshold_levels=20.0)
         assert gate.triggered
@@ -181,7 +181,7 @@ class TestGateEnforcement:
 
     def test_shadow_crush_enforcement_skips_floor(self):
         """shadow_crush > 10% отключает floor/gamma."""
-        from retouch.processing.gates import post_check_shadow_crush
+        from retouch.processing.core.gates import post_check_shadow_crush
 
         gate = post_check_shadow_crush(15.0, threshold_pct=10.0)
         assert gate.triggered
@@ -189,7 +189,7 @@ class TestGateEnforcement:
 
     def test_multiple_gates_enforcement_chain(self):
         """Несколько gates срабатывают последовательно."""
-        from retouch.processing.gates import GateState, GateResult
+        from retouch.processing.core.gates import GateState, GateResult
 
         state = GateState()
         state.results.append(GateResult("variance_loss", "levels", True, reason="variance loss 40%"))

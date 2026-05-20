@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.mask_utils import clamp_masked
+from retouch.processing.correction.mask_utils import clamp_masked
 
 
 class TestClampMaskedVmin:

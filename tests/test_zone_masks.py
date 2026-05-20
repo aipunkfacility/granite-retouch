@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.zones import (
+from retouch.processing.analysis.zones import (
     ZoneMasks,
     build_zone_masks,
     resolve_zone_priority,

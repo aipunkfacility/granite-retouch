@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from retouch.processing.rolloff import soft_rolloff_masked
+from retouch.processing.correction.rolloff import soft_rolloff_masked
 
 
 class TestSoftRolloffMasked:

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.chromakey import (
+from retouch.processing.detection.chromakey import (
     remove_blue_background, _make_smooth_mask, _compute_blue_strength,
     HAS_CV2, HAS_SCIPY,
 )
@@ -456,7 +456,7 @@ class TestSmoothMask:
     def test_smooth_mask_without_cv2(self):
         """_make_smooth_mask без cv2: бинарная маска (fallback)."""
         # Тестируем fallback, временно подменяя HAS_CV2
-        import retouch.processing.chromakey as mod
+        import retouch.processing.detection.chromakey as mod
         original = mod.HAS_CV2
         try:
             mod.HAS_CV2 = False
@@ -525,7 +525,7 @@ class TestSmoothMask:
 
     def test_scipy_import_at_module_level(self):
         """BE-M6: scipy импортирован на уровне модуля с HAS_SCIPY флагом."""
-        import retouch.processing.chromakey as ck
+        import retouch.processing.detection.chromakey as ck
         assert hasattr(ck, 'HAS_SCIPY'), "Модуль должен экспортировать HAS_SCIPY"
         assert isinstance(ck.HAS_SCIPY, bool)
 
@@ -540,7 +540,7 @@ class TestSmoothMask:
 
     def test_cv2_fallback_logs_warning(self, monkeypatch, caplog):
         """При отсутствии cv2 _make_smooth_mask логирует warning о лесенке на контуре."""
-        import retouch.processing.chromakey as ck
+        import retouch.processing.detection.chromakey as ck
         monkeypatch.setattr(ck, "HAS_CV2", False)
         mask = np.zeros((50, 50), dtype=bool)
         mask[10:40, 10:40] = True

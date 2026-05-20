@@ -13,14 +13,14 @@ class TestStuckiDithering:
 
     def test_stucki_produces_1bit_output(self):
         """Stucki даёт 1-bit изображение."""
-        from retouch.processing.export import stucki_dither
+        from retouch.processing.output.export import stucki_dither
         img = Image.new("L", (100, 100), 128)
         result = stucki_dither(img)
         assert result.mode == "1"
 
     def test_stucki_preserves_tone(self):
         """Средняя плотность белых точек примерно равна input brightness."""
-        from retouch.processing.export import stucki_dither
+        from retouch.processing.output.export import stucki_dither
         img = Image.new("L", (200, 200), 128)
         result = stucki_dither(img)
         white_ratio = np.array(result, dtype=np.float32).mean()
@@ -29,7 +29,7 @@ class TestStuckiDithering:
 
     def test_stucki_output_size_matches_input(self):
         """Размер результата = размер входа."""
-        from retouch.processing.export import stucki_dither
+        from retouch.processing.output.export import stucki_dither
         img = Image.new("L", (150, 200), 100)
         result = stucki_dither(img)
         assert result.size == (150, 200)
@@ -40,14 +40,14 @@ class TestJarvisDithering:
 
     def test_jarvis_produces_1bit_output(self):
         """Jarvis даёт 1-bit изображение."""
-        from retouch.processing.export import jarvis_dither
+        from retouch.processing.output.export import jarvis_dither
         img = Image.new("L", (100, 100), 128)
         result = jarvis_dither(img)
         assert result.mode == "1"
 
     def test_jarvis_preserves_tone(self):
         """Средняя плотность белых точек примерно равна input brightness."""
-        from retouch.processing.export import jarvis_dither
+        from retouch.processing.output.export import jarvis_dither
         img = Image.new("L", (200, 200), 128)
         result = jarvis_dither(img)
         white_ratio = np.array(result, dtype=np.float32).mean()
@@ -56,7 +56,7 @@ class TestJarvisDithering:
 
     def test_jarvis_output_size_matches_input(self):
         """Размер результата = размер входа."""
-        from retouch.processing.export import jarvis_dither
+        from retouch.processing.output.export import jarvis_dither
         img = Image.new("L", (150, 200), 100)
         result = jarvis_dither(img)
         assert result.size == (150, 200)
@@ -107,7 +107,7 @@ class TestExportFormatByMachine:
 
     def test_impact_produces_8bit(self, tmp_path):
         """impact + export_mode=8bit → BMP 8-bit grayscale."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "impact.bmp")
         export_result(img, out, machine_type="impact", fmt="bmp",
@@ -118,7 +118,7 @@ class TestExportFormatByMachine:
 
     def test_impact_stucki_produces_1bit(self, tmp_path):
         """impact + fmt='bmp_1bit' → 1-bit (явный запрос дизеринга)."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "impact_stucki.bmp")
         export_result(img, out, machine_type="impact", fmt="bmp_1bit",
@@ -128,7 +128,7 @@ class TestExportFormatByMachine:
 
     def test_laser_80w_produces_8bit_by_default(self, tmp_path):
         """laser_80w + export_mode=8bit → 8-bit BMP (НЕ 1-bit)."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "laser80w.bmp")
         export_result(img, out, machine_type="laser_80w", fmt="bmp",
@@ -138,7 +138,7 @@ class TestExportFormatByMachine:
 
     def test_laser_80w_1bit_mode_with_dithering(self, tmp_path):
         """laser_80w + export_mode=1bit → 1-bit BMP с Jarvis."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 180)
         out = str(tmp_path / "laser80w_1bit.bmp")
         export_result(img, out, machine_type="laser_80w", fmt="bmp",
@@ -148,7 +148,7 @@ class TestExportFormatByMachine:
 
     def test_laser_standard_produces_8bit(self, tmp_path):
         """laser_standard + export_mode=8bit → 8-bit BMP."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 200)
         out = str(tmp_path / "laser_std.bmp")
         export_result(img, out, machine_type="laser_standard", fmt="bmp",
@@ -162,7 +162,7 @@ class TestDitherUpsampleRemoved:
 
     def test_dither_with_upsample_not_in_module(self):
         """Функция dither_with_upsample удалена из модуля export."""
-        import retouch.processing.export as exp_mod
+        import retouch.processing.output.export as exp_mod
         assert not hasattr(exp_mod, 'dither_with_upsample'), \
             "dither_with_upsample должна быть удалена из модуля"
 
@@ -178,8 +178,8 @@ class TestNumbaDithering:
 
     def test_jarvis_same_result_python_vs_numba(self):
         """Jarvis с Numba даёт тот же результат что и чистый Python."""
-        import retouch.processing.export as exp_mod
-        from retouch.processing.export import jarvis_dither, _error_diffusion_dither
+        import retouch.processing.output.export as exp_mod
+        from retouch.processing.output.export import jarvis_dither, _error_diffusion_dither
 
         img = Image.new("L", (50, 50), 128)
 
@@ -206,8 +206,8 @@ class TestNumbaDithering:
 
     def test_stucki_same_result_python_vs_numba(self):
         """Stucki с Numba даёт тот же результат что и чистый Python."""
-        import retouch.processing.export as exp_mod
-        from retouch.processing.export import stucki_dither, _error_diffusion_dither
+        import retouch.processing.output.export as exp_mod
+        from retouch.processing.output.export import stucki_dither, _error_diffusion_dither
 
         img = Image.new("L", (50, 50), 128)
 
@@ -234,8 +234,8 @@ class TestNumbaDithering:
     def test_dither_speed_with_numba(self):
         """Numba-версия значительно быстрее."""
         import time
-        from retouch.processing.export import stucki_dither
-        import retouch.processing.export as exp_mod
+        from retouch.processing.output.export import stucki_dither
+        import retouch.processing.output.export as exp_mod
 
         if os.getenv("CI"):
             pytest.skip("Slow on CI")
@@ -257,14 +257,14 @@ class TestNumbaDithering:
 
     def test_apply_dither_default_is_jarvis(self):
         """_apply_dither без метода → jarvis."""
-        from retouch.processing.export import _apply_dither
+        from retouch.processing.output.export import _apply_dither
         img = Image.new("L", (50, 50), 128)
         result = _apply_dither(img)
         assert result.mode == "1"
 
     def test_apply_dither_floyd_steinberg_redirects_to_jarvis(self):
         """_apply_dither('floyd_steinberg') → jarvis (deprecated, но не падает)."""
-        from retouch.processing.export import _apply_dither, jarvis_dither
+        from retouch.processing.output.export import _apply_dither, jarvis_dither
         img = Image.new("L", (50, 50), 128)
         result_fs = _apply_dither(img, method='floyd_steinberg')
         result_jarvis = jarvis_dither(img)
@@ -283,7 +283,7 @@ class TestBMPValidation:
 
     def test_bmp_8bit_roundtrip(self, tmp_path):
         """BMP 8-bit: save -> reopen -> same size, mode L or P."""
-        from retouch.processing.export import save_bmp_8bit
+        from retouch.processing.output.export import save_bmp_8bit
 
         img = Image.new("L", (256, 256), 128)
         output_path = str(tmp_path / "test.bmp")
@@ -296,7 +296,7 @@ class TestBMPValidation:
 
     def test_bmp_8bit_palette_mode_converted(self, tmp_path):
         """BE-L3: save_bmp_8bit конвертирует mode 'P' в 'L' перед сохранением."""
-        from retouch.processing.export import save_bmp_8bit
+        from retouch.processing.output.export import save_bmp_8bit
 
         # Создаём palette-изображение через конвертацию из RGB
         img_rgb = Image.new("RGB", (100, 100), (128, 128, 128))
@@ -311,7 +311,7 @@ class TestBMPValidation:
 
     def test_error_diffusion_dither_has_return_type(self):
         """BE-M5: _error_diffusion_dither имеет return type hint."""
-        from retouch.processing.export import _error_diffusion_dither
+        from retouch.processing.output.export import _error_diffusion_dither
         import inspect
         sig = inspect.signature(_error_diffusion_dither)
         assert sig.return_annotation is not inspect.Parameter.empty, \
@@ -319,7 +319,7 @@ class TestBMPValidation:
 
     def test_bmp_1bit_roundtrip(self, tmp_path):
         """BMP 1-bit: save -> reopen -> mode 1 or P."""
-        from retouch.processing.export import save_bmp_1bit
+        from retouch.processing.output.export import save_bmp_1bit
 
         img = Image.new("L", (256, 256), 128)
         output_path = str(tmp_path / "test_1bit.bmp")
@@ -332,7 +332,7 @@ class TestBMPValidation:
 
     def test_export_creates_bmp_and_png(self, tmp_path):
         """export_result с save_png_preview=True создаёт BMP + PNG."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
 
         img = Image.new("RGB", (256, 256), (128, 128, 128))
         output_path = str(tmp_path / "output.bmp")
@@ -345,7 +345,7 @@ class TestBMPValidation:
 
     def test_export_bmp_no_png_by_default(self, tmp_path):
         """export_result без save_png_preview создаёт только BMP."""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
 
         img = Image.new("RGB", (256, 256), (128, 128, 128))
         output_path = str(tmp_path / "output.bmp")
@@ -358,7 +358,7 @@ class TestBMPValidation:
 
     def test_floyd_steinberg_redirect_produces_valid_output(self):
         """_apply_dither('floyd_steinberg') → jarvis редирект: примерно 50% белого на grayscale=128."""
-        from retouch.processing.export import _apply_dither
+        from retouch.processing.output.export import _apply_dither
 
         img = Image.new("L", (200, 200), 128)
         # floyd_steinberg теперь редиректит на jarvis — не падает
@@ -376,7 +376,7 @@ class TestDPIInBMPHeader:
 
     def test_save_bmp_8bit_writes_dpi_from_step_mm(self, tmp_path):
         """8-bit BMP содержит DPI из step_mm в заголовке"""
-        from retouch.processing.export import save_bmp_8bit
+        from retouch.processing.output.export import save_bmp_8bit
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "dpi_test.bmp")
         save_bmp_8bit(img, out, step_mm=0.250)
@@ -386,7 +386,7 @@ class TestDPIInBMPHeader:
 
     def test_save_bmp_8bit_dpi_step_030(self, tmp_path):
         """step_mm=0.300 → DPI=84.7"""
-        from retouch.processing.export import save_bmp_8bit
+        from retouch.processing.output.export import save_bmp_8bit
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "dpi_030.bmp")
         save_bmp_8bit(img, out, step_mm=0.300)
@@ -396,7 +396,7 @@ class TestDPIInBMPHeader:
 
     def test_save_bmp_8bit_without_step_mm(self, tmp_path):
         """8-bit BMP без step_mm — DPI не пишем"""
-        from retouch.processing.export import save_bmp_8bit
+        from retouch.processing.output.export import save_bmp_8bit
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "no_dpi.bmp")
         save_bmp_8bit(img, out)
@@ -405,7 +405,7 @@ class TestDPIInBMPHeader:
 
     def test_export_result_8bit_dpi_in_header(self, tmp_path):
         """export_mode=8bit + step_mm → DPI в заголовке BMP"""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "dpi.bmp")
         path = export_result(img, out, export_mode="8bit", step_mm=0.250)
@@ -419,7 +419,7 @@ class TestExportModeRouting:
 
     def test_export_mode_8bit(self, tmp_path):
         """export_mode='8bit' → 8-bit BMP, дизеринг не вызывается"""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "mode8bit.bmp")
         path = export_result(img, out, export_mode="8bit", step_mm=0.300)
@@ -428,7 +428,7 @@ class TestExportModeRouting:
 
     def test_export_mode_1bit(self, tmp_path):
         """export_mode='1bit' → 1-bit BMP с дизерингом"""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "mode1bit.bmp")
         path = export_result(img, out, export_mode="1bit", dither_method_1bit="jarvis")
@@ -437,7 +437,7 @@ class TestExportModeRouting:
 
     def test_explicit_fmt_overrides_export_mode(self, tmp_path):
         """fmt='bmp_8bit' перекрывает export_mode='1bit'"""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "override.bmp")
         path = export_result(img, out, fmt="bmp_8bit",
@@ -447,7 +447,7 @@ class TestExportModeRouting:
 
     def test_backward_compat_dither_method(self, tmp_path):
         """export_mode=None + dither_method=jarvis → 1-bit (старый путь)"""
-        from retouch.processing.export import export_result
+        from retouch.processing.output.export import export_result
         img = Image.new("L", (100, 100), 128)
         out = str(tmp_path / "compat.bmp")
         path = export_result(img, out, fmt="bmp", dither_method="jarvis")
@@ -466,13 +466,13 @@ class TestValidateExport:
 
     def test_validate_export_raises_on_missing_file(self):
         """_validate_export выбрасывает RuntimeError для несуществующего файла."""
-        from retouch.processing.pipeline import _validate_export
+        from retouch.processing.core.pipeline import _validate_export
         with pytest.raises(RuntimeError, match="Пост-валидация"):
             _validate_export("/nonexistent/path.bmp", "laser_standard", "bmp")
 
     def test_validate_export_raises_on_corrupt_bmp(self, tmp_path):
         """_validate_export выбрасывает RuntimeError для повреждённого BMP."""
-        from retouch.processing.pipeline import _validate_export
+        from retouch.processing.core.pipeline import _validate_export
         corrupt_path = str(tmp_path / "corrupt.bmp")
         with open(corrupt_path, "w") as f:
             f.write("NOT_A_BMP")
@@ -481,7 +481,7 @@ class TestValidateExport:
 
     def test_validate_export_succeeds_on_valid_bmp(self, tmp_path):
         """_validate_export не выбрасывает для валидного BMP."""
-        from retouch.processing.pipeline import _validate_export
+        from retouch.processing.core.pipeline import _validate_export
         img = Image.new("L", (100, 100), 128)
         path = str(tmp_path / "valid.bmp")
         img.save(path, format="BMP")

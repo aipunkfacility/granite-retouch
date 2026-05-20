@@ -65,7 +65,7 @@ def cmd_list_presets(args):
 
 def cmd_process(args):
     """Pillow-обработка портрета."""
-    from retouch.processing.pipeline import process
+    from retouch.processing.core.pipeline import process
     from retouch.config import deep_merge, apply_material_overrides, validate_machine_material
 
     # D.7: Проверка перезаписи выходного файла
@@ -349,7 +349,7 @@ def _warmup_numba_if_needed(args):
     machine = getattr(args, "machine", "laser_standard")
     if machine in ("laser_80w", "impact"):
         try:
-            from retouch.processing.export import _error_diffusion_dither
+            from retouch.processing.output.export import _error_diffusion_dither
             from PIL import Image
             tiny = Image.new("L", (8, 8), 128)
             _error_diffusion_dither(tiny, [(1, 0, 7/48), (2, 0, 5/48)])

@@ -8,7 +8,7 @@
 import numpy as np
 import pytest
 
-from retouch.processing.gamma import apply_stone_gamma, apply_stone_gamma_masked
+from retouch.processing.correction.gamma import apply_stone_gamma, apply_stone_gamma_masked
 
 
 class TestStoneGammaCorrection:

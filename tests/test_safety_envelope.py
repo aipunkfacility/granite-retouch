@@ -1,5 +1,5 @@
 import pytest
-from retouch.processing.plan import (
+from retouch.processing.core.plan import (
     SafetyEnvelope, PipelinePlan, ValidatedPlan,
     validate_plan, PROFILE_STANDARD,
 )

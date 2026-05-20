@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from retouch.processing.vignette import apply_vignette, generate_arch_mask
+from retouch.processing.output.vignette import apply_vignette, generate_arch_mask
 
 
 class TestArchVignette:

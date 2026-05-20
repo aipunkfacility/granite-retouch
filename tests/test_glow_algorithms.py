@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from retouch.processing.glow import (
+from retouch.processing.correction.glow import (
     apply_glow,
     apply_outer_glow,
     apply_inner_glow_algorithm,

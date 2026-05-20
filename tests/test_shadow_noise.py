@@ -19,7 +19,7 @@ class TestShadowNoiseOnSubject:
 
     def test_noise_in_subject_dark_pixels(self):
         """Шум добавляется в тёмные пиксели ВНУТРИ маски субъекта."""
-        from retouch.processing.levels import add_shadow_noise
+        from retouch.processing.correction.levels import add_shadow_noise
 
         arr = np.zeros((200, 200), dtype=np.uint8)
         mask_arr = np.zeros((200, 200), dtype=np.uint8)
@@ -41,7 +41,7 @@ class TestShadowNoiseOnSubject:
 
     def test_noise_not_in_bright_subject_pixels(self):
         """Яркие пиксели субъекта (> threshold) НЕ получают шум."""
-        from retouch.processing.levels import add_shadow_noise
+        from retouch.processing.correction.levels import add_shadow_noise
 
         arr = np.full((200, 200), 100, dtype=np.uint8)
         mask_arr = np.full((200, 200), 255, dtype=np.uint8)
@@ -57,7 +57,7 @@ class TestShadowNoiseOnSubject:
 
     def test_shadow_threshold_parameter(self):
         """shadow_threshold контролирует, какие пиксели получают шум."""
-        from retouch.processing.levels import add_shadow_noise
+        from retouch.processing.correction.levels import add_shadow_noise
 
         arr = np.zeros((200, 200), dtype=np.uint8)
         arr[:, :100] = 20   # тёмный (< threshold)
@@ -78,7 +78,7 @@ class TestShadowNoiseOnSubject:
 
     def test_reproducible_with_seed(self):
         """Фиксированный seed = воспроизводимый результат."""
-        from retouch.processing.levels import add_shadow_noise
+        from retouch.processing.correction.levels import add_shadow_noise
 
         arr = np.zeros((100, 100), dtype=np.uint8)
         mask_arr = np.full((100, 100), 255, dtype=np.uint8)
@@ -97,7 +97,7 @@ class TestShadowFloorImpact:
 
     def test_impact_shadow_floor_applied(self, tmp_path):
         """Impact: тёмные пиксели субъекта >= shadow_floor (до виньетки)."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -128,7 +128,7 @@ class TestShadowFloorImpact:
 
     def test_laser_no_shadow_floor(self, tmp_path):
         """Laser: shadow_floor не применяется (может быть 0)."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -174,7 +174,7 @@ class TestShadowFloorLaser:
 
     def test_shadow_floor_applied_for_laser_80w(self, tmp_path):
         """Shadow_floor применяется для laser_80w в пайплайне."""
-        from retouch.processing.pipeline import process_steps
+        from retouch.processing.core.pipeline import process_steps
 
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
@@ -214,7 +214,7 @@ class TestShadowFloorInteraction:
     def test_noise_respects_shadow_floor(self):
         """Шум ниже shadow_floor бесполезен — floor его перезапишет.
         Поэтому шум должен генерироваться в диапазоне [max(noise_min, floor), noise_max]."""
-        from retouch.processing.shadow_noise import add_shadow_noise
+        from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
         mask = Image.new('L', (100, 100), 255)
@@ -229,7 +229,7 @@ class TestShadowFloorInteraction:
 
     def test_noise_floor_equals_noise_max_returns_unchanged(self):
         """shadow_floor >= noise_max — шум бессмысленен, изображение не меняется."""
-        from retouch.processing.shadow_noise import add_shadow_noise
+        from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
         mask = Image.new('L', (100, 100), 255)
@@ -241,7 +241,7 @@ class TestShadowFloorInteraction:
 
     def test_noise_without_floor_works_as_before(self):
         """Без shadow_floor (по умолчанию 0) — поведение не меняется."""
-        from retouch.processing.shadow_noise import add_shadow_noise
+        from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
         mask = Image.new('L', (100, 100), 255)
@@ -254,7 +254,7 @@ class TestShadowFloorInteraction:
 
     def test_noise_floor_between_min_and_max(self):
         """shadow_floor между noise_min и noise_max — нижняя граница сдвигается."""
-        from retouch.processing.shadow_noise import add_shadow_noise
+        from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
         mask = Image.new('L', (100, 100), 255)

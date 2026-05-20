@@ -55,7 +55,7 @@ async def _warmup_numba_jit():
     выполнение мгновенное. Последующие вызовы используют кеш.
     """
     try:
-        from retouch.processing.export import _error_diffusion_dither
+        from retouch.processing.output.export import _error_diffusion_dither
         from PIL import Image
 
         tiny_img = Image.new("L", (8, 8), 128)
