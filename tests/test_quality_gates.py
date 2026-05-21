@@ -224,7 +224,7 @@ class TestQualityGatesFromConfig:
 
     def test_get_gate_thresholds_returns_all_keys(self):
         """_get_gate_thresholds returns all 6 threshold keys."""
-        from retouch.processing.core.pipeline import _get_gate_thresholds
+        from retouch.processing.core.steps import _get_gate_thresholds
         thresholds = _get_gate_thresholds({"processing": {"quality_gates": {}}})
         assert len(thresholds) == 6
         assert all(k in thresholds for k in [
@@ -234,7 +234,7 @@ class TestQualityGatesFromConfig:
 
     def test_get_gate_thresholds_uses_custom_values(self):
         """_get_gate_thresholds uses custom values from config, not defaults."""
-        from retouch.processing.core.pipeline import _get_gate_thresholds
+        from retouch.processing.core.steps import _get_gate_thresholds
         config = {
             "processing": {
                 "quality_gates": {
@@ -251,21 +251,21 @@ class TestQualityGatesFromConfig:
 
     def test_get_gate_thresholds_missing_quality_gates_section(self):
         """_get_gate_thresholds returns defaults when quality_gates section is absent."""
-        from retouch.processing.core.pipeline import _get_gate_thresholds
+        from retouch.processing.core.steps import _get_gate_thresholds
         thresholds = _get_gate_thresholds({"processing": {}})
         assert thresholds["variance_loss_threshold"] == 35.0
         assert thresholds["clipped_pct_threshold"] == 5.0
 
     def test_get_gate_thresholds_missing_processing_section(self):
         """_get_gate_thresholds returns defaults when processing section is absent."""
-        from retouch.processing.core.pipeline import _get_gate_thresholds
+        from retouch.processing.core.steps import _get_gate_thresholds
         thresholds = _get_gate_thresholds({})
         assert thresholds["variance_loss_threshold"] == 35.0
         assert thresholds["shadow_crush_threshold"] == 10.0
 
     def test_get_gate_thresholds_null_quality_gates(self):
         """_get_gate_thresholds handles quality_gates: null gracefully."""
-        from retouch.processing.core.pipeline import _get_gate_thresholds
+        from retouch.processing.core.steps import _get_gate_thresholds
         config = {"processing": {"quality_gates": None}}
         thresholds = _get_gate_thresholds(config)
         assert len(thresholds) == 6
