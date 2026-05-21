@@ -8,6 +8,7 @@
 from copy import deepcopy
 
 import numpy as np
+import pytest
 from PIL import Image
 
 from retouch.config import DEFAULTS
@@ -89,3 +90,77 @@ class TestGatesEnforcement:
         assert len(gate_state_warnings) > 0, (
             "variance_loss gate не сработал ни в warnings, ни в gate_state"
         )
+
+
+class TestEnforceGatesUnit:
+    """Unit tests for enforce_gates() function."""
+
+    def _make_gate_state(self, gate_name, triggered=True, original=10.0, adjusted=5.0):
+        """Helper to create GateState with one triggered gate."""
+        from retouch.processing.core.gates import GateState, GateResult
+        gs = GateState()
+        gs.results.append(GateResult(
+            gate_name=gate_name,
+            step_name="test",
+            triggered=triggered,
+            original_value=original,
+            adjusted_value=adjusted,
+            reason=f"test {gate_name}",
+        ))
+        return gs
+
+    def _make_ctx(self):
+        """Helper to create minimal PipelineContext."""
+        from retouch.processing.core.context import PipelineContext
+        from PIL import Image
+        img = Image.new('L', (100, 100), 128)
+        return PipelineContext(img_gray=img)
+
+    def _make_validated_plan(self, skin_delta=10.0):
+        """Helper to create ValidatedPlan with skin_delta."""
+        from retouch.processing.core.plan import PipelinePlan, ValidatedPlan
+        plan = PipelinePlan(skin_delta=skin_delta)
+        return ValidatedPlan(plan=plan)
+
+    def test_clipped_pct_increases_compression(self):
+        """clipped_pct gate → compression increased by 20%."""
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = self._make_gate_state("clipped_pct")
+        ctx = self._make_ctx()
+        vp = self._make_validated_plan()
+        machine_cfg = {"rolloff_compression": 0.35}
+
+        _, _, _, compression = enforce_gates(gs, machine_cfg, vp, ctx)
+
+        assert compression == pytest.approx(0.42, abs=0.01)  # 0.35 * 1.2 = 0.42
+        assert any("compression increased" in w for w in ctx.warnings)
+
+    def test_p95_shift_halves_skin_delta(self):
+        """p95_shift gate → skin_delta halved."""
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = self._make_gate_state("p95_shift")
+        ctx = self._make_ctx()
+        vp = self._make_validated_plan(skin_delta=10.0)
+        machine_cfg = {}
+
+        enforce_gates(gs, machine_cfg, vp, ctx)
+
+        assert vp.plan.skin_delta == pytest.approx(5.0)
+        assert any("skin_delta halved" in w for w in ctx.warnings)
+
+    def test_shadow_crush_disables_floor_and_gamma(self):
+        """shadow_crush gate → shadow_floor=0, gamma=1.0."""
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = self._make_gate_state("shadow_crush")
+        ctx = self._make_ctx()
+        vp = self._make_validated_plan()
+        machine_cfg = {"shadow_floor": 5, "stone_gamma": 0.88}
+
+        shadow_floor, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, vp, ctx)
+
+        assert shadow_floor == 0
+        assert stone_gamma == 1.0
+        assert any("shadow_floor" in w.lower() for w in ctx.warnings)

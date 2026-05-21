@@ -8,4 +8,4 @@
 * **NO Lip Contours:** No dark outline lines around the lips.
 * **NO Nose Stripes:** No parallel dark lines along the nose bridge.
 * **NO Overexposed Skin:** No pure white (255) areas on skin — only the eye whites may be pure white.
-* **When in doubt, render DARKER:** Dark areas are faithfully reproduced by the machine; over-bright areas cause over-engraving that cannot be undone on stone.
+* **NO Crushed Shadows in Clothing:** Dark fabric must retain visible texture and tonal variation — no absolute black (0) masses, no flat void areas on clothing.
