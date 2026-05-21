@@ -9,6 +9,7 @@ import {
 // ─── FIX-7: computeParamsFromTopDragShift signature without imageWidth ───
 describe('computeParamsFromTopDragShift (FIX-7)', () => {
   const defaultParams: VignetteParams = {
+    enabled: true,
     vertical_offset: 0.1,
     vertical_diameter: 0.5,
     blur_radius: 60,
@@ -53,6 +54,7 @@ describe('computeParamsFromTopDragShift (FIX-7)', () => {
 // ─── FIX-19 (partial): clamp imported from utils, used correctly ───
 describe('computeParamsFromDrag uses clamp (FIX-19)', () => {
   const defaultParams: VignetteParams = {
+    enabled: true,
     vertical_offset: 0.1,
     vertical_diameter: 0.5,
     blur_radius: 60,

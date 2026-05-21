@@ -19,7 +19,7 @@ processing:
     glow_size_max: 25
     glow_opacity_min: 60
     glow_opacity_max: 80
-    glow_style: outer
+    glow_style: inner
 
 vignette:
   enabled: true

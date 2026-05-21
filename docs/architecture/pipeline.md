@@ -118,7 +118,7 @@ useEffect(() => {
 Параметры glow **детерминированы** (D.1): при наличии analytics — midpoint адаптивного диапазона через `_calculate_glow_params()`, без analytics — midpoint диапазона из конфига. Рандомизация полностью устранена для preview-export consistency.
 
 Стиль glow задаётся параметром `glow_style` в конфиге:
-- **`inner`** — свечение внутрь (настоящий inner glow через `apply_inner_glow_algorithm()`: shrink→edge→blur→composite). Ярче у внутреннего края субъекта, затухает к центру
+- **`inner`** — свечение внутрь (настоящий inner glow через `apply_inner_glow_algorithm()`: shrink→edge→blur→brightness-weighted→composite). Ярче у внутреннего края субъекта, затухает к центру. С яркостным весом — свечение неравномерное: сильнее на тёмных участках контура (где rim light нужен для сепарации), слабее на светлых (где уже есть контраст). Это даёт естественный вид, а не равномерную «аппликацию» по всему силуэту
 - **`outer`** — свечение наружу (классический glow, `apply_outer_glow()`). Инвертированная маска → blur → composite
 
 Диспетчер `apply_glow()` выбирает реализацию по `glow_style`.

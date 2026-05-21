@@ -11,6 +11,7 @@ describe("AfterImage", () => {
     onFaceOvalChange: vi.fn(),
     imageWidth: 0,
     imageHeight: 0,
+    vignetteOverlayVisible: false,
     vignetteParams: {
       enabled: true,
       vertical_offset: 0,

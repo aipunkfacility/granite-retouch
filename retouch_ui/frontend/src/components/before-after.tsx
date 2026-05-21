@@ -16,6 +16,7 @@ interface Props {
   onFaceOvalChange: (params: FaceOvalParams) => void;
   imageWidth: number;
   imageHeight: number;
+  vignetteOverlayVisible: boolean;
   vignetteParams: VignetteParams;
   onVignetteParamChange: (path: string[], value: number) => void;
 }
@@ -29,6 +30,7 @@ export function BeforeAfter({
   onFaceOvalChange,
   imageWidth,
   imageHeight,
+  vignetteOverlayVisible,
   vignetteParams,
   onVignetteParamChange,
 }: Props) {
@@ -52,6 +54,7 @@ export function BeforeAfter({
         onFaceOvalChange={onFaceOvalChange}
         imageWidth={imageWidth}
         imageHeight={imageHeight}
+        vignetteOverlayVisible={vignetteOverlayVisible}
         vignetteParams={vignetteParams}
         onVignetteParamChange={onVignetteParamChange}
       />

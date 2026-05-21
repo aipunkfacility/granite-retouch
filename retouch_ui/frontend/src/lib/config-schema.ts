@@ -117,7 +117,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     legacy_step_order: { min: 0, max: 1, step: 1, label: "Старый порядок шагов", unit: "(0/1)" },
     min_resolution: { min: 256, max: 1024, step: 64, label: "Мин. разрешение", unit: "px" },
     result_min_black_ratio: { min: 0, max: 0.5, step: 0.01, label: "Мин. доля чёрного", unit: "" },
-    mask_soft_sigma: { min: 0, max: 5, step: 0.1, label: "Мягкость краёв маски", unit: "σ" },
+    mask_soft_sigma: { min: 1, max: 4, step: 0.5, label: "Мягкость краёв маски", unit: "σ" },
     contour_smooth_epsilon: { min: 0.001, max: 0.01, step: 0.001, label: "Сглаживание контура", unit: "" },
     laser_standard: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },

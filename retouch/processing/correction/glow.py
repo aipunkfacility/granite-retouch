@@ -146,9 +146,19 @@ def apply_inner_glow_algorithm(img_gray, subject_mask, glow_size=20,
     # Mask edge blur by subject mask to prevent background leak
     edge_blurred = Image.composite(edge_blurred, Image.new('L', img_gray.size, 0), subject_mask)
 
-    # Composite: белый через размытый край поверх оригинала
+    # Яркостной вес: glow сильнее где контур тёмный, слабее где светлый
+    img_arr = np.array(img_gray, dtype=np.float32) / 255.0
+    edge_arr = np.array(edge_blurred, dtype=np.float32) / 255.0
+
+    # Вес: 1.0 для тёмных, 0.0 для светлых (обратная яркость)
+    brightness_weight = 1.0 - img_arr
+    # Применяем вес к glow маске — тёмные участки получают больше свечения
+    weighted_edge_arr = edge_arr * brightness_weight
+    weighted_edge_img = Image.fromarray((weighted_edge_arr * 255).astype(np.uint8))
+
+    # Composite: белый через взвешенный край поверх оригинала
     glow_layer = Image.new("L", img_gray.size, glow_color)
-    result = Image.composite(glow_layer, img_gray, edge_blurred)
+    result = Image.composite(glow_layer, img_gray, weighted_edge_img)
 
     if glow_opacity < 1.0:
         result = Image.blend(img_gray, result, glow_opacity)
