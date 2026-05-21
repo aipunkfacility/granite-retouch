@@ -17,6 +17,7 @@ from retouch.processing.core.gates import (
     pre_check_skin_delta_envelope, post_check_variance_loss, post_check_clipped_pct,
     post_check_p95_shift, post_check_shadow_crush,
 )
+from retouch.processing.core.gates_enforcement import enforce_gates
 from retouch.processing.correction.glow import apply_glow
 from retouch.processing.correction.levels import apply_levels
 from retouch.processing.correction.face_correction import check_face_brightness
@@ -342,56 +343,9 @@ def run_pipeline_steps(
         else:
             img_postproc = img_face_corrected
 
-    shadow_floor = ctx.machine_cfg.get("shadow_floor", 0)
-    stone_gamma = ctx.machine_cfg.get("stone_gamma", None)
-    white_ceiling = ctx.machine_cfg.get("white_ceiling", None)
-    compression = ctx.machine_cfg.get("rolloff_compression", 0.35)
-    triggered = {g.gate_name: g for g in gate_state.triggered_gates}
-    if "variance_loss" in triggered and stone_gamma is not None and stone_gamma != 1.0:
-        original_gamma = stone_gamma
-        stone_gamma = 1.0 + (stone_gamma - 1.0) * 0.5
-        logger.info(
-            "Gates enforcement: variance_loss triggered, stone_gamma %.2f → %.2f",
-            original_gamma, stone_gamma,
-        )
-        ctx.warnings.append(
-            f"stone_gamma weakened: {original_gamma:.2f} → {stone_gamma:.2f} (variance_loss gate)"
-        )
-
-    if "clipped_pct" in triggered:
-        orig_compression = compression
-        compression = min(orig_compression * 1.2, 0.80)
-        logger.info(
-            "Gates enforcement: clipped_pct triggered, compression %.2f → %.2f",
-            orig_compression, compression,
-        )
-        ctx.warnings.append(
-            f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
-        )
-
-    if "p95_shift" in triggered:
-        orig_delta = validated.plan.skin_delta
-        validated.plan.skin_delta *= 0.5
-        logger.info(
-            "Gates enforcement: p95_shift triggered, skin_delta %.1f → %.1f",
-            orig_delta, validated.plan.skin_delta,
-        )
-        ctx.warnings.append(
-            f"skin_delta halved: {orig_delta:.1f} → {validated.plan.skin_delta:.1f} (p95_shift gate)"
-        )
-
-    if "shadow_crush" in triggered:
-        orig_floor = shadow_floor
-        shadow_floor = 0
-        orig_gamma = stone_gamma
-        stone_gamma = 1.0
-        logger.info(
-            "Gates enforcement: shadow_crush triggered, shadow_floor %d → 0, gamma %.2f → 1.0",
-            orig_floor, orig_gamma if orig_gamma else 1.0,
-        )
-        ctx.warnings.append(
-            f"shadow_floor и gamma отключены (shadow_crush gate)"
-        )
+    shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
+        gate_state, ctx.machine_cfg, validated, ctx,
+    )
 
     ctx.face_brightness_before = face_before
     ctx.face_brightness_after = face_after
