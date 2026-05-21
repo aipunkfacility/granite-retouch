@@ -7,13 +7,9 @@
   else: delta = 0
 
 Delta применяется только к face_skin с весом от яркости.
-
-F.1: Функции unsharp, face_correction, shadow_noise вынесены в отдельные
-модули. Этот файл сохраняет backward-compatible re-exports.
 """
 
 import logging
-import warnings
 
 from PIL import Image, ImageEnhance
 
@@ -26,36 +22,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 from retouch.processing.correction.mask_utils import apply_masked as _apply_masked
-
-
-# ─── Backward-compatible re-exports ────────────────────────────────────
-
-from retouch.processing.correction.unsharp import apply_unsharp_mask  # noqa: F401
-from retouch.processing.correction.unsharp import _adaptive_unsharp_percent  # noqa: F401
-from retouch.processing.correction.face_correction import check_face_brightness  # noqa: F401
-from retouch.processing.correction.face_correction import _curves_correction  # noqa: F401
-from retouch.processing.correction.face_correction import _shrink_mask  # noqa: F401
-from retouch.processing.correction.shadow_noise import add_shadow_noise  # noqa: F401
-from retouch.processing.correction.mask_utils import apply_masked  # noqa: F401
 from retouch.processing.correction.rolloff import soft_rolloff_masked
-
-_DEPRECATED_REEXPORTS = {
-    "apply_unsharp_mask": "retouch.processing.correction.unsharp",
-    "_adaptive_unsharp_percent": "retouch.processing.correction.unsharp",
-    "check_face_brightness": "retouch.processing.correction.face_correction",
-    "_curves_correction": "retouch.processing.correction.face_correction",
-    "_shrink_mask": "retouch.processing.correction.face_correction",
-    "add_shadow_noise": "retouch.processing.correction.shadow_noise",
-    "apply_masked": "retouch.processing.correction.mask_utils",
-}
-
-for _name, _module in _DEPRECATED_REEXPORTS.items():
-    warnings.warn(
-        f"Импорт '{_name}' из retouch.processing.levels устарел. "
-        f"Используйте: from {_module} import {_name}",
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
 
 # ─── Levels — основная функция ────────────────────────────────────────
