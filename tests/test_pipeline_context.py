@@ -20,7 +20,7 @@ class TestPipelineContext:
 
     def test_context_creation(self):
         """PipelineContext создаётся с параметрами."""
-        from retouch.processing.core.pipeline import PipelineContext
+        from retouch.processing.core.context import PipelineContext
 
         img = Image.new("L", (100, 100), 128)
         ctx = PipelineContext(img_gray=img, machine_type="laser_standard")
@@ -32,7 +32,7 @@ class TestPipelineContext:
 
     def test_context_with_all_fields(self):
         """PipelineContext принимает все поля."""
-        from retouch.processing.core.pipeline import PipelineContext
+        from retouch.processing.core.context import PipelineContext
 
         img = Image.new("L", (100, 100), 128)
         mask = Image.new("L", (100, 100), 255)

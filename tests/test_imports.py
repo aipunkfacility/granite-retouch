@@ -13,7 +13,7 @@ class TestModuleExports:
 
     def test_pipeline_exports_pipeline_result(self):
         """pipeline.py экспортирует PipelineResult."""
-        from retouch.processing.core.pipeline import PipelineResult
+        from retouch.processing.core.context import PipelineResult
         assert PipelineResult is not None
 
     def test_chromakey_exports_remove_blue(self):

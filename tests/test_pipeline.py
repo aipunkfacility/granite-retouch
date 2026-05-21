@@ -298,7 +298,8 @@ class TestPipelineStepsAPI:
 
     def test_process_steps_returns_pipeline_result(self, tmp_path):
         """process_steps() возвращает PipelineResult без сохранения файлов."""
-        from retouch.processing.core.pipeline import process_steps, PipelineResult
+        from retouch.processing.core.pipeline import process_steps
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
@@ -313,7 +314,8 @@ class TestPipelineStepsAPI:
 
     def test_process_preview_returns_small_result(self, tmp_path):
         """process_preview() уменьшает изображение до max_size."""
-        from retouch.processing.core.pipeline import process_preview, PipelineResult
+        from retouch.processing.core.pipeline import process_preview
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path, width=2048, height=2048)
         result = process_preview(input_path, machine_type="laser_standard",
@@ -325,13 +327,14 @@ class TestPipelineStepsAPI:
 
     def test_process_export_saves_files(self, tmp_path):
         """process_export() сохраняет BMP + PNG и освобождает промежуточные."""
-        from retouch.processing.core.pipeline import process_export, PipelineResult
+        from retouch.processing.core.pipeline import process_export
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
         output_bmp = str(tmp_path / "output.bmp")
 
         result = process_export(input_path, output_bmp,
-                                 machine_type="laser_standard", config=DEFAULTS)
+                                  machine_type="laser_standard", config=DEFAULTS)
 
         assert isinstance(result, PipelineResult)
         assert os.path.isfile(output_bmp), "BMP не создан"
@@ -340,7 +343,8 @@ class TestPipelineStepsAPI:
 
     def test_release_intermediates_keeps_final(self, tmp_path):
         """release_intermediates() освобождает всё кроме img_final."""
-        from retouch.processing.core.pipeline import process_steps, PipelineResult
+        from retouch.processing.core.pipeline import process_steps
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
         result = process_steps(input_path, machine_type="laser_standard", config=DEFAULTS)
@@ -363,7 +367,8 @@ class TestPipelineStepsAPI:
 
     def test_process_preview_fixed_glow(self, tmp_path):
         """process_preview() fixes glow at midpoint of range."""
-        from retouch.processing.core.pipeline import process_preview, PipelineResult
+        from retouch.processing.core.pipeline import process_preview
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
         result = process_preview(input_path, machine_type="laser_standard", config=DEFAULTS)
@@ -429,7 +434,8 @@ class TestPipelineStepsAPI:
 
     def test_process_preview_impact_machine(self, tmp_path):
         """process_preview() works with impact machine type."""
-        from retouch.processing.core.pipeline import process_preview, PipelineResult
+        from retouch.processing.core.pipeline import process_preview
+        from retouch.processing.core.context import PipelineResult
 
         input_path = self._save_chromakey_png(tmp_path)
         result = process_preview(input_path, machine_type="impact", config=DEFAULTS)

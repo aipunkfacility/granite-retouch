@@ -324,7 +324,7 @@ def subject_mask_512():
 @pytest.fixture
 def sample_pipeline_context(img_gray_512, subject_mask_512):
     """C.4: Типичный PipelineContext для тестов."""
-    from retouch.processing.core.pipeline import PipelineContext
+    from retouch.processing.core.context import PipelineContext
     return PipelineContext(
         img_gray=img_gray_512,
         subject_mask=subject_mask_512,

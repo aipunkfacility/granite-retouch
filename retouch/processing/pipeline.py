@@ -12,4 +12,5 @@ warnings.warn(
     stacklevel=2,
 )
 
-from retouch.processing.core.pipeline import process, process_steps, process_preview, process_export, PipelineResult, PipelineContext
+from retouch.processing.core.pipeline import process, process_steps, process_preview, process_export
+from retouch.processing.core.context import PipelineResult, PipelineContext

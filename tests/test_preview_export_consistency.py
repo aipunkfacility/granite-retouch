@@ -65,7 +65,7 @@ class TestPreviewExportConsistency:
 
     def test_face_oval_passed_via_context(self):
         """face_oval передаётся через PipelineContext."""
-        from retouch.processing.core.pipeline import PipelineContext
+        from retouch.processing.core.context import PipelineContext
 
         face_oval = {"cx": 0.5, "cy": 0.4, "rx": 0.3, "ry": 0.35}
         ctx = PipelineContext(
@@ -140,7 +140,7 @@ class TestConsistencyRuntimeCheck:
 
     def test_diagnostics_logs_scale_ratio(self):
         """Diagnostics логирует scale ratio preview и export."""
-        from retouch.processing.core.pipeline import PipelineContext
+        from retouch.processing.core.context import PipelineContext
         from PIL import Image
 
         ctx = PipelineContext(

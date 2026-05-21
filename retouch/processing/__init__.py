@@ -1,6 +1,7 @@
 """Модуль обработки изображений granite-retouch."""
 
-from .core.pipeline import process, process_steps, process_preview, process_export, PipelineResult, PipelineContext
+from .core.pipeline import process, process_steps, process_preview, process_export
+from .core.context import PipelineResult, PipelineContext
 from .output.export import export_result, save_bmp_8bit, save_bmp_1bit
 from .correction.levels import apply_levels
 from .correction.shadow_noise import add_shadow_noise
