@@ -98,7 +98,7 @@ export function ParamGroup({
       </button>
 
       <div
-        className={`transition-all duration-250 overflow-hidden${isVignetteDisabled ? " pointer-events-none" : ""} ${collapsed ? "max-h-0 opacity-0" : "max-h-[50vh] opacity-100"}`}
+        className={`transition-all duration-250 overflow-hidden ${collapsed ? "max-h-0 opacity-0" : "max-h-[50vh] opacity-100"}`}
       >
         <div className="px-3 pb-3 space-y-3">
           {section.params.map((paramKey) => {
