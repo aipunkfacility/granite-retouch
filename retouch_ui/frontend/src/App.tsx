@@ -149,8 +149,14 @@ export default function App() {
 
   const handlePresetSelect = useCallback(
     (presetKey: string, presetConfig: ConfigTree, machineType: MachineType) => {
+      // Сохраняем виньетку до слияния — пользователь мог её настроить,
+      // и смена станка не должна сбрасывать её состояние (FIX-UI-2026-05)
+      const savedVignette = config.vignette;
       pm.selectPreset(presetKey, presetConfig);
       const merged = deepMerge(config as Record<string, unknown>, presetConfig as Record<string, unknown>);
+      if (savedVignette && typeof savedVignette === "object") {
+        (merged as Record<string, unknown>).vignette = savedVignette;
+      }
       if (!isConfigTree(merged)) return;
       updateConfig(merged);
       if (fileId) requestPreviewWithOval(fileId, machineType, merged);
