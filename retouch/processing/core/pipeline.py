@@ -682,20 +682,40 @@ def _run_pipeline_steps(
             img_temp = img_leveled
 
         if "face_correction" in validated.plan.active_steps:
-            img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-                img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-            )
-            _record_step("face_correction", img_face_corrected)
+            face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
+            if face_dark_gates and face_dark_gates[-1].triggered:
+                logger.info("Gate face_dark_small triggered (legacy): face correction skipped")
+                ctx.warnings.append("face_correction skipped: face_dark zone too small")
+                img_face_corrected = img_temp
+                face_before = 0.0
+                face_after = 0.0
+                correction_factor = 1.0
+                _record_step("face_correction", img_face_corrected)
+            else:
+                img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
+                    img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
+                )
+                _record_step("face_correction", img_face_corrected)
         else:
             img_face_corrected = img_temp
         img_postproc = img_face_corrected
     else:
         # НОВЫЙ порядок (A.3): face_brightness ПЕРЕД unsharp
         if "face_correction" in validated.plan.active_steps:
-            img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-                img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-            )
-            _record_step("face_correction", img_face_corrected)
+            face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
+            if face_dark_gates and face_dark_gates[-1].triggered:
+                logger.info("Gate face_dark_small triggered: face correction skipped")
+                ctx.warnings.append("face_correction skipped: face_dark zone too small")
+                img_face_corrected = img_leveled
+                face_before = 0.0
+                face_after = 0.0
+                correction_factor = 1.0
+                _record_step("face_correction", img_face_corrected)
+            else:
+                img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
+                    img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
+                )
+                _record_step("face_correction", img_face_corrected)
         else:
             img_face_corrected = img_leveled
 
