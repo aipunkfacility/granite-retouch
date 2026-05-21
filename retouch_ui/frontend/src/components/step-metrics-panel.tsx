@@ -68,8 +68,16 @@ function StepMetricsTable({ record }: { record: StepMetricsData }) {
 
 export function StepMetricsPanel({ stepMetrics }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!stepMetrics || stepMetrics.length === 0) return null;
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(JSON.stringify(stepMetrics, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <div className="bg-bg-card rounded-lg p-4 space-y-2">
@@ -78,6 +86,13 @@ export function StepMetricsPanel({ stepMetrics }: Props) {
         className="w-full flex items-center justify-between font-heading font-semibold text-text-primary text-sm"
       >
         <span>Step Metrics</span>
+        <button
+          onClick={handleCopy}
+          className="text-xs text-text-muted hover:text-text-secondary transition-colors px-1"
+          title="Копировать JSON"
+        >
+          <i className={`ri-${copied ? "check-line text-accent-green" : "file-copy-line"}`} />
+        </button>
         <i className={`ri-${collapsed ? "arrow-down-s" : "arrow-up-s"}-line text-text-muted`} />
       </button>
 
