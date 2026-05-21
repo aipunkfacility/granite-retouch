@@ -19,7 +19,9 @@ start-servers.bat
 # Binary images (examples — хранить локально, не в git)
 projects/
 *.png
+*.jpg
 *.tiff
+*.bmp
 
 # Orders with binary content (кроме шаблона и тестового)
 orders/active/*/

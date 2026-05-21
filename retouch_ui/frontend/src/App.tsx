@@ -61,6 +61,7 @@ export default function App() {
   const [faceOvalOverlayEnabled, setFaceOvalOverlayEnabled] = useState(false);
   const [faceOval, setFaceOval] = useState<FaceOvalParams | null>(null);
   const [faceOvalPinned, setFaceOvalPinned] = useState(false);
+  const [vignetteOverlayVisible, setVignetteOverlayVisible] = useState(false);
   const [paramsCollapsed, setParamsCollapsed] = useState(false);
   const [leftColHidden, setLeftColHidden] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
@@ -331,6 +332,11 @@ export default function App() {
     imageHeight > 0 &&
     faceOval !== null;
 
+  const showVignetteOverlay =
+    vignetteOverlayVisible &&
+    imageWidth > 0 &&
+    imageHeight > 0;
+
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
       {backendDown && (
@@ -383,8 +389,8 @@ export default function App() {
               <label className="flex items-center gap-1 text-xs text-text-muted cursor-pointer select-none whitespace-nowrap">
                 <input
                   type="checkbox"
-                  checked={!!(config?.vignette as any)?.enabled ?? true}
-                  onChange={(e) => handleConfigChangeByPath(["vignette", "enabled"], e.target.checked ? 1 : 0)}
+                  checked={vignetteOverlayVisible}
+                  onChange={(e) => setVignetteOverlayVisible(e.target.checked)}
                   className="accent-accent-blue"
                 />
                 Виньетка
@@ -581,6 +587,7 @@ export default function App() {
                 onFaceOvalChange={handleFaceOvalChange}
                 imageWidth={imageWidth}
                 imageHeight={imageHeight}
+                vignetteOverlayVisible={showVignetteOverlay}
                 vignetteParams={vignetteParams}
                 onVignetteParamChange={handleConfigChangeByPath}
               />
@@ -607,6 +614,7 @@ export default function App() {
                   onFaceOvalChange={handleFaceOvalChange}
                   imageWidth={imageWidth}
                   imageHeight={imageHeight}
+                  vignetteOverlayVisible={showVignetteOverlay}
                   vignetteParams={vignetteParams}
                   onVignetteParamChange={handleConfigChangeByPath}
                 />

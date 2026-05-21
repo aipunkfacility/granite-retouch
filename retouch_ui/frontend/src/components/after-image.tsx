@@ -15,6 +15,7 @@ interface Props {
   onFaceOvalChange: (params: FaceOvalParams) => void;
   imageWidth: number;
   imageHeight: number;
+  vignetteOverlayVisible: boolean;
   vignetteParams: VignetteParams;
   onVignetteParamChange: (path: string[], value: number) => void;
 }
@@ -27,6 +28,7 @@ export function AfterImage({
   onFaceOvalChange,
   imageWidth,
   imageHeight,
+  vignetteOverlayVisible,
   vignetteParams,
   onVignetteParamChange,
 }: Props) {
@@ -35,7 +37,7 @@ export function AfterImage({
   const { renderedWidth, renderedHeight, offsetX, offsetY, onImgLoad } = useRenderMetrics(containerRef, imgRef);
 
   const showVignetteOverlay =
-    vignetteParams.enabled &&
+    vignetteOverlayVisible &&
     imageWidth > 0 &&
     imageHeight > 0;
 
