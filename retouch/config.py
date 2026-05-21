@@ -177,6 +177,7 @@ DEFAULTS = {
         "heterogeneity": None,  # None = auto по material → MATERIAL_PROFILES
     },
     "vignette": {
+        "enabled": True,
         "vertical_offset": 0.10,  # FIX #3: восстановлено (было 0.30)
         "vertical_diameter": 0.55,
         "blur_radius": 60,

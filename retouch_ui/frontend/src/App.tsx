@@ -63,8 +63,6 @@ export default function App() {
   const [faceOvalPinned, setFaceOvalPinned] = useState(false);
   const [vignetteOverlayVisible, setVignetteOverlayVisible] = useState(false);
   const [paramsCollapsed, setParamsCollapsed] = useState(false);
-  const [leftColHidden, setLeftColHidden] = useState(false);
-  const [compareMode, setCompareMode] = useState(false);
 
   const [ditherImageUrl, setDitherImageUrl] = useState<string | null>(null);
   const [ditherLoading, setDitherLoading] = useState(false);
@@ -116,18 +114,10 @@ export default function App() {
         e.preventDefault();
         setParamsCollapsed((prev) => !prev);
       }
-      if (e.key === "[" || e.key === "х" || e.key === "Х") {
-        e.preventDefault();
-        setLeftColHidden((prev) => !prev);
-      }
-      if (e.key === "Escape" && compareMode) {
-        e.preventDefault();
-        setCompareMode(false);
-      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [compareMode]);
+  }, []);
 
   const requestPreviewWithOval = useCallback(
     (fid: string, mt: MachineType, cfg: ConfigTree) => {
@@ -332,7 +322,12 @@ export default function App() {
     imageHeight > 0 &&
     faceOval !== null;
 
+  const vignetteEnabled = (() => {
+    const raw = (config.vignette as Record<string, unknown>)?.enabled;
+    return raw === true || raw === 1;
+  })();
   const showVignetteOverlay =
+    vignetteEnabled &&
     vignetteOverlayVisible &&
     imageWidth > 0 &&
     imageHeight > 0;
@@ -484,19 +479,11 @@ export default function App() {
       {/* Portrait Split: left-col + canvas */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left column */}
-        <div
-          className={`${
-            leftColHidden ? "w-0 overflow-hidden border-r-0" : "w-left-col"
-          } border-r border-border flex flex-col overflow-hidden transition-all duration-200`}
-        >
+        <div className="w-left-col border-r border-border flex flex-col overflow-hidden">
           {!fileId ? (
             <ImageUpload onImageUploaded={handleImageUploaded} fullHeight />
           ) : (
             <>
-              <div className="flex-1 min-h-0 overflow-hidden p-3">
-                <BeforeImage originalUrl={originalUrl} />
-              </div>
-
               <div
                 className={`flex-shrink-0 overflow-hidden border-t border-border transition-all duration-300 ${
                   paramsCollapsed ? "max-h-0 opacity-0" : "max-h-[60vh] opacity-100"
@@ -546,29 +533,6 @@ export default function App() {
         </div>
 
         <main className="flex-1 bg-canvas relative flex flex-col overflow-hidden">
-          {leftColHidden && !compareMode && (
-            <button
-              onClick={() => setLeftColHidden(false)}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-10 bg-bg-card/80 hover:bg-bg-card border border-border border-l-0 rounded-r flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors duration-200"
-              title="Показать панель ([/Х)"
-            >
-              <i className="ri-arrow-right-s-line text-sm" />
-            </button>
-          )}
-
-          {!loading && !previewError && previewResult && !compareMode && (
-            <div className="absolute top-2 right-2 z-10 flex gap-2">
-              <button
-                onClick={() => setCompareMode(true)}
-                className="text-xs px-2 py-1 rounded bg-black/50 text-text-muted hover:text-text-secondary hover:bg-black/60 transition-colors duration-200 flex items-center gap-1"
-                title="Сравнить оригинал и результат"
-              >
-                <i className="ri-side-bar-line" />
-                Сравнить
-              </button>
-            </div>
-          )}
-
           {!loading && previewError && (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-accent-red text-sm">
@@ -577,35 +541,13 @@ export default function App() {
               </p>
             </div>
           )}
-          {!previewError && previewResult && !compareMode && (
-            <div className="relative flex-1">
-              <AfterImage
-                imageUrl={availableSteps[selectedStep] ?? null}
-                stepLabel={stepLabel}
-                faceOvalOverlayEnabled={showFaceOval}
-                faceOval={faceOval}
-                onFaceOvalChange={handleFaceOvalChange}
-                imageWidth={imageWidth}
-                imageHeight={imageHeight}
-                vignetteOverlayVisible={showVignetteOverlay}
-                vignetteParams={vignetteParams}
-                onVignetteParamChange={handleConfigChangeByPath}
-              />
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-bg-canvas/50 text-text-muted gap-2 z-10">
-                  <i className="ri-loader-4-line animate-spin text-xl" />
-                  <span>Обработка...</span>
-                </div>
-              )}
-            </div>
-          )}
-          {!previewError && previewResult && compareMode && (
-            <div className="relative flex-1 flex overflow-hidden">
+          {fileId && previewResult && (
+            <div className="flex-1 flex overflow-hidden">
               <div className="flex-1 min-w-0 overflow-hidden p-2">
                 <BeforeImage originalUrl={originalUrl} />
               </div>
               <div className="w-px bg-border flex-shrink-0" />
-              <div className="flex-1 min-w-0 overflow-hidden p-2">
+              <div className="flex-1 min-w-0 overflow-hidden p-2 relative">
                 <AfterImage
                   imageUrl={availableSteps[selectedStep] ?? null}
                   stepLabel={stepLabel}
@@ -618,21 +560,13 @@ export default function App() {
                   vignetteParams={vignetteParams}
                   onVignetteParamChange={handleConfigChangeByPath}
                 />
+                {loading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-bg-canvas/50 text-text-muted gap-2 z-10">
+                    <i className="ri-loader-4-line animate-spin text-xl" />
+                    <span>Обработка...</span>
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => setCompareMode(false)}
-                className="absolute top-2 right-2 z-10 text-xs px-2 py-1 rounded bg-black/50 text-text-muted hover:text-text-secondary hover:bg-black/60 transition-colors duration-200 flex items-center gap-1"
-                title="Закрыть сравнение (Escape)"
-              >
-                <i className="ri-close-line" />
-                Закрыть
-              </button>
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-bg-canvas/50 text-text-muted gap-2 z-10">
-                  <i className="ri-loader-4-line animate-spin text-xl" />
-                  <span>Обработка...</span>
-                </div>
-              )}
             </div>
           )}
           {loading && !previewResult && (

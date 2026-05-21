@@ -51,10 +51,11 @@ function getDef(section: ParamSection, paramKey: string, machineType: MachineTyp
   return isParamDef(val) ? val : null;
 }
 
-function getValue(config: ConfigTree, path: string[]): number | string {
+function getValue(config: ConfigTree, path: string[]): number | string | boolean {
   let obj: unknown = config;
   for (const key of path) obj = (obj as Record<string, unknown>)?.[key];
   if (typeof obj === "string") return obj;
+  if (typeof obj === "boolean") return obj;
   return typeof obj === "number" ? obj : 0;
 }
 

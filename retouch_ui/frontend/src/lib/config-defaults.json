@@ -82,6 +82,7 @@
     "heterogeneity": null
   },
   "vignette": {
+    "enabled": true,
     "vertical_offset": 0.1,
     "vertical_diameter": 0.55,
     "blur_radius": 60,
