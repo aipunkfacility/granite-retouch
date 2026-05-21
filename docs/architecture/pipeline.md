@@ -49,7 +49,7 @@ img_gray = img.convert("L")
 
 **Модуль:** `retouch/processing/analysis/analysis.py`
 
-После конвертации в grayscale pipeline измеряет 13 метрик входного изображения внутри маски субъекта:
+После конвертации в grayscale pipeline измеряет 13 метрик входного изображения **внутри маски лица** (если face_mask доступен, иначе — внутри маски субъекта). Метрики по лицу точнее — чёрная одежда не тянет медиану вниз (FIX-ORD-007).
 
 | Метрика | Описание |
 |---------|----------|
@@ -186,7 +186,7 @@ useEffect(() => {
 
 ### 8b. Shadow Floor (impact)
 
-**Встроен в:** `retouch/processing/core/pipeline.py`
+**Встроен в:** `retouch/processing/correction/postprocess.py`
 
 Отдельный шаг для impact: `np.maximum(arr, shadow_floor)`. Предотвращает уход теней в 0 — игла застревает на чистом чёрном. Shadow floor — machine-specific логика, вынесена из `_curves_correction()` чтобы не нарушать SRP.
 
@@ -194,7 +194,7 @@ useEffect(() => {
 
 ### 8c. White Ceiling Clamp + Soft Rolloff
 
-**Встроен в:** `retouch/processing/core/pipeline.py`, `retouch/processing/correction/rolloff.py`
+**Встроен в:** `retouch/processing/correction/postprocess.py`, `retouch/processing/correction/rolloff.py`
 
 Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — плавное сжатие яркости в зоне highlights. Заменяет hard clamp `np.clip` — сохраняет текстуру в зоне пересвета. Используется в levels и face_correction.
 
