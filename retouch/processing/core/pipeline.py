@@ -29,9 +29,6 @@ from retouch.processing.core.plan import (
 from retouch.processing.core.context import PipelineContext, PipelineResult, _run_consistency_check
 from retouch.processing.core.steps import (
     run_pipeline_steps as _run_pipeline_steps,
-    _get_gate_thresholds,
-    _compute_quality_metrics,
-    _apply_face_brightness,
 )
 
 import numpy as np

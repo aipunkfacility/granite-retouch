@@ -35,7 +35,7 @@ retouch_ui/frontend/node_modules/
 retouch_ui/frontend/dist/
 retouch_ui/frontend/.vite/
 
-# Layout refactor — мокапы и черновики плана
+docs/superpowers/
 
 # Временные файлы загрузок (если backend запускался локально)
 /tmp_upload_*
