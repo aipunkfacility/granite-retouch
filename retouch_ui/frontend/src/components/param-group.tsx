@@ -79,10 +79,8 @@ export function ParamGroup({
     return count;
   }, [section, machineType, overriddenKeys]);
 
-  const isVignetteDisabled = section.configPath === "vignette" && !(config as any)?.vignette?.enabled;
-
   return (
-    <div className={`bg-bg-card rounded-lg shadow-sm overflow-hidden${isVignetteDisabled ? " opacity-50" : ""}`}>
+    <div className="bg-bg-card rounded-lg shadow-sm overflow-hidden">
       <button
         onClick={() => setCollapsed((prev) => !prev)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs font-heading font-semibold uppercase tracking-wide text-text-secondary hover:bg-bg-hover transition-colors duration-200"
