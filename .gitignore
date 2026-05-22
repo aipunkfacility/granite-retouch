@@ -1,4 +1,7 @@
-﻿# IDE
+﻿# Worktrees
+.worktrees/
+
+# IDE
 .gemini/
 .agents/*
 !.agents/skills/
