@@ -119,7 +119,9 @@ def face_brightness_correction(
     compression = machine_cfg.get("rolloff_compression", 0.35)
 
     if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
-        rolloff_mask = (zone_masks.highlights > 128).astype(np.uint8) * 255
+        base = zone_masks.highlights > 128
+        combined = base | apply_mask
+        rolloff_mask = combined.astype(np.uint8) * 255
     elif face_skin_mask is not None:
         rolloff_mask = skin_bool.astype(np.uint8) * 255
     else:
