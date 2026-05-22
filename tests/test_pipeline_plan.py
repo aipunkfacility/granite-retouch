@@ -50,10 +50,10 @@ class TestProfiles:
         assert "face_correction" not in plan.active_steps
 
     def test_profile_standard_matches_current_behavior(self):
-        """Standard сохраняет текущую логику."""
+        """Standard больше не содержит face_correction (один вызов в levels)."""
         plan = PipelinePlan.from_profile(PROFILE_STANDARD)
         assert "levels" in plan.active_steps
-        assert "face_correction" in plan.active_steps
+        assert "face_correction" not in plan.active_steps
         assert "unsharp" in plan.active_steps
 
     def test_profile_diagnostic_keeps_intermediates(self):

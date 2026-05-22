@@ -20,7 +20,6 @@ from retouch.processing.core.gates import (
 from retouch.processing.core.gates_enforcement import enforce_gates
 from retouch.processing.correction.glow import apply_glow
 from retouch.processing.correction.face_brightness import face_brightness_correction
-from retouch.processing.correction.face_correction import check_face_brightness
 from retouch.processing.correction.unsharp import apply_unsharp_mask
 from retouch.processing.correction.shadow_noise import add_shadow_noise
 from retouch.processing.correction.postprocess import apply_postprocess
@@ -97,34 +96,6 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
     metrics["quality_warnings"] = quality_warnings
 
     return metrics
-
-
-def _apply_face_brightness(img, machine_cfg, subject_mask, glow_size, face_mask=None):
-    """Применить коррекцию яркости лица.
-
-    Вынесено в отдельную функцию для поддержки разных порядков шагов (A.3).
-    """
-    if "face_brightness_target" in machine_cfg:
-        face_target = machine_cfg["face_brightness_target"]
-    else:
-        t_min = machine_cfg.get("face_brightness_target_min", 200)
-        t_max = machine_cfg.get("face_brightness_target_max", 230)
-        face_target = [t_min, t_max]
-
-    face_region_top = machine_cfg.get("face_region_top", 0.45)
-    highlight_start = machine_cfg.get("highlight_start", 200)
-    white_ceiling = machine_cfg.get("white_ceiling", None)
-    skin_threshold = machine_cfg.get("face_skin_threshold", 100)
-
-    return check_face_brightness(
-        img, face_target, subject_mask,
-        glow_size=glow_size,
-        face_region_top=face_region_top,
-        highlight_start=highlight_start,
-        white_ceiling=white_ceiling,
-        face_mask_img=face_mask,
-        skin_threshold=skin_threshold,
-    )
 
 
 def run_pipeline_steps(
@@ -261,7 +232,7 @@ def run_pipeline_steps(
         face_skin_mask_for_levels = None
         if zone_masks is not None:
             face_skin_mask_for_levels = zone_masks.face_skin
-        img_leveled, _, _, _, _ = face_brightness_correction(
+        img_leveled, face_before, face_after, correction_factor, face_delta = face_brightness_correction(
             img_glow,
             subject_mask=ctx.subject_mask,
             face_skin_mask=face_skin_mask_for_levels,
@@ -273,34 +244,15 @@ def run_pipeline_steps(
     else:
         img_leveled = img_glow
 
-    if "face_correction" in validated.plan.active_steps:
-        face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
-        if face_dark_gates and face_dark_gates[-1].triggered:
-            logger.info("Gate face_dark_small triggered: face correction skipped")
-            ctx.warnings.append("face_correction skipped: face_dark zone too small")
-            img_face_corrected = img_leveled
-            face_before = 0.0
-            face_after = 0.0
-            correction_factor = 1.0
-            face_delta = 0.0
-            _record_step("face_correction", img_face_corrected)
-        else:
-            img_face_corrected, face_before, face_after, correction_factor, face_delta = _apply_face_brightness(
-                img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-            )
-            _record_step("face_correction", img_face_corrected)
-    else:
-        img_face_corrected = img_leveled
-
     if "unsharp" in validated.plan.active_steps:
         img_postproc = apply_unsharp_mask(
-            img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+            img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
             white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
         )
         _record_step("unsharp", img_postproc)
     else:
-        img_postproc = img_face_corrected
+        img_postproc = img_leveled
 
     shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
         gate_state, ctx.machine_cfg, validated, ctx,
@@ -375,7 +327,7 @@ def run_pipeline_steps(
         img_gray=ctx.img_gray,
         img_glow=img_glow,
         img_leveled=img_leveled,
-        img_face_corrected=img_face_corrected,
+        img_face_corrected=img_leveled,
         img_postproc=img_postproc,
         img_final=img_final,
         arch_mask=arch_mask,

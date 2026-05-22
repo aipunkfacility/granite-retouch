@@ -45,8 +45,8 @@ class TestGatesEnforcement:
         config["processing"]["quality_gates"][gate_name] = threshold
         return config
 
-    def test_face_dark_small_skips_correction(self, tmp_path):
-        """face_dark_small gate → correction не применяется (factor == 1.0)."""
+    def test_face_dark_small_gate_still_triggers(self, tmp_path):
+        """face_dark_small gate → запись в gate_state (correction больше не скипается)."""
         arr = np.zeros((512, 512, 4), dtype=np.uint8)
         arr[..., 2] = 255
         arr[..., 3] = 255
@@ -62,12 +62,11 @@ class TestGatesEnforcement:
             config=config,
         )
 
+        # face_dark_small gate recorded in gate_state
+        assert any(g.gate_name == "face_dark_small" for g in result.gate_state.results)
+        assert all(g.triggered for g in result.gate_state.results if g.gate_name == "face_dark_small")
+        # face_correction_factor всегда 1.0 после фикса (неактуально, но стабильно)
         assert result.face_correction_factor == 1.0
-        gate_warnings = [
-            w for w in result.warnings
-            if "face_dark" in w.lower() or "face_correction skipped" in w.lower()
-        ]
-        assert len(gate_warnings) > 0
 
     def test_variance_loss_gate_warns(self, tmp_path):
         """variance_loss gate > 35% → warning в result.warnings или gate_state."""

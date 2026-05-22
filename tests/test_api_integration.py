@@ -59,7 +59,6 @@ class TestProfilePreviewIntegration:
 
         step_names = [r.step_name for r in result.step_metrics]
         assert "levels" in step_names
-        assert "face_correction" in step_names
         assert "unsharp" in step_names
         assert "glow" in step_names
         assert "postproc" in step_names

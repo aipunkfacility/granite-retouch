@@ -32,12 +32,12 @@ PROFILE_ACTIVE_STEPS = {
         "chromakey", "grayscale", "glow", "highlight_rolloff", "vignette",
     },
     PROFILE_STANDARD: {
-        "chromakey", "grayscale", "glow", "levels", "face_correction",
+        "chromakey", "grayscale", "glow", "levels",
         "unsharp", "shadow_noise", "shadow_floor", "stone_gamma",
         "white_ceiling", "vignette",
     },
     PROFILE_DIAGNOSTIC: {
-        "chromakey", "grayscale", "glow", "levels", "face_correction",
+        "chromakey", "grayscale", "glow", "levels",
         "unsharp", "shadow_noise", "shadow_floor", "stone_gamma",
         "white_ceiling", "vignette",
     },
