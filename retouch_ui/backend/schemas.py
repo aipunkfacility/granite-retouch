@@ -109,6 +109,7 @@ class PreviewDiagnostics(BaseModel):
     face_brightness_before: float = 0.0
     face_brightness_after: float = 0.0
     face_correction_factor: float = 0.0
+    face_brightness_delta: float = 0.0
     black_ratio: float = 0.0
     blue_ratio: float = 0.0
     width: int = 0
@@ -219,7 +220,6 @@ class PipelinePlanSchema(BaseModel):
     """Сериализуемый PipelinePlan для API и diagnostics."""
     profile: str = Field("standard", description="Профиль обработки")
     active_steps: list[str] = Field(default_factory=list, description="Активные шаги пайплайна")
-    skin_delta: float = Field(0.0, description="Дельта коррекции кожи")
     highlight_rolloff_knee: float = Field(0.90, description="Knee для highlight rolloff")
     highlight_rolloff_compression: float = Field(0.35, description="Compression ratio rolloff")
     glow_size: int = Field(40, description="Размер свечения (px)")
@@ -251,7 +251,6 @@ def plan_to_schema(plan: object) -> PipelinePlanSchema:
     return PipelinePlanSchema(
         profile=plan.profile,
         active_steps=sorted(plan.active_steps) if isinstance(plan.active_steps, set) else list(plan.active_steps),
-        skin_delta=plan.skin_delta,
         highlight_rolloff_knee=plan.highlight_rolloff_knee,
         highlight_rolloff_compression=plan.highlight_rolloff_compression,
         glow_size=plan.glow_size,
