@@ -23,7 +23,6 @@ class TestUnifiedBrightnessMeasurement:
         result, before, after, factor, _ = face_brightness_correction(
             img, subject_mask, face_skin, {},
             {"median_brightness": 200, "p90_brightness": 210},
-            zone_masks=None,
         )
         assert factor == 1.0, f"Кожа 200 — без коррекции, factor={factor}"
 
@@ -96,45 +95,32 @@ class TestCurvesFineTune:
         assert factor == 1.0
 
 
-class TestSoftRolloff:
-    """Ceiling через soft rolloff по highlights зоне."""
+class TestNoRolloffInFaceBrightness:
+    """Rolloff удалён из face_brightness_correction (v6.5 — двойной ceiling)."""
 
-    def test_rolloff_prevents_clipping(self):
-        """Soft rolloff не даёт пикселям превысить white_ceiling."""
-        arr = np.full((200, 200), 120, dtype=np.uint8)
+    def test_no_rolloff_from_face_brightness(self):
+        """Пиксели выше ceiling остаются без изменений — rolloff удалён."""
+        arr = np.full((200, 200), 100, dtype=np.uint8)
+        arr[80:120, 80:120] = 230  # яркое пятно > white_ceiling=200
         img = Image.fromarray(arr)
         mask = Image.new("L", (200, 200), 255)
         face_skin = np.ones((200, 200), dtype=np.uint8) * 255
 
-        from retouch.processing.analysis.zones import ZoneMasks
-        highlights = np.zeros((200, 200), dtype=np.uint8)
-        highlights[80:120, 80:120] = 255
-        zone_masks = ZoneMasks(
-            subject=np.ones((200,200), dtype=np.uint8)*255,
-            face=np.ones((200,200), dtype=np.uint8)*255,
-            hair=np.zeros((200,200), dtype=np.uint8),
-            face_skin=np.ones((200,200), dtype=np.uint8)*255,
-            face_dark=np.zeros((200,200), dtype=np.uint8),
-            clothes=np.zeros((200,200), dtype=np.uint8),
-            highlights=highlights,
-            contour_inner=np.zeros((200,200), dtype=np.uint8),
-            contour_outer=np.zeros((200,200), dtype=np.uint8),
-            background=np.zeros((200,200), dtype=np.uint8),
-        )
-
+        # median 100 — в target, коррекция не нужна
         result, _, _, _, _ = face_brightness_correction(
             img, mask, face_skin,
             {
-                "face_brightness_target_min": 180,
-                "face_brightness_target_max": 200,
+                "face_brightness_target_min": 80,
+                "face_brightness_target_max": 120,
                 "white_ceiling": 200,
                 "rolloff_compression": 0.35,
             },
-            {"median_brightness": 120.0, "p90_brightness": 140.0},
-            zone_masks=zone_masks,
+            {"median_brightness": 100.0, "p90_brightness": 120.0},
         )
         result_arr = np.array(result)
-        assert result_arr.max() <= 200
+        assert result_arr[100, 100] > 200, (
+            "face_brightness не должен ceiling-ить: пиксель 230 должен остаться 230"
+        )
 
 
 class TestMaskProtection:

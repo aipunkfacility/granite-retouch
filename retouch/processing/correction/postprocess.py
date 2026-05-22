@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
@@ -21,9 +20,6 @@ from retouch.processing.correction.mask_utils import clamp_masked
 from retouch.processing.correction.gamma import apply_stone_gamma_masked
 from retouch.processing.correction.rolloff import soft_rolloff_masked
 
-if TYPE_CHECKING:
-    from retouch.processing.analysis.zones import ZoneMasks
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +27,6 @@ def apply_postprocess(
     img: Image.Image,
     subject_mask: np.ndarray,
     face_mask: np.ndarray | None,
-    zone_masks: ZoneMasks | None,
     machine_type: str,
     shadow_floor: int = 0,
     stone_gamma: float | None = None,
@@ -44,7 +39,6 @@ def apply_postprocess(
         img: изображение после unsharp + shadow_noise
         subject_mask: маска субъекта (uint8)
         face_mask: маска лица (uint8) или None
-        zone_masks: ZoneMasks для highlights-зоны или None
         machine_type: "laser_standard", "laser_80w", или "impact"
         shadow_floor: минимальный уровень теней (0 = отключён)
         stone_gamma: gamma камня (None или 1.0 = отключена)
@@ -95,21 +89,12 @@ def apply_postprocess(
     # 3. White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
     if white_ceiling is not None:
         knee = white_ceiling * 0.90
-        if zone_masks is not None and zone_masks.highlights.any():
-            base = zone_masks.highlights > 128 if zone_masks.highlights.dtype != bool else zone_masks.highlights
-            face = zone_masks.face_skin > 128 if zone_masks.face_skin.dtype != bool else zone_masks.face_skin
-            rolloff_mask = (base | face).astype(np.uint8) * 255
-            logger.info(
-                "White ceiling rolloff applied to highlights+face_skin zone (%d px)",
-                int(rolloff_mask.sum()),
-            )
-        else:
-            rolloff_mask = np.array(subject_mask, dtype=np.uint8)
+        rolloff_mask = np.array(subject_mask, dtype=np.uint8)
         arr = soft_rolloff_masked(
             arr, rolloff_mask, knee, float(white_ceiling), compression
         )
         logger.info(
-            "White ceiling rolloff (post-gamma): %d, compression=%.2f",
+            "White ceiling rolloff (post-gamma, full subject): %d, compression=%.2f",
             white_ceiling, compression,
         )
 

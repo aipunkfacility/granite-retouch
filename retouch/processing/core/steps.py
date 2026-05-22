@@ -238,7 +238,6 @@ def run_pipeline_steps(
             face_skin_mask=face_skin_mask_for_levels,
             machine_cfg=ctx.machine_cfg,
             analytics=ctx.analytics,
-            zone_masks=zone_masks,
         )
         _record_step("levels", img_leveled)
     else:
@@ -279,7 +278,6 @@ def run_pipeline_steps(
             img_postproc,
             subject_mask=ctx.subject_mask,
             face_mask=ctx.face_mask,
-            zone_masks=zone_masks,
             machine_type=ctx.machine_type,
             shadow_floor=shadow_floor,
             stone_gamma=stone_gamma,
@@ -288,6 +286,9 @@ def run_pipeline_steps(
         )
         _record_step("postproc", img_postproc)
     elif "highlight_rolloff" in validated.plan.active_steps:
+        # DEPRECATED (v6.5): single rolloff moved to apply_postprocess with full subject mask.
+        # This path uses zone-limited highlights mask — kept for profile backward compat
+        # but produces different results. Remove when profiles are updated.
         if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
             arr = np.array(img_postproc, dtype=np.float32)
             rolloff_mask_arr = (zone_masks.highlights > 128).astype(np.uint8) * 255

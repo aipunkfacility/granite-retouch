@@ -4,7 +4,6 @@
 1. Замер по face_skin (исключая волосы/бороду)
 2. Linear shift: bounded delta ±15, weight=norm^0.5
 3. Re-measure + curves fine-tune если median ещё вне target
-4. Soft rolloff ceiling по highlights зоне
 """
 
 import logging
@@ -13,7 +12,6 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 
-from retouch.processing.correction.rolloff import soft_rolloff_masked
 from retouch.processing.correction.mask_utils import apply_masked
 
 logger = logging.getLogger(__name__)
@@ -25,7 +23,6 @@ def face_brightness_correction(
     face_skin_mask: np.ndarray | None,
     machine_cfg: dict,
     analytics: dict,
-    zone_masks=None,
     face_brightness_target_min: int = 180,
     face_brightness_target_max: int = 220,
     highlight_start: int = 200,
@@ -40,11 +37,9 @@ def face_brightness_correction(
         machine_cfg: dict — параметры станка (face_brightness_target_min/max,
             white_ceiling, rolloff_compression)
         analytics: dict — метрики от analyze_input()
-        zone_masks: ZoneMasks или None — для rolloff по highlights
         face_brightness_target_min/max: fallback target range
         highlight_start: порог затухания curves (0-255)
         max_delta: максимальная дельта (safety envelope)
-        variance_loss_threshold: порог клиппинга variance loss в %
 
     Returns:
         tuple: (Image, brightness_before, brightness_after, correction_factor, face_brightness_delta)
@@ -113,21 +108,6 @@ def face_brightness_correction(
         soft_mask = np.clip(soft_mask_float * subj_bool.astype(np.float32), 0, 1)
 
         corrected = corrected + delta_curve * weight_curve * soft_mask
-
-    # --- Ceiling: soft rolloff ---
-    ceiling = float(machine_cfg.get("white_ceiling", 250))
-    compression = machine_cfg.get("rolloff_compression", 0.35)
-
-    if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
-        base = zone_masks.highlights > 128
-        combined = base | apply_mask
-        rolloff_mask = combined.astype(np.uint8) * 255
-    elif face_skin_mask is not None:
-        rolloff_mask = skin_bool.astype(np.uint8) * 255
-    else:
-        rolloff_mask = np.array(subject_mask, dtype=np.uint8)
-
-    corrected = soft_rolloff_masked(corrected, rolloff_mask, ceiling * 0.90, ceiling, compression)
 
     result_arr = apply_masked(arr, corrected, subject_mask)
     result_img = Image.fromarray(result_arr.astype(np.uint8))

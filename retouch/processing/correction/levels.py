@@ -28,7 +28,7 @@ from retouch.processing.correction.shadow_noise import add_shadow_noise  # re-ex
 # ─── Levels — deprecated wrapper ─────────────────────────────────────
 
 def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=None,
-                 subject_mask=None, machine_cfg=None, face_skin_mask=None, zone_masks=None):
+                 subject_mask=None, machine_cfg=None, face_skin_mask=None):
     """Deprecated. Используйте face_brightness_correction напрямую."""
     cfg = machine_cfg or {}
     an = analytics or {}
@@ -43,7 +43,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
         cfg["face_brightness_target_max"] = target_max
         mask_pil = subject_mask if subject_mask is not None else Image.new("L", img_gray.size, 255)
         result, _, _, _, _ = face_brightness_correction(
-            img_gray, mask_pil, face_skin_mask, cfg, an, zone_masks=zone_masks,
+            img_gray, mask_pil, face_skin_mask, cfg, an,
         )
         return result
     elif brightness_factor is not None:
@@ -57,7 +57,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
             cfg["face_brightness_target_max"] = median + delta
             an = {"median_brightness": median, "p90_brightness": median + 20}
             result, _, _, _, _ = face_brightness_correction(
-                img_gray, subject_mask, face_skin_mask, cfg, an, zone_masks=zone_masks,
+                img_gray, subject_mask, face_skin_mask, cfg, an,
             )
             return result
         enhancer = ImageEnhance.Brightness(img_gray)
