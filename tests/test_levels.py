@@ -106,18 +106,21 @@ class TestAdaptiveLevels:
         assert result_arr.mean() < 250, "median выше target_max должна затемняться"
 
     def test_laser_80w_lower_target(self):
-        """Laser 80W: target_min=160, target_max=180."""
+        """Laser 80W: target=160-210, median 190 within range → no correction."""
         analytics = {
             'median_brightness': 190.0,
             'p90_brightness': 220.0,
         }
+        img_190 = Image.new("L", (100, 100), 190)
+
         result_laser = apply_levels(
-            Image.new("L", (100, 100), 190),
-            analytics=analytics, machine_type='laser_standard',
+            img_190, analytics=analytics, machine_type='laser_standard',
         )
         result_80w = apply_levels(
-            Image.new("L", (100, 100), 190),
-            analytics=analytics, machine_type='laser_80w',
+            img_190, analytics=analytics, machine_type='laser_80w',
         )
-        assert np.array(result_80w).mean() < 190  # затемнение
-        assert np.array(result_laser).mean() >= 190  # осветление или без изменений
+        # laser_standard: target 230-245, median 190 < 230 → brightens
+        assert np.array(result_laser).mean() >= 190
+        # laser_80w: target 160-210, median 190 within range → no correction
+        from pytest import approx
+        assert np.array(result_80w).mean() == approx(190.0, abs=0.5)
