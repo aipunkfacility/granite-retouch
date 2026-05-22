@@ -56,7 +56,7 @@ def apply_levels(img_gray, brightness_factor=None, analytics=None, machine_type=
             cfg["face_brightness_target_min"] = median + delta
             cfg["face_brightness_target_max"] = median + delta
             an = {"median_brightness": median, "p90_brightness": median + 20}
-            result, _, _, _ = face_brightness_correction(
+            result, _, _, _, _ = face_brightness_correction(
                 img_gray, subject_mask, face_skin_mask, cfg, an, zone_masks=zone_masks,
             )
             return result
