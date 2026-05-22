@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 
 from retouch.processing.correction.face_brightness import face_brightness_correction
+from retouch.processing.correction.postprocess import apply_postprocess
 
 
 class _MockZM:
@@ -74,3 +75,51 @@ def test_rolloff_covers_phase1_lifted_pixels():
     )
     # Control pixel should always be rolled off
     assert ctrl <= 184, f"Control pixel {ctrl} should also be rolled off"
+
+
+def test_postprocess_rolloff_covers_face_skin():
+    """
+    After gamma raises Phase 1 lifted pixels, apply_postprocess rolloff
+    must also cover face_skin zone (not just original highlights).
+    """
+    # Simulate image AFTER face_brightness_correction + unsharp
+    # Pixel at 215 was lifted by Phase 1 but not covered by original highlights
+    # After gamma 0.90: (215/255)^0.90 * 255 ≈ 218.7 > knee 216 → needs rolloff
+    arr = np.full((10, 10), 100, dtype=np.uint8)
+    arr[5, 5] = 215
+    img = Image.fromarray(arr, mode='L')
+
+    subj = np.full((10, 10), 255, dtype=np.uint8)
+
+    face = np.zeros((10, 10), dtype=np.uint8)
+
+    # ZoneMasks: highlights cover (5,6) NOT (5,5); face_skin covers bottom 6 rows
+    hl = np.zeros((10, 10), dtype=np.uint8)
+    hl[5, 6] = 255
+    fs = np.zeros((10, 10), dtype=np.uint8)
+    fs[4:, :] = 255
+
+    zm = _MockZM(hl, fs)
+
+    result = apply_postprocess(
+        img=img,
+        subject_mask=subj,
+        face_mask=face,
+        zone_masks=zm,
+        machine_type="impact",
+        shadow_floor=0,
+        stone_gamma=0.90,
+        white_ceiling=240,
+        compression=0.35,
+    )
+
+    res = np.array(result)
+    val = float(res[5, 5])
+
+    # Without fix: 215 after gamma 0.90 → ~218.7 > knee 216, no rolloff → ~219
+    # With fix:    face_skin included → rolls off to 216 + 2.7*0.35 ≈ 216.9
+    assert val <= 217, (
+        f"Pixel {val} > 217 — postprocess rolloff missing face_skin zone. "
+        f"Gamma raised it above knee but original highlights mask "
+        f"doesn't cover it."
+    )
