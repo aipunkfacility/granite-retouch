@@ -216,6 +216,7 @@ class TestNumbaAvailableInDiagnostics:
             face_brightness_before=150.0,
             face_brightness_after=210.0,
             face_correction_factor=1.15,
+            face_brightness_delta=15.0,
             black_ratio=0.35,
             blue_ratio=0.5,
             width=800,

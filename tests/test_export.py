@@ -445,15 +445,6 @@ class TestExportModeRouting:
         with Image.open(path) as saved:
             assert saved.mode in ("L", "P")  # 8-bit выиграл
 
-    def test_backward_compat_dither_method(self, tmp_path):
-        """export_mode=None + dither_method=jarvis → 1-bit (старый путь)"""
-        from retouch.processing.output.export import export_result
-        img = Image.new("L", (100, 100), 128)
-        out = str(tmp_path / "compat.bmp")
-        path = export_result(img, out, fmt="bmp", dither_method="jarvis")
-        with Image.open(path) as saved:
-            assert saved.mode == "1"
-
     def test_dpi_calculation_formula(self):
         """Проверка формулы DPI = 25.4 / step_mm"""
         assert 25.4 / 0.300 == pytest.approx(84.67, abs=0.1)

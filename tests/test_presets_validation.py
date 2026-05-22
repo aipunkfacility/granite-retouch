@@ -53,21 +53,16 @@ class TestPresetPhysicalConstraints:
                 f"выше физического максимума {hi}"
             )
 
-    def test_dither_method_explicit(self, preset_path):
-        """impact-пресеты должны явно задавать export_mode или dither_method."""
+    def test_export_mode_explicit(self, preset_path):
+        """impact-пресеты должны явно задавать export_mode."""
         with open(preset_path, encoding="utf-8") as f:
             preset = yaml.safe_load(f)
         impact = preset.get("processing", {}).get("impact", {})
         if impact:  # только если пресет затрагивает impact
-            # v3+: export_mode предпочтительнее dither_method
             has_export = "export_mode" in impact
-            has_dither = "dither_method" in impact
-            assert has_export or has_dither, (
-                f"{preset_path.name}: impact-пресет должен содержать "
-                f"'export_mode' или 'dither_method'"
+            assert has_export, (
+                f"{preset_path.name}: impact-пресет должен содержать 'export_mode'"
             )
-            if has_dither:
-                assert impact["dither_method"] == "none"
 
     def test_stone_gamma_range(self, preset_path):
         """stone_gamma должен быть в допустимом диапазоне [0.70, 1.10]."""

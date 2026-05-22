@@ -295,7 +295,7 @@ def save_bmp_1bit(img, output_path, machine_type=None, dither_method=None) -> No
 
 
 def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
-                  dither_method=None, export_mode=None, step_mm=None,
+                  export_mode=None, step_mm=None,
                   dither_method_1bit=None,
                   save_png_preview=False) -> str:
     """Экспорт результата пайплайна в нужном формате.
@@ -304,7 +304,7 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
     1. Явный fmt='bmp_8bit' или fmt='bmp_1bit' — перекрывает export_mode
     2. export_mode='8bit' → 8-bit grayscale BMP (БЕЗ дизеринга)
     3. export_mode='1bit' → 1-bit BMP с дизерингом (dither_method_1bit)
-    4. export_mode=None → fallback на dither_method (обратная совместимость)
+    4. fmt='bmp' → 8-bit grayscale по умолчанию
 
     Машины по умолчанию (v3):
     - laser_standard: export_mode='8bit' → 8-bit grayscale
@@ -316,7 +316,6 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         output_path: путь к выходному файлу (расширение будет заменено на .bmp)
         machine_type: тип станка ('laser_standard', 'laser_80w', 'impact')
         fmt: формат экспорта ('bmp', 'bmp_1bit', 'bmp_8bit', 'png')
-        dither_method: DEPRECATED — алгоритм дизеринга, используйте export_mode
         export_mode: режим экспорта ('8bit' | '1bit') — определяет формат BMP
         step_mm: шаг ЧПУ в мм — для записи DPI в заголовок BMP
         dither_method_1bit: алгоритм дизеринга для 1-bit режима ('jarvis' | 'stucki')
@@ -345,21 +344,17 @@ def export_result(img, output_path, machine_type="laser_standard", fmt="bmp",
         save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
     elif fmt == "bmp_1bit":
         # Явный запрос 1-bit — дизеринг обязателен
-        method = dither_method_1bit or dither_method or "jarvis"
+        method = dither_method_1bit or "jarvis"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=method)
     elif export_mode == "1bit":
         # Конфиг станка: 1-bit режим → дизеринг
-        method = dither_method_1bit or dither_method or "jarvis"
+        method = dither_method_1bit or "jarvis"
         save_bmp_1bit(img, bmp_path, machine_type=machine_type,
                       dither_method=method)
     elif export_mode == "8bit":
         # Конфиг станка: 8-bit режим → grayscale BMP
         save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
-    elif fmt == "bmp" and dither_method and dither_method != "none":
-        # Fallback: старый путь через dither_method (обратная совместимость)
-        save_bmp_1bit(img, bmp_path, machine_type=machine_type,
-                      dither_method=dither_method)
     else:
         # Default: 8-bit grayscale
         save_bmp_8bit(img, bmp_path, machine_type=machine_type, step_mm=step_mm)
