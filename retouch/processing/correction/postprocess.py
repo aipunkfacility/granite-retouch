@@ -96,9 +96,11 @@ def apply_postprocess(
     if white_ceiling is not None:
         knee = white_ceiling * 0.90
         if zone_masks is not None and zone_masks.highlights.any():
-            rolloff_mask = zone_masks.highlights
+            base = zone_masks.highlights > 128 if zone_masks.highlights.dtype != bool else zone_masks.highlights
+            face = zone_masks.face_skin > 128 if zone_masks.face_skin.dtype != bool else zone_masks.face_skin
+            rolloff_mask = (base | face).astype(np.uint8) * 255
             logger.info(
-                "White ceiling rolloff applied to highlights zone (%d px)",
+                "White ceiling rolloff applied to highlights+face_skin zone (%d px)",
                 int(rolloff_mask.sum()),
             )
         else:
