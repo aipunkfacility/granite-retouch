@@ -46,17 +46,6 @@ def enforce_gates(gate_state, machine_cfg, validated_plan, ctx):
             f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
         )
 
-    if "p95_shift" in triggered:
-        orig_delta = validated_plan.plan.skin_delta
-        validated_plan.plan.skin_delta *= 0.5
-        logger.info(
-            "Gates enforcement: p95_shift triggered, skin_delta %.1f → %.1f",
-            orig_delta, validated_plan.plan.skin_delta,
-        )
-        ctx.warnings.append(
-            f"skin_delta halved: {orig_delta:.1f} → {validated_plan.plan.skin_delta:.1f} (p95_shift gate)"
-        )
-
     if "shadow_crush" in triggered:
         orig_floor = shadow_floor
         shadow_floor = 0

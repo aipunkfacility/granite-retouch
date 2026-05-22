@@ -114,35 +114,10 @@ class TestStepOrder:
         img.save(input_path, "PNG")
 
         config = copy.deepcopy(DEFAULTS)
-        config["processing"]["legacy_step_order"] = False
 
         result = process_steps(input_path, machine_type="laser_standard", config=config)
         assert result.img_final is not None
         assert result.img_postproc is not result.img_face_corrected
-
-    def test_legacy_step_order_rollback(self, tmp_path):
-        """legacy_step_order=True возвращает старый порядок."""
-        from retouch.processing.core.pipeline import process_steps
-
-        arr = np.zeros((512, 512, 4), dtype=np.uint8)
-        arr[..., 2] = 255
-        arr[..., 3] = 255
-        y, x = np.ogrid[:512, :512]
-        ellipse = ((x - 256) / 100) ** 2 + ((y - 256) / 120) ** 2 <= 1.0
-        arr[ellipse, 0] = 80
-        arr[ellipse, 1] = 60
-        arr[ellipse, 2] = 40
-        arr[ellipse, 3] = 255
-
-        img = Image.fromarray(arr)
-        input_path = str(tmp_path / "dark.png")
-        img.save(input_path, "PNG")
-
-        config = copy.deepcopy(DEFAULTS)
-        config["processing"]["legacy_step_order"] = True
-
-        result = process_steps(input_path, machine_type="laser_standard", config=config)
-        assert result.img_final is not None
 
 
 # ─── White ceiling clamp ───────────────────────────────────────────────

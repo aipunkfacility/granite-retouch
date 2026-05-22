@@ -19,7 +19,6 @@ from .core.gates import GateState, GateResult
 from .core.gates import (
     pre_check_face_dark_small,
     pre_check_contour_inner_quality,
-    pre_check_skin_delta_envelope,
     post_check_variance_loss,
     post_check_clipped_pct,
     post_check_p95_shift,
@@ -65,7 +64,6 @@ __all__ = [
     "GateResult",
     "pre_check_face_dark_small",
     "pre_check_contour_inner_quality",
-    "pre_check_skin_delta_envelope",
     "post_check_variance_loss",
     "post_check_clipped_pct",
     "post_check_p95_shift",

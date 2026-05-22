@@ -7,7 +7,6 @@ from retouch.processing.core.gates import (
     GateResult,
     pre_check_face_dark_small,
     pre_check_contour_inner_quality,
-    pre_check_skin_delta_envelope,
     post_check_variance_loss,
     post_check_clipped_pct,
     post_check_p95_shift,
@@ -56,33 +55,6 @@ class TestPreCheckContourInnerQuality:
             contour_inner_area=200, subject_area=1000, threshold_pct=30.0
         )
         assert result.triggered is False
-
-
-class TestPreCheckSkinDeltaEnvelope:
-    """Pre-check: skin_delta > envelope → clip."""
-
-    def test_gate_skin_delta_exceeds_envelope(self):
-        """skin_delta > envelope клипуется."""
-        result = pre_check_skin_delta_envelope(
-            skin_delta=50.0, max_delta=15.0
-        )
-        assert result.triggered is True
-        assert result.adjusted_value == 15.0
-
-    def test_gate_skin_delta_within_envelope(self):
-        """skin_delta <= envelope не триггерит."""
-        result = pre_check_skin_delta_envelope(
-            skin_delta=10.0, max_delta=15.0
-        )
-        assert result.triggered is False
-
-    def test_gate_skin_delta_negative(self):
-        """Отрицательная delta тоже клипуется."""
-        result = pre_check_skin_delta_envelope(
-            skin_delta=-50.0, max_delta=15.0
-        )
-        assert result.triggered is True
-        assert result.adjusted_value == -15.0
 
 
 class TestPostCheckVarianceLoss:

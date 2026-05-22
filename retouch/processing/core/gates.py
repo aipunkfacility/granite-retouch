@@ -99,28 +99,6 @@ def pre_check_contour_inner_quality(
     return GateResult("contour_inner_quality", step_name, False)
 
 
-def pre_check_skin_delta_envelope(
-    skin_delta: float,
-    max_delta: float,
-    step_name: str = "levels",
-) -> GateResult:
-    """Если skin_delta превышает envelope — клипнуть."""
-    if abs(skin_delta) <= max_delta:
-        return GateResult("skin_delta_envelope", step_name, False)
-
-    clipped = max_delta if skin_delta > 0 else -max_delta
-    logger.info(
-        "Gate skin_delta_envelope: %.1f > %.1f — clip to %.1f",
-        skin_delta, max_delta, clipped,
-    )
-    return GateResult(
-        "skin_delta_envelope", step_name, True,
-        original_value=skin_delta,
-        adjusted_value=clipped,
-        reason=f"skin_delta {skin_delta:.1f} clipped to {clipped:.1f} (envelope ±{max_delta})",
-    )
-
-
 # ---------------------------------------------------------------------------
 # Post-check gates
 # ---------------------------------------------------------------------------

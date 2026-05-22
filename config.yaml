@@ -1,7 +1,6 @@
 processing:
   blue_threshold: 30
   fringe_radius: 3
-  legacy_step_order: false
   impact:
     stone_gamma: 0.88
     unsharp_threshold: 1

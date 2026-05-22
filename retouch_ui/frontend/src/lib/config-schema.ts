@@ -105,7 +105,6 @@ export const ADVANCED_PARAMS = new Set([
 
 /** Parameters removed from UI entirely (dev-only or deprecated) */
 export const HIDDEN_PARAMS = new Set([
-  "legacy_step_order",  // dev-rollback, мёртвый параметр
 ]);
 
 /** Schema — used by params-panel.tsx to generate sliders */
@@ -114,7 +113,6 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     blue_threshold: { min: 10, max: 80, step: 1, label: "Порог синего", unit: "" },
     min_blue_ratio: { min: 0, max: 1, step: 0.01, label: "Мин. доля синего", unit: "" },
     fringe_radius: { min: 0, max: 10, step: 1, label: "Радиус fringe-удаления", unit: "px" },
-    legacy_step_order: { min: 0, max: 1, step: 1, label: "Старый порядок шагов", unit: "(0/1)" },
     min_resolution: { min: 256, max: 1024, step: 64, label: "Мин. разрешение", unit: "px" },
     result_min_black_ratio: { min: 0, max: 0.5, step: 0.01, label: "Мин. доля чёрного", unit: "" },
     mask_soft_sigma: { min: 1, max: 4, step: 0.5, label: "Мягкость краёв маски", unit: "σ" },
@@ -207,7 +205,7 @@ export function getMachineParams(machineKey: MachineType): Record<string, ParamD
 
 /** Parameter groups for params-panel tabs */
 export const PARAM_GROUPS = [
-  { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "legacy_step_order", "min_resolution", "result_min_black_ratio", "mask_soft_sigma", "contour_smooth_epsilon"] },
+  { key: "common", label: "Общие", params: ["blue_threshold", "min_blue_ratio", "fringe_radius", "min_resolution", "result_min_black_ratio", "mask_soft_sigma", "contour_smooth_epsilon"] },
   { key: "laser_standard", label: "Laser 20-40W", params: Object.keys(CONFIG_SCHEMA.processing.laser_standard) },
   { key: "laser_80w", label: "Laser 80W+", params: Object.keys(CONFIG_SCHEMA.processing.laser_80w) },
   { key: "impact", label: "Impact", params: Object.keys(CONFIG_SCHEMA.processing.impact) },

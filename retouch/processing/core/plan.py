@@ -11,7 +11,7 @@ retouch_ui/backend/schemas.py для API-сериализации.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,6 @@ class PipelinePlan:
     """
     profile: str = PROFILE_STANDARD
     active_steps: set[str] = field(default_factory=lambda: set(PROFILE_ACTIVE_STEPS[PROFILE_STANDARD]))
-    skin_delta: float = 0.0
     highlight_rolloff_knee: float = 0.90
     highlight_rolloff_compression: float = 0.35
     glow_size: int = 40
@@ -173,26 +172,14 @@ def validate_plan(
     disabled: list[str] = []
     clipped: dict[str, tuple[float, float]] = {}
 
-    # Профиль отключает шаги
+    # Профиль отключает шаги (immutable: не мутируем оригинал)
     allowed_steps = PROFILE_ACTIVE_STEPS.get(profile, set())
-    for step in list(plan.active_steps):
+    new_active = set(plan.active_steps)
+    for step in plan.active_steps:
         if step not in allowed_steps:
             disabled.append(step)
-            plan.active_steps.discard(step)
-
-    # Safety envelope
-    if envelope is not None:
-        if abs(plan.skin_delta) > envelope.face_skin_max_delta:
-            old = plan.skin_delta
-            plan.skin_delta = (
-                envelope.face_skin_max_delta if plan.skin_delta > 0
-                else -envelope.face_skin_max_delta
-            )
-            clipped["skin_delta"] = (old, plan.skin_delta)
-            warnings.append(
-                f"skin_delta клипнут {old:.1f} → {plan.skin_delta:.1f} "
-                f"(envelope ±{envelope.face_skin_max_delta})"
-            )
+            new_active.discard(step)
+    plan = replace(plan, active_steps=new_active)
 
     # Rolloff vs ceiling: rolloff заменяет hard ceiling
     # Финальный np.clip остаётся страховкой

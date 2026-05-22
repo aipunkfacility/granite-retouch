@@ -59,7 +59,6 @@ make ui-frontend     # только Vite frontend
 make ui-prod         # production: статики + uvicorn (один процесс)
 # v6.0: Advanced Mode | Pin Face Oval | Dither Preview (laser_80w)
 # glow_style — сегментный контрол (ParamToggle), не слайдер
-# legacy_step_order — убран из UI, доступен только через config.yaml
 ```
 
 ## Соглашения об именовании

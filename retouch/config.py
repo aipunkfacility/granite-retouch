@@ -109,7 +109,6 @@ DEFAULTS = {
         "result_min_black_ratio": 0.25,
         "fringe_radius": 3,
         "mask_soft_sigma": 1.5,  # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
-        "legacy_step_order": False,  # A.3: rollback для нового порядка шагов
         "laser_standard": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,
@@ -394,7 +393,6 @@ try:
         blue_threshold: int = Field(30, ge=10, le=80)
         min_blue_ratio: float = Field(0.15, ge=0.0, le=1.0)
         fringe_radius: int = Field(3, ge=0, le=10)
-        legacy_step_order: bool = Field(False)
         laser_standard: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=40, glow_size_max=80, glow_opacity_min=30, glow_opacity_max=40,
             glow_style="outer", stone_gamma=0.88, unsharp_threshold=3, shadow_floor=5, target_pre_fb=180,

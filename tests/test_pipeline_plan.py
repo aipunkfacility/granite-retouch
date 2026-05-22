@@ -112,15 +112,6 @@ class TestSafetyEnvelope:
 class TestValidatePlan:
     """ValidatedPlan валидация."""
 
-    def test_validate_plan_clips_skin_delta(self):
-        """skin_delta=50 клипуется до max_skin_delta."""
-        plan = PipelinePlan(skin_delta=50.0)
-        env = SafetyEnvelope(face_skin_max_delta=15.0)
-        result = validate_plan(plan, PROFILE_STANDARD, envelope=env)
-        assert plan.skin_delta == 15.0
-        assert len(result.warnings) > 0
-        assert "skin_delta" in result.clipped_params
-
     def test_validate_plan_preserve_disables_unsharp(self):
         """Preserve + unsharp_percent > 0 отключает unsharp."""
         plan = PipelinePlan(
@@ -129,8 +120,9 @@ class TestValidatePlan:
             unsharp_percent=120,
         )
         result = validate_plan(plan, PROFILE_PRESERVE)
-        assert "unsharp" not in plan.active_steps
+        assert "unsharp" not in result.plan.active_steps
         assert "unsharp" in result.disabled_steps
+        assert "unsharp" in plan.active_steps  # оригинал не тронут
 
     def test_validate_plan_rolloff_vs_ceiling(self):
         """Rolloff и ceiling конфликт решается в пользу rolloff."""
@@ -141,13 +133,6 @@ class TestValidatePlan:
         )
         result = validate_plan(plan, PROFILE_STANDARD)
         assert result.plan.highlight_rolloff_knee == 0.90
-
-    def test_validate_plan_returns_warnings(self):
-        """Клипнутые параметры видны в warnings."""
-        plan = PipelinePlan(skin_delta=50.0)
-        env = SafetyEnvelope(face_skin_max_delta=15.0)
-        result = validate_plan(plan, PROFILE_STANDARD, envelope=env)
-        assert any("skin_delta" in w for w in result.warnings)
 
     def test_invalid_plan_does_not_reach_pixel_ops(self):
         """Невалидный план не проходит в pixel operations."""

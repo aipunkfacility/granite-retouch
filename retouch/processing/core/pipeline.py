@@ -57,9 +57,6 @@ def process_steps(
     Конвейер (A.3 — исправленный порядок):
         glow → levels → face_brightness → unsharp → shadow_noise → vignette
 
-    При legacy_step_order=True в конфиге:
-        glow → levels → unsharp → face_brightness → shadow_noise → vignette
-
     Args:
         input_path: путь к входному изображению (mutually exclusive с input_image)
         machine_type: тип станка
@@ -360,18 +357,15 @@ def process_export(
     machine_cfg = proc_cfg.get(machine_type, {})
     export_mode = machine_cfg.get("export_mode", "8bit")
     step_mm = machine_cfg.get("step_mm", config.get("machine", {}).get("step_mm", 0.300))
-    dither_method_1bit = machine_cfg.get("dither_method_1bit",
-                                          machine_cfg.get("dither_method", "jarvis"))
-    dither_method = machine_cfg.get("dither_method", "none")  # deprecated fallback
+    dither_method_1bit = machine_cfg.get("dither_method_1bit", "jarvis")
 
     actual_path = export_result(
         result.img_final, output_path,
         machine_type=machine_type, fmt=fmt,
         export_mode=export_mode,
         step_mm=step_mm,
-        dither_method=dither_method,  # deprecated fallback
         dither_method_1bit=dither_method_1bit,
-        save_png_preview=True,  # CLI/WebUI ожидают PNG рядом с BMP
+        save_png_preview=True,
     )
 
     # F.3: BMP post-save валидация

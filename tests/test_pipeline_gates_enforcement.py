@@ -116,10 +116,10 @@ class TestEnforceGatesUnit:
         img = Image.new('L', (100, 100), 128)
         return PipelineContext(img_gray=img)
 
-    def _make_validated_plan(self, skin_delta=10.0):
-        """Helper to create ValidatedPlan with skin_delta."""
+    def _make_validated_plan(self):
+        """Helper to create ValidatedPlan."""
         from retouch.processing.core.plan import PipelinePlan, ValidatedPlan
-        plan = PipelinePlan(skin_delta=skin_delta)
+        plan = PipelinePlan()
         return ValidatedPlan(plan=plan)
 
     def test_clipped_pct_increases_compression(self):
@@ -135,20 +135,6 @@ class TestEnforceGatesUnit:
 
         assert compression == pytest.approx(0.42, abs=0.01)  # 0.35 * 1.2 = 0.42
         assert any("compression increased" in w for w in ctx.warnings)
-
-    def test_p95_shift_halves_skin_delta(self):
-        """p95_shift gate → skin_delta halved."""
-        from retouch.processing.core.gates_enforcement import enforce_gates
-
-        gs = self._make_gate_state("p95_shift")
-        ctx = self._make_ctx()
-        vp = self._make_validated_plan(skin_delta=10.0)
-        machine_cfg = {}
-
-        enforce_gates(gs, machine_cfg, vp, ctx)
-
-        assert vp.plan.skin_delta == pytest.approx(5.0)
-        assert any("skin_delta halved" in w for w in ctx.warnings)
 
     def test_shadow_crush_disables_floor_and_gamma(self):
         """shadow_crush gate → shadow_floor=0, gamma=1.0."""
