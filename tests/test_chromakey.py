@@ -415,6 +415,68 @@ class TestGradientMask:
             f"Полусиние пиксели (excess≈35) должны иметь промежуточную альфу. Значения: {gradient_alpha.tolist()}"
 
 
+class TestFringeRadiusScaling:
+    """fringe_radius масштабируется пропорционально размеру изображения.
+
+    Fringe removal должен одинаково эффективно работать на preview (768px)
+    и на экспортных разрешениях (2000px+). Без масштабирования 3px fringe
+    на preview превращается в невидимый 1px fringe на большом экспорте.
+    """
+
+    def test_fringe_radius_zero_stays_zero(self):
+        """fringe_radius=0 отключает fringe на любом разрешении."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        assert _scale_fringe_radius(0, (REFERENCE_SIZE, REFERENCE_SIZE)) == 0
+        assert _scale_fringe_radius(0, (REFERENCE_SIZE * 2, REFERENCE_SIZE * 2)) == 0
+        assert _scale_fringe_radius(0, (100, 100)) == 0
+
+    def test_scale_at_reference_size(self):
+        """На REFERENCE_SIZE scale=1, fringe не меняется."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE, REFERENCE_SIZE))
+        assert result == 3
+
+    def test_scale_at_double_resolution(self):
+        """При 2x разрешении fringe_radius удваивается."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE * 2, REFERENCE_SIZE * 2))
+        assert result == 6
+
+    def test_scale_at_half_resolution(self):
+        """При 0.5x разрешении fringe_radius округляется до min 1."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        # 3 * 384/768 = 1.5 → int(1.5) = 1, но > 0, так что max(1,1)=1
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE // 2, REFERENCE_SIZE // 2))
+        assert result == 1
+
+    def test_scale_landscape_vs_portrait(self):
+        """Используется max(w,h) для scale — портрет и ландшафт работают."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        # 768x384: max=768, scale=1
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE, REFERENCE_SIZE // 2))
+        assert result == 3
+        # 384x768: max=768, scale=1
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE // 2, REFERENCE_SIZE))
+        assert result == 3
+        # 1536x768: max=1536, scale=2
+        result = _scale_fringe_radius(3, (REFERENCE_SIZE * 2, REFERENCE_SIZE))
+        assert result == 6
+
+    def test_large_fringe_radius_scales_proportionally(self):
+        """Fringe_radius=10 масштабируется так же пропорционально."""
+        from retouch.processing.detection.chromakey import (REFERENCE_SIZE,
+            _scale_fringe_radius)
+        result = _scale_fringe_radius(10, (REFERENCE_SIZE, REFERENCE_SIZE))
+        assert result == 10
+        result = _scale_fringe_radius(10, (REFERENCE_SIZE * 2, REFERENCE_SIZE * 2))
+        assert result == 20
+
+
 class TestSmoothMask:
     """Тесты _make_smooth_mask — векторная трассировка + антиалиасинг."""
 

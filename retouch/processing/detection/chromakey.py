@@ -10,6 +10,12 @@ import logging
 
 from PIL import Image, ImageFilter
 
+# Эталонное разрешение — при котором конфигурационные fringe_radius корректны.
+# Совпадает с REFERENCE_SIZE в glow.py (768px — preview).
+# На больших изображениях (экспорт 3000px+) fringe_radius умножается на
+# scale=max(w,h)/768, чтобы зона corrections была одинаковой относительно размера.
+REFERENCE_SIZE = 768
+
 try:
     import numpy as np
     HAS_NUMPY = True
@@ -29,6 +35,27 @@ except ImportError:
     HAS_SCIPY = False
 
 logger = logging.getLogger(__name__)
+
+
+def _scale_fringe_radius(fringe_radius: int, img_size: tuple) -> int:
+    """Масштабировать fringe_radius пропорционально разрешению изображения.
+
+    Fringe removal должен работать одинаково на preview (768px) и на
+    экспортных разрешениях (3000px+). Без масштабирования fringe_radius=3
+    на preview — 3px коррекции, на 3000px — те же 3px (незаметно).
+
+    Аргументы:
+        fringe_radius: значение из конфига (для эталонного разрешения 768px)
+        img_size: (width, height) — размеры изображения в пикселях
+
+    Returns:
+        int — масштабированный fringe_radius, минимум 1 (если >0)
+    """
+    if fringe_radius == 0:
+        return 0
+    img_long_side = max(img_size)
+    scale = img_long_side / REFERENCE_SIZE
+    return max(1, int(fringe_radius * scale))
 
 
 def _compute_blue_strength(r, g, b, threshold):
@@ -85,10 +112,15 @@ def remove_blue_background(img, threshold=30, fringe_radius=3,
     Returns:
         tuple: (img_without_bg, subject_mask) — оба PIL.Image
     """
+    # FIX: масштабируем fringe_radius пропорционально разрешению.
+    # fringe_radius в конфиге задан для REFERENCE_SIZE (768px).
+    # На изображении 3000px: scale = 3000/768 ≈ 3.9, fringe_radius 3 → 11.
+    scaled_fringe = _scale_fringe_radius(fringe_radius, img.size)
+
     if HAS_NUMPY:
-        return _remove_blue_numpy(img, threshold, fringe_radius,
-                                  mask_soft_sigma, contour_smooth_epsilon)
-    return _remove_blue_pillow(img, threshold, fringe_radius)
+        return _remove_blue_numpy(img, threshold, scaled_fringe,
+                                   mask_soft_sigma, contour_smooth_epsilon)
+    return _remove_blue_pillow(img, threshold, scaled_fringe)
 
 
 def _make_smooth_mask(binary_mask, smooth_epsilon=0.002):
