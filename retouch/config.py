@@ -94,6 +94,23 @@ MATERIAL_PROFILES = {
         },
         "incompatible_machine_types": ["impact"],
     },
+    "slate": {
+        "heterogeneity": 1.5,
+        "step_mm_range": (0.150, 0.200),
+        "stone_gamma_range": (0.80, 0.85),
+        "shadow_floor": 5,
+        "white_ceiling_offset": 0,
+        "export_mode_override": "1bit",
+        "dither_method_override": "jarvis",
+        "notes": "Сланец — мелкозернистый сланцеватый камень для лазерной гравировки. "
+                 "Бинарный материал (один цвет абляции), мелкое зерно. "
+                 "Jarvis dither, 1bit export. Мягче гранита (Mohs 2.5–4).",
+        "hints": {
+            "laser_80w": "Gamma 0.80–0.85, Jarvis dither, 1bit, step 0.150–0.200",
+            "laser_standard": "Gamma 0.80–0.85, Jarvis dither, 1bit, step 0.150–0.200",
+        },
+        "warnings": ["impact+slate"],
+    },
 }
 
 # Backward compatibility alias
@@ -325,6 +342,10 @@ def validate_machine_material(machine_type: str, material: str) -> list[str]:
 
     Возвращает список предупреждений/ошибок.
     Пустой список = всё OK.
+
+    MATERIAL_PROFILES может содержать:
+    - incompatible_machine_types: жёсткая несовместимость (→ ERROR)
+    - warnings: список предупреждений в формате "{machine}+{material}"
     """
     profile = MATERIAL_PROFILES.get(material, {})
     warnings = []
@@ -336,13 +357,21 @@ def validate_machine_material(machine_type: str, material: str) -> list[str]:
             f"Используйте лазерный модуль."
         )
 
-    # Предупреждение: мрамор + ударный
-    if machine_type == "impact" and material == "marble":
-        warnings.append(
-            "WARNING: Мрамор хрупкий — лазер предпочтительнее ударного."
-        )
+    # Generic warnings из MATERIAL_PROFILES
+    for code in profile.get("warnings", []):
+        parts = code.split("+")
+        if len(parts) == 2 and parts[0] == machine_type and parts[1] == material:
+            if parts[1] == "slate":
+                warnings.append(
+                    f"WARNING: Сланец имеет анизотропную прочность — "
+                    f"ударная гравировка с риском расщепления."
+                )
+            elif parts[1] == "marble":
+                warnings.append(
+                    "WARNING: Мрамор хрупкий — лазер предпочтительнее ударного."
+                )
 
-    # Предупреждение: 80W + гранит (пережигание)
+    # Специфические проверки по материалам (hardcoded legacy)
     if machine_type == "laser_80w" and material == "granite":
         warnings.append(
             "WARNING: white_ceiling \u2264 235 — при 80W значения > 235 пережигаются."
@@ -418,7 +447,7 @@ try:
 
     class StoneConfig(BaseModel):
         type: str = Field("granite", deprecated=True, description="Deprecated: use 'material'")
-        material: str = Field("granite", pattern="^(granite|marble|gabbro|basalt|acrylic)$")
+        material: str = Field("granite", pattern="^(granite|marble|gabbro|basalt|acrylic|slate)$")
         heterogeneity: float | None = Field(None, ge=0.0, le=10.0)
 
         @model_validator(mode="after")

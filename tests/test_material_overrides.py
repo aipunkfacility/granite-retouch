@@ -113,6 +113,27 @@ class TestApplyMaterialOverrides:
         apply_material_overrides(config, "granite")
         assert config == original
 
+    def test_slate_profile_values(self):
+        """slate: override gamma and step_mm, enforce 1bit+dither."""
+        config = _make_config(machine_type="laser_80w", step_mm=0.300, stone_gamma=0.95)
+        result, changes = apply_material_overrides(config, "slate")
+        # slate step_range = (0.150, 0.200), 0.300 > 0.200 → lowered
+        step_changes = [c for c in changes if c["param"] == "step"]
+        assert len(step_changes) == 1
+        from pytest import approx
+        assert step_changes[0]["new"] == approx(0.200)
+        # slate gamma_range = (0.80, 0.85), 0.95 > 0.85 → lowered
+        gamma_changes = [c for c in changes if c["param"] == "gamma"]
+        assert len(gamma_changes) == 1
+        assert gamma_changes[0]["new"] == approx(0.85)
+        # slate: export_mode → 1bit, dither → jarvis
+        mode_changes = [c for c in changes if c["param"] == "export_mode"]
+        assert len(mode_changes) == 1
+        assert mode_changes[0]["new"] == "1bit"
+        dither_changes = [c for c in changes if c["param"] == "dither"]
+        assert len(dither_changes) == 1
+        assert dither_changes[0]["new"] == "jarvis"
+
     def test_unknown_material_no_changes(self):
         """Неизвестный материал → без изменений."""
         config = _make_config()
@@ -140,6 +161,13 @@ class TestValidateMachineMaterial:
         warnings = validate_machine_material("laser_80w", "granite")
         warns = [w for w in warnings if w.startswith("WARNING")]
         assert len(warns) >= 1
+
+    def test_validate_slate_impact_warning(self):
+        """slate + impact → WARNING (анизотропная прочность)."""
+        warnings = validate_machine_material("impact", "slate")
+        warns = [w for w in warnings if w.startswith("WARNING")]
+        assert len(warns) >= 1
+        assert any("сланец" in w.lower() or "slate" in w.lower() for w in warns)
 
     def test_validate_compatible_no_warnings(self):
         """impact + granite → без предупреждений."""
