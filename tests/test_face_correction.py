@@ -82,7 +82,7 @@ class TestGentleCap:
         mask = Image.new("L", (200, 200), 255)
         target = [190, 210]
 
-        result, before, after, factor = check_face_brightness(
+        result, before, after, factor, _ = check_face_brightness(
             gray, target, mask, glow_size=0)
         assert factor <= 1.15, \
             f"gentle_cap должен быть <= 1.15, factor={factor:.3f}"
@@ -150,13 +150,13 @@ class TestFaceMaskInCheckFaceBrightness:
         face_mask_arr[200:, :] = 255
         face_mask_img = Image.fromarray(face_mask_arr)
 
-        _, before_with_mask, _, _ = check_face_brightness(
+        _, before_with_mask, _, _, _ = check_face_brightness(
             img, [180, 220], subject_mask,
             face_mask_img=face_mask_img,
             skin_threshold=0,  # замер по всем пикселям, без порога кожи
         )
 
-        _, before_legacy, _, _ = check_face_brightness(
+        _, before_legacy, _, _, _ = check_face_brightness(
             img, [180, 220], subject_mask,
             face_region_top=0.45,
             skin_threshold=0,  # замер по всем пикселям, без порога кожи
@@ -172,8 +172,8 @@ class TestFaceMaskInCheckFaceBrightness:
         img = Image.fromarray(arr)
         subject_mask = Image.new("L", (200, 200), 255)
 
-        _, b1, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45)
-        _, b2, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45, face_mask_img=None)
+        _, b1, _, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45)
+        _, b2, _, _, _ = check_face_brightness(img, [180, 220], subject_mask, face_region_top=0.45, face_mask_img=None)
 
         assert b1 == b2
 
@@ -246,7 +246,7 @@ class TestPillowFallbackPercentiles:
         subject_mask = Image.new("L", (200, 200), 255)
 
         # Вызов не должен падать с NameError для face_p75/face_p90
-        result, before, after, factor = check_face_brightness(
+        result, before, after, factor, _ = check_face_brightness(
             img, [180, 220], subject_mask,
             glow_size=0, skin_threshold=0,
         )
