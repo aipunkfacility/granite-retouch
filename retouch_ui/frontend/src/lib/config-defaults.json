@@ -39,7 +39,7 @@
       "shadow_floor": 5,
       "target_pre_fb": 150,
       "face_brightness_target_min": 160,
-      "face_brightness_target_max": 180,
+      "face_brightness_target_max": 210,
       "white_ceiling": 235,
       "face_region_top": 0.45,
       "highlight_start": 195,
