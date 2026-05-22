@@ -14,12 +14,12 @@ from retouch.processing.core.plan import (
 )
 from retouch.processing.core.gates import (
     GateState, pre_check_face_dark_small, pre_check_contour_inner_quality,
-    pre_check_skin_delta_envelope, post_check_variance_loss, post_check_clipped_pct,
+    post_check_variance_loss, post_check_clipped_pct,
     post_check_p95_shift, post_check_shadow_crush,
 )
 from retouch.processing.core.gates_enforcement import enforce_gates
 from retouch.processing.correction.glow import apply_glow
-from retouch.processing.correction.levels import apply_levels
+from retouch.processing.correction.face_brightness import face_brightness_correction
 from retouch.processing.correction.face_correction import check_face_brightness
 from retouch.processing.correction.unsharp import apply_unsharp_mask
 from retouch.processing.correction.shadow_noise import add_shadow_noise
@@ -183,18 +183,6 @@ def run_pipeline_steps(
                 subject_area = int(np.sum(zone_masks.subject))
                 gate = pre_check_contour_inner_quality(contour_area, subject_area, threshold_pct=thresholds["contour_inner_quality_threshold"])
                 gate_state.results.append(gate)
-
-                sd_gate = pre_check_skin_delta_envelope(
-                    validated.plan.skin_delta, envelope.face_skin_max_delta,
-                    step_name="plan_validation",
-                )
-                gate_state.results.append(sd_gate)
-                if sd_gate.triggered:
-                    validated.plan.skin_delta = sd_gate.adjusted_value
-                    logger.info(
-                        "Gate skin_delta_envelope: %.1f → %.1f",
-                        sd_gate.original_value, sd_gate.adjusted_value,
-                    )
         except ValueError:
             logger.warning("ZoneMasks не построены: face_mask unavailable")
 
@@ -264,84 +252,55 @@ def run_pipeline_steps(
     )
     _record_step("glow", img_glow)
 
-    legacy_order = proc_cfg.get("legacy_step_order", False)
-
-    img_leveled = img_glow
-    img_face_corrected = img_glow
-    img_postproc = img_glow
     face_before = 0.0
     face_after = 0.0
     correction_factor = 1.0
+    face_delta = 0.0
 
     if "levels" in validated.plan.active_steps:
         face_skin_mask_for_levels = None
         if zone_masks is not None:
             face_skin_mask_for_levels = zone_masks.face_skin
-        img_leveled = apply_levels(
-            img_glow, analytics=ctx.analytics,
-            machine_type=ctx.machine_type, subject_mask=ctx.subject_mask,
-            machine_cfg=ctx.machine_cfg, face_skin_mask=face_skin_mask_for_levels,
+        img_leveled, _, _, _, _ = face_brightness_correction(
+            img_glow,
+            subject_mask=ctx.subject_mask,
+            face_skin_mask=face_skin_mask_for_levels,
+            machine_cfg=ctx.machine_cfg,
+            analytics=ctx.analytics,
             zone_masks=zone_masks,
         )
         _record_step("levels", img_leveled)
-
-    if legacy_order:
-        if "unsharp" in validated.plan.active_steps:
-            img_temp = apply_unsharp_mask(
-                img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
-                threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
-                white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
-            )
-            _record_step("unsharp", img_temp)
-        else:
-            img_temp = img_leveled
-
-        if "face_correction" in validated.plan.active_steps:
-            face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
-            if face_dark_gates and face_dark_gates[-1].triggered:
-                logger.info("Gate face_dark_small triggered (legacy): face correction skipped")
-                ctx.warnings.append("face_correction skipped: face_dark zone too small")
-                img_face_corrected = img_temp
-                face_before = 0.0
-                face_after = 0.0
-                correction_factor = 1.0
-                _record_step("face_correction", img_face_corrected)
-            else:
-                img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-                    img_temp, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-                )
-                _record_step("face_correction", img_face_corrected)
-        else:
-            img_face_corrected = img_temp
-        img_postproc = img_face_corrected
     else:
-        if "face_correction" in validated.plan.active_steps:
-            face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
-            if face_dark_gates and face_dark_gates[-1].triggered:
-                logger.info("Gate face_dark_small triggered: face correction skipped")
-                ctx.warnings.append("face_correction skipped: face_dark zone too small")
-                img_face_corrected = img_leveled
-                face_before = 0.0
-                face_after = 0.0
-                correction_factor = 1.0
-                _record_step("face_correction", img_face_corrected)
-            else:
-                img_face_corrected, face_before, face_after, correction_factor = _apply_face_brightness(
-                    img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
-                )
-                _record_step("face_correction", img_face_corrected)
-        else:
-            img_face_corrected = img_leveled
+        img_leveled = img_glow
 
-        if "unsharp" in validated.plan.active_steps:
-            img_postproc = apply_unsharp_mask(
-                img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
-                threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
-                white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
-            )
-            _record_step("unsharp", img_postproc)
+    if "face_correction" in validated.plan.active_steps:
+        face_dark_gates = [g for g in gate_state.results if g.gate_name == "face_dark_small"]
+        if face_dark_gates and face_dark_gates[-1].triggered:
+            logger.info("Gate face_dark_small triggered: face correction skipped")
+            ctx.warnings.append("face_correction skipped: face_dark zone too small")
+            img_face_corrected = img_leveled
+            face_before = 0.0
+            face_after = 0.0
+            correction_factor = 1.0
+            face_delta = 0.0
+            _record_step("face_correction", img_face_corrected)
         else:
-            img_postproc = img_face_corrected
+            img_face_corrected, face_before, face_after, correction_factor, face_delta = _apply_face_brightness(
+                img_leveled, ctx.machine_cfg, ctx.subject_mask, glow_size, ctx.face_mask,
+            )
+            _record_step("face_correction", img_face_corrected)
+    else:
+        img_face_corrected = img_leveled
+
+    if "unsharp" in validated.plan.active_steps:
+        img_postproc = apply_unsharp_mask(
+            img_face_corrected, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
+            threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
+            white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
+        )
+        _record_step("unsharp", img_postproc)
+    else:
+        img_postproc = img_face_corrected
 
     shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
         gate_state, ctx.machine_cfg, validated, ctx,
@@ -350,6 +309,7 @@ def run_pipeline_steps(
     ctx.face_brightness_before = face_before
     ctx.face_brightness_after = face_after
     ctx.correction_factor = correction_factor
+    ctx.face_brightness_delta = face_delta
 
     shadow_noise_min = ctx.machine_cfg.get("shadow_noise_min", 0)
     shadow_noise_max = ctx.machine_cfg.get("shadow_noise_max", 0)
@@ -429,6 +389,7 @@ def run_pipeline_steps(
         face_brightness_before=face_before,
         face_brightness_after=face_after,
         face_correction_factor=correction_factor,
+        face_brightness_delta=ctx.face_brightness_delta,
         analytics=ctx.analytics,
         black_ratio=black_ratio,
         blue_ratio=blue_ratio,
