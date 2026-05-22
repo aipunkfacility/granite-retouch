@@ -28,7 +28,7 @@ processing:
     shadow_floor: 5
     target_pre_fb: 150
     face_brightness_target_min: 160   # перекалибровка: gamma=1.0 вместо 0.85
-    face_brightness_target_max: 180   # перекалибровка: gamma=1.0 вместо 0.85
+    face_brightness_target_max: 210   # все пресеты используют 210
     white_ceiling: 235
     face_region_top: 0.45
     glow_opacity_max: 20

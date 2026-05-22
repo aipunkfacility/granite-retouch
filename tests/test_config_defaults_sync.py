@@ -127,7 +127,7 @@ class TestV2toV3Migration:
         assert result["processing"]["laser_80w"]["dither_method_1bit"] == "jarvis"
 
     def test_laser_80w_gamma_and_fb_recalibration(self):
-        """laser_80w: gamma 0.85→1.0, fb_min 190→160, fb_max 210→180"""
+        """laser_80w: gamma 0.85→1.0, fb_min 190→160, fb_max stays 210 (migration removed)."""
         from retouch.config import _migrate_v2_to_v3
         config = {
             "config_version": 2,
@@ -141,7 +141,7 @@ class TestV2toV3Migration:
         result = _migrate_v2_to_v3(config)
         assert result["processing"]["laser_80w"]["stone_gamma"] == 1.0
         assert result["processing"]["laser_80w"]["face_brightness_target_min"] == 160
-        assert result["processing"]["laser_80w"]["face_brightness_target_max"] == 210  # 180→210 v3
+        assert result["processing"]["laser_80w"]["face_brightness_target_max"] == 210
 
     def test_per_machine_step_mm_from_global(self):
         """Глобальный step_mm копируется в per-machine при отсутствии"""

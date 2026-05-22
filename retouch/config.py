@@ -136,7 +136,7 @@ DEFAULTS = {
             "shadow_floor": 5,  # FIX #12: SOP 5.1
             "target_pre_fb": 150,
             "face_brightness_target_min": 160,  # перекалибровка: gamma=1.0 вместо 0.85
-            "face_brightness_target_max": 180,
+            "face_brightness_target_max": 210,  # все пресеты используют 210
             "white_ceiling": 235,
             "face_region_top": 0.45,
             "highlight_start": 195,
@@ -573,8 +573,9 @@ def _migrate_v2_to_v3(config: dict) -> dict:
         mc_80w["stone_gamma"] = 1.0
     if mc_80w.get("face_brightness_target_min") == 190:
         mc_80w["face_brightness_target_min"] = 160
-    if mc_80w.get("face_brightness_target_max") == 210:
-        mc_80w["face_brightness_target_max"] = 180
+    # NOTE: face_brightness_target_max migration (210→180) was removed in v5.
+    # All production presets use 210. Existing v3 configs with 180 will keep 180
+    # until operator updates their config.yaml — see backward compat note below.
 
     config["config_version"] = 3
     return config
