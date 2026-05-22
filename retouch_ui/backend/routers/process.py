@@ -449,6 +449,7 @@ async def preview_image(
         face_brightness_before=result.face_brightness_before,
         face_brightness_after=result.face_brightness_after,
         face_correction_factor=result.face_correction_factor,
+        face_brightness_delta=result.face_brightness_delta,
         black_ratio=result.black_ratio,
         blue_ratio=result.blue_ratio,
         width=result.width,
@@ -567,16 +568,13 @@ async def export_image(
             machine_cfg = proc_cfg.get(request.machine, {})
             export_mode = machine_cfg.get("export_mode", "8bit")
             step_mm = machine_cfg.get("step_mm", full_config.get("machine", {}).get("step_mm", 0.300))
-            dither_method_1bit = machine_cfg.get("dither_method_1bit",
-                                                  machine_cfg.get("dither_method", "jarvis"))
-            dither_method = machine_cfg.get("dither_method", "none")  # deprecated fallback
+            dither_method_1bit = machine_cfg.get("dither_method_1bit", "jarvis")
 
             actual_path = export_result(
                 result.img_final, tmp_name,
                 machine_type=request.machine, fmt=fmt,
                 export_mode=export_mode,
                 step_mm=step_mm,
-                dither_method=dither_method,  # deprecated fallback
                 dither_method_1bit=dither_method_1bit,
             )
             # export_result может вернуть другой путь (с другим расширением)
@@ -640,10 +638,7 @@ async def dither_preview(request: DitherPreviewRequest):
     # Прочитать метод дизеринга из конфига станка
     proc_cfg = full_config.get("processing", {})
     machine_cfg = proc_cfg.get(request.machine, {})
-    dither_method_name = machine_cfg.get(
-        "dither_method_1bit",
-        machine_cfg.get("dither_method", "jarvis"),
-    )
+    dither_method_name = machine_cfg.get("dither_method_1bit", "jarvis")
 
     # Предупреждение о Numba
     numba_available = _get_numba_available()
