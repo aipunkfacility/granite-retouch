@@ -257,22 +257,37 @@ def run_pipeline_steps(
         img_leveled = img_glow
 
     if "unsharp" in validated.plan.active_steps:
+        _face_skin_for_unsharp = None
+        if zone_masks is not None and zone_masks.face_skin is not None:
+            _face_skin_for_unsharp = zone_masks.face_skin
+        elif ctx.face_mask is not None and np.any(np.array(ctx.face_mask) > 128):
+            _face_skin_for_unsharp = np.array(ctx.face_mask)
+            logger.info("Unsharp: using face_mask as face_skin fallback for overshoot protection")
+
+        _overshoot_limit = max(1, ctx.machine_cfg.get("face_overshoot_limit", 8))
+
         img_postproc = apply_unsharp_mask(
             img_leveled, subject_mask=ctx.subject_mask, analytics=ctx.analytics,
             threshold=ctx.machine_cfg.get("unsharp_threshold", 0),
             white_ceiling=ctx.machine_cfg.get("white_ceiling", None),
+            face_skin_mask=_face_skin_for_unsharp,
+            face_overshoot_limit=_overshoot_limit,
         )
         _record_step("unsharp", img_postproc)
     else:
         img_postproc = img_leveled
 
-    # --- Safety cap: clip face_skin pixels that exceed pre-gamma ceiling ---
-    # Applied AFTER unsharp (which can add +5-15 levels overshoot) and BEFORE
-    # gamma+rolloff in postprocess.  Ensures face_skin stays below
+    # P1.2: Gates enforcement — получаем ослабленные параметры
+    shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
+        gate_state, ctx.machine_cfg, validated, ctx,
+    )
+
+    # Safety cap — использует ОСЛАБЛЕННУЮ gamma из gates (P1.2)
+    # Applied AFTER unsharp (overshoot) and AFTER enforce_gates (weakened gamma),
+    # BEFORE gamma+rolloff in postprocess.  Ensures face_skin stays below
     # (knee - FACE_SKIN_KNEE_MARGIN) after gamma, so rolloff never compresses
     # face_skin tonal variation into a gray plateau.
-    _safety_gamma = ctx.machine_cfg.get("stone_gamma", 1.0)
-    if _safety_gamma is not None and _safety_gamma < 1.0:
+    if stone_gamma is not None and stone_gamma < 1.0:
         _fs_mask = None
         _mask_source = "none"
         if zone_masks is not None and zone_masks.face_skin is not None and np.any(zone_masks.face_skin > 128):
@@ -283,10 +298,10 @@ def run_pipeline_steps(
             _mask_source = "ctx.face_mask (fallback)"
 
         if _fs_mask is not None:
-            _ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
+            _ceiling = float(white_ceiling if white_ceiling is not None else ctx.machine_cfg.get("white_ceiling", 250))
             _knee = _ceiling * 0.90
             _safe_post_gamma = _knee - FACE_SKIN_KNEE_MARGIN
-            _max_pre_gamma = np.power(_safe_post_gamma / 255.0, 1.0 / _safety_gamma) * 255.0
+            _max_pre_gamma = np.power(_safe_post_gamma / 255.0, 1.0 / stone_gamma) * 255.0
             _arr = np.array(img_postproc, dtype=np.float32)
             _fs_bool = _fs_mask > 128 if _fs_mask.dtype != bool else _fs_mask
             _above = _arr[_fs_bool] > _max_pre_gamma
@@ -300,12 +315,9 @@ def run_pipeline_steps(
                     "Safety cap: %d face_skin pixels clipped at %.1f "
                     "(knee=%.1f, margin=%d, gamma=%.2f, mask=%s)",
                     _clipped_count, _max_pre_gamma, _knee,
-                    FACE_SKIN_KNEE_MARGIN, _safety_gamma, _mask_source,
+                    FACE_SKIN_KNEE_MARGIN, stone_gamma, _mask_source,
                 )
-
-    shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
-        gate_state, ctx.machine_cfg, validated, ctx,
-    )
+                _record_step("safety_cap", img_postproc)
 
     ctx.face_brightness_before = face_before
     ctx.face_brightness_after = face_after

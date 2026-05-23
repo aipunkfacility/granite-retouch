@@ -24,28 +24,10 @@ def enforce_gates(gate_state, machine_cfg, validated_plan, ctx):
 
     triggered = {g.gate_name: g for g in gate_state.triggered_gates}
 
-    if "variance_loss" in triggered and stone_gamma is not None and stone_gamma != 1.0:
-        original_gamma = stone_gamma
-        stone_gamma = 1.0 + (stone_gamma - 1.0) * 0.5
-        logger.info(
-            "Gates enforcement: variance_loss triggered, stone_gamma %.2f → %.2f",
-            original_gamma, stone_gamma,
-        )
-        ctx.warnings.append(
-            f"stone_gamma weakened: {original_gamma:.2f} → {stone_gamma:.2f} (variance_loss gate)"
-        )
-
-    if "clipped_pct" in triggered:
-        orig_compression = compression
-        compression = min(orig_compression * 1.2, 0.80)
-        logger.info(
-            "Gates enforcement: clipped_pct triggered, compression %.2f → %.2f",
-            orig_compression, compression,
-        )
-        ctx.warnings.append(
-            f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
-        )
-
+    # P1.3: shadow_crush — экстренный режим, проверяем ПЕРВЫМ.
+    # Если тени раздавлены, отключаем все коррекции сразу.
+    # Проверка первой избегает бессмысленного ослабления gamma,
+    # которое перебивается shadow_crush.
     if "shadow_crush" in triggered:
         orig_floor = shadow_floor
         shadow_floor = 0
@@ -57,6 +39,47 @@ def enforce_gates(gate_state, machine_cfg, validated_plan, ctx):
         )
         ctx.warnings.append(
             "shadow_floor и gamma отключены (shadow_crush gate)"
+        )
+
+    # P1.3: Gamma weakening — single-pass, NOT cumulative.
+    # variance_loss и p95_shift оба ослабляют gamma, но ослабление
+    # применяется ОДИН РАЗ — берётся максимальная причина.
+    # Не применяется, если shadow_crush уже сбросил gamma=1.0.
+    _gamma_weaken = False
+    _weaken_reason = ""
+
+    if "variance_loss" in triggered:
+        _gamma_weaken = True
+        _weaken_reason = "variance_loss"
+
+    if "p95_shift" in triggered:
+        _gamma_weaken = True
+        if _weaken_reason:
+            _weaken_reason = "variance_loss + p95_shift"
+        else:
+            _weaken_reason = "p95_shift"
+
+    if _gamma_weaken and stone_gamma is not None and stone_gamma != 1.0:
+        original_gamma = stone_gamma
+        stone_gamma = 1.0 + (stone_gamma - 1.0) * 0.5
+        logger.info(
+            "Gates enforcement: %s triggered, stone_gamma %.2f → %.2f",
+            _weaken_reason, original_gamma, stone_gamma,
+        )
+        ctx.warnings.append(
+            f"stone_gamma weakened: {original_gamma:.2f} → {stone_gamma:.2f} ({_weaken_reason} gate)"
+        )
+
+    # clipped_pct — не влияет на gamma
+    if "clipped_pct" in triggered:
+        orig_compression = compression
+        compression = min(orig_compression * 1.2, 0.80)
+        logger.info(
+            "Gates enforcement: clipped_pct triggered, compression %.2f → %.2f",
+            orig_compression, compression,
+        )
+        ctx.warnings.append(
+            f"rolloff compression increased: {orig_compression:.2f} → {compression:.2f} (clipped_pct gate)"
         )
 
     return shadow_floor, stone_gamma, white_ceiling, compression

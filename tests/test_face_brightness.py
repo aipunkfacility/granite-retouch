@@ -527,3 +527,106 @@ class TestSafetyCapFallback:
         assert result_max <= max_pre_gamma + 1, (
             f"Safety cap failed: max {result_max:.1f} > max_pre_gamma {max_pre_gamma:.1f}"
         )
+
+
+class TestUnsharpFaceSkinOvershoot:
+    """Unsharp mask overshoot на face_skin ограничивается (amplitude cap)."""
+
+    def test_overshoot_amplitude_only(self):
+        """На face_skin overshoot не превышает face_overshoot_limit."""
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+
+        arr = np.full((100, 100), 180, dtype=np.uint8)
+        arr[40:60, 40:60] = 220
+        img = Image.fromarray(arr, mode='L')
+
+        face_skin = np.zeros((100, 100), dtype=np.uint8)
+        face_skin[30:70, 30:70] = 255
+
+        subj = Image.new("L", (100, 100), 255)
+
+        result = apply_unsharp_mask(
+            img, radius=1.5, percent=150, threshold=0,
+            subject_mask=subj,
+            face_skin_mask=face_skin,
+            face_overshoot_limit=8,
+        )
+
+        result_arr = np.array(result)
+        fs_bool = face_skin > 128
+        face_pixels = result_arr[fs_bool]
+        assert face_pixels.max() <= 228, (
+            f"face_skin max {face_pixels.max()} exceeds original + overshoot_limit"
+        )
+
+    def test_non_face_skin_unaffected(self):
+        """Зоны вне face_skin получают полную резкость (без ограничения)."""
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+
+        arr = np.full((100, 100), 128, dtype=np.uint8)
+        arr[40:60, 40:60] = 200
+        img = Image.fromarray(arr, mode='L')
+
+        face_skin = np.zeros((100, 100), dtype=np.uint8)
+        face_skin[0:20, 0:20] = 255
+
+        subj = Image.new("L", (100, 100), 255)
+
+        result_no_limit = apply_unsharp_mask(
+            img, radius=1.5, percent=150, threshold=0,
+            subject_mask=subj,
+        )
+        result_with_limit = apply_unsharp_mask(
+            img, radius=1.5, percent=150, threshold=0,
+            subject_mask=subj,
+            face_skin_mask=face_skin,
+            face_overshoot_limit=8,
+        )
+
+        r1 = np.array(result_no_limit)[40:60, 40:60]
+        r2 = np.array(result_with_limit)[40:60, 40:60]
+        assert np.array_equal(r1, r2), "Non-face_skin zones must receive full sharpening"
+
+    def test_no_overshoot_limit_compatible(self):
+        """Без face_skin_mask — обратная совместимость (старое поведение)."""
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+
+        arr = np.full((50, 50), 150, dtype=np.uint8)
+        img = Image.fromarray(arr, mode='L')
+        subj = Image.new("L", (50, 50), 255)
+
+        result = apply_unsharp_mask(
+            img, radius=1.5, percent=120, threshold=0,
+            subject_mask=subj,
+        )
+        assert result is not None
+
+    def test_no_numpy_roundtrip_without_masks(self):
+        """Без numpy-масок возвращается PIL Image напрямую."""
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+
+        arr = np.full((50, 50), 150, dtype=np.uint8)
+        img = Image.fromarray(arr, mode='L')
+
+        result = apply_unsharp_mask(
+            img, radius=1.5, percent=120, threshold=0,
+        )
+        assert result is not None
+        assert isinstance(result, Image.Image)
+
+    def test_overshoot_limit_minimum_one(self):
+        """face_overshoot_limit=1 — минимальное значение."""
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+
+        arr = np.full((50, 50), 150, dtype=np.uint8)
+        img = Image.fromarray(arr, mode='L')
+        face_skin = np.ones((50, 50), dtype=np.uint8)
+        subj = Image.new("L", (50, 50), 255)
+
+        result = apply_unsharp_mask(
+            img, radius=1.5, percent=120, threshold=0,
+            subject_mask=subj,
+            face_skin_mask=face_skin,
+            face_overshoot_limit=1,
+        )
+        assert result is not None

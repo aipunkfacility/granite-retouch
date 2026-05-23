@@ -4,6 +4,7 @@ processing:
   impact:
     stone_gamma: 0.88
     unsharp_threshold: 1
+    face_overshoot_limit: 8
     face_brightness_target_min: 170
     face_brightness_target_max: 215
     white_ceiling: 245
@@ -25,6 +26,7 @@ processing:
   laser_80w:
     stone_gamma: 1.0                  # при 8bit Engrave сам управляет яркостью
     unsharp_threshold: 3
+    face_overshoot_limit: 10
     shadow_floor: 5
     target_pre_fb: 150
     face_brightness_target_min: 160   # перекалибровка: gamma=1.0 вместо 0.85
@@ -44,6 +46,7 @@ processing:
   laser_standard:
     stone_gamma: 0.88
     unsharp_threshold: 3
+    face_overshoot_limit: 10
     shadow_floor: 5
     face_brightness_target_min: 230
     face_brightness_target_max: 245

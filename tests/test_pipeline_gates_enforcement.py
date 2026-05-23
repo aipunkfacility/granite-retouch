@@ -149,3 +149,62 @@ class TestEnforceGatesUnit:
         assert shadow_floor == 0
         assert stone_gamma == 1.0
         assert any("shadow_floor" in w.lower() for w in ctx.warnings)
+
+    def test_p95_shift_gate_weakened_gamma(self):
+        """p95_shift gate ослабляет gamma."""
+        from retouch.processing.core.gates import GateState, post_check_p95_shift
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        gate = post_check_p95_shift(184.0, 208.0, threshold_levels=20.0, step_name="unsharp")
+        gs.results.append(gate)
+
+        machine_cfg = {"stone_gamma": 0.88, "white_ceiling": 245}
+        _, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, self._make_ctx())
+        assert stone_gamma == pytest.approx(0.94, abs=0.01), (
+            f"p95_shift gate should weaken gamma 0.88 → 0.94, got {stone_gamma}"
+        )
+
+    def test_variance_loss_and_p95_shift_no_double_weakening(self):
+        """variance_loss + p95_shift не ослабляют gamma дважды."""
+        from retouch.processing.core.gates import GateState, post_check_variance_loss, post_check_p95_shift
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        gs.results.append(post_check_variance_loss(100.0, 50.0, step_name="unsharp"))
+        gs.results.append(post_check_p95_shift(184.0, 208.0, step_name="unsharp"))
+
+        machine_cfg = {"stone_gamma": 0.88, "white_ceiling": 245}
+        _, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, self._make_ctx())
+        assert stone_gamma == pytest.approx(0.94, abs=0.01), (
+            f"Dual gate should weaken gamma once (0.88 → 0.94), not cumulatively, got {stone_gamma}"
+        )
+
+    def test_shadow_crush_overrides_gamma_weakening(self):
+        """shadow_crush перебивает gamma weakening — gamma=1.0."""
+        from retouch.processing.core.gates import GateState, GateResult, post_check_p95_shift
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        gs.results.append(post_check_p95_shift(184.0, 208.0, step_name="unsharp"))
+        gs.results.append(GateResult("shadow_crush", "postproc", True, reason="test shadow_crush"))
+
+        machine_cfg = {"stone_gamma": 0.88, "shadow_floor": 5, "white_ceiling": 245}
+        shadow_floor, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, self._make_ctx())
+        assert stone_gamma == 1.0, (
+            f"shadow_crush should override gamma weakening, got gamma={stone_gamma}"
+        )
+        assert shadow_floor == 0, (
+            f"shadow_crush should reset shadow_floor to 0, got {shadow_floor}"
+        )
+
+    def test_enforce_gates_signature_unchanged(self):
+        """Сигнатура enforce_gates возвращает 4 значения."""
+        from retouch.processing.core.gates import GateState
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        result = enforce_gates(gs, {"stone_gamma": 0.88}, None, self._make_ctx())
+        assert len(result) == 4, (
+            f"enforce_gates should return 4 values, got {len(result)}"
+        )
