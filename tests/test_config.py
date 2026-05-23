@@ -442,6 +442,21 @@ class TestBrightnessToStoneGammaMigration:
         assert result["processing"]["laser_standard"]["glow_size_min"] == original_glow_min
 
 
+class TestFaceOvalEnabled:
+    """face_oval_enabled в DEFAULTS и ProcessingConfig."""
+
+    def test_face_oval_enabled_in_defaults(self):
+        """DEFAULTS содержит face_oval_enabled=True."""
+        assert "face_oval_enabled" in DEFAULTS["processing"]
+        assert DEFAULTS["processing"]["face_oval_enabled"] is True
+
+    def test_face_oval_enabled_in_processing_config(self):
+        """ProcessingConfig имеет face_oval_enabled=True по умолчанию."""
+        from retouch.config import ProcessingConfig
+        cfg = ProcessingConfig()
+        assert cfg.face_oval_enabled is True
+
+
 class TestConfigYamlLaser80wGlowMatchesDefaults:
     """AUDIT-9.1: config.yaml laser_80w glow_size_min/max совпадают с DEFAULTS."""
 
