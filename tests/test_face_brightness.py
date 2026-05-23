@@ -179,3 +179,93 @@ class TestEmptyMask:
         )
         assert factor == 1.0
         assert np.array_equal(np.array(img), np.array(result))
+
+
+class TestGammaAwareTarget:
+    """Gamma-aware target computation prevents face_skin from entering rolloff zone."""
+
+    def test_gamma_aware_lowers_effective_target(self):
+        """With gamma < 1.0, face_brightness outputs values lower than target_min.
+
+        Uses median=193 (slightly below target_min=200) so that Phase 2
+        correction factor differs between gamma-aware and non-gamma cases:
+          - No gamma:   target_min=200, gap=7, correction ~= 1.036
+          - Gamma-aware: effective_min~=195, gap=2, correction ~= 1.010
+        This creates a measurable difference in output brightness.
+        """
+        arr = np.full((200, 200), 193, dtype=np.uint8)
+        img = Image.fromarray(arr)
+        mask = Image.new("L", (200, 200), 255)
+        face_skin = np.ones((200, 200), dtype=np.uint8) * 255
+
+        cfg_gamma = {
+            "face_brightness_target_min": 200,
+            "face_brightness_target_max": 225,
+            "stone_gamma": 0.90,
+            "white_ceiling": 240,
+            "rolloff_compression": 0.35,
+        }
+        cfg_no_gamma = {
+            "face_brightness_target_min": 200,
+            "face_brightness_target_max": 225,
+        }
+        analytics = {"median_brightness": 193.0, "p90_brightness": 195.0}
+
+        result_gamma, _, _, _, _ = face_brightness_correction(
+            img, mask, face_skin, cfg_gamma, analytics,
+        )
+        result_no_gamma, _, _, _, _ = face_brightness_correction(
+            img.copy(), mask, face_skin, cfg_no_gamma, analytics,
+        )
+
+        gamma_median = float(np.median(np.array(result_gamma)))
+        no_gamma_median = float(np.median(np.array(result_no_gamma)))
+
+        assert gamma_median < no_gamma_median, (
+            f"Gamma-aware median {gamma_median} should be < "
+            f"no-gamma median {no_gamma_median}"
+        )
+        gamma_max = float(np.array(result_gamma).max())
+        assert gamma_max <= 215, (
+            f"Face skin max {gamma_max} > 215 — gamma-aware target "
+            f"did not keep face_skin near pre-gamma ceiling"
+        )
+
+    def test_no_adjustment_when_gamma_is_one(self):
+        """With gamma=1.0, effective_min == target_min — no gamma-aware adjustment."""
+        from retouch.processing.correction.face_brightness import _compute_gamma_aware_target
+
+        eff_min, eff_max = _compute_gamma_aware_target(200, 225, {"stone_gamma": 1.0, "white_ceiling": 240})
+        assert eff_min == 200.0, f"effective_min {eff_min} != 200.0 when gamma=1.0"
+        assert eff_max == 225.0, f"effective_max {eff_max} != 225.0 when gamma=1.0"
+
+        eff_min2, eff_max2 = _compute_gamma_aware_target(200, 225, {})
+        assert eff_min2 == 200.0, f"effective_min {eff_min2} != 200.0 when gamma missing"
+        assert eff_max2 == 225.0, f"effective_max {eff_max2} != 225.0 when gamma missing"
+
+        eff_min3, eff_max3 = _compute_gamma_aware_target(200, 225, {"stone_gamma": None})
+        assert eff_min3 == 200.0, f"effective_min {eff_min3} != 200.0 when gamma=None"
+        assert eff_max3 == 225.0, f"effective_max {eff_max3} != 225.0 when gamma=None"
+
+    def test_safety_cap_in_steps_py(self):
+        """Level 2 safety cap in steps.py clips face_skin after unsharp overshoot."""
+        arr = np.full((100, 100), 200, dtype=np.uint8)
+        arr[10:20, 10:20] = 210
+        img = Image.fromarray(arr)
+
+        from retouch.processing.correction.unsharp import apply_unsharp_mask
+        sharpened = apply_unsharp_mask(img, radius=1.5, percent=150, threshold=0)
+
+        gamma = 0.90
+        ceiling = 240.0
+        knee = ceiling * 0.90
+        max_pre_gamma = np.power(knee / 255.0, 1.0 / gamma) * 255.0
+
+        sharp_arr = np.array(sharpened, dtype=np.float32)
+        fs_bool = np.ones((100, 100), dtype=bool)
+        sharp_arr[fs_bool] = np.minimum(sharp_arr[fs_bool], max_pre_gamma)
+
+        result_max = float(sharp_arr.max())
+        assert result_max <= max_pre_gamma + 1, (
+            f"After safety cap, max {result_max} > max_pre_gamma+1 {max_pre_gamma+1:.1f}"
+        )
