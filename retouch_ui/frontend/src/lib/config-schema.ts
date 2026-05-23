@@ -65,6 +65,7 @@ export interface ProcessingParams {
   result_min_black_ratio: ParamRange;
   mask_soft_sigma: ParamRange;           // НОВОЕ — Advanced
   contour_smooth_epsilon: ParamRange;    // НОВОЕ — Advanced
+  face_oval_enabled: ParamCheckbox;  // чекбокс отключения овала лица
 }
 
 /** Vignette parameters */
@@ -117,6 +118,7 @@ export const CONFIG_SCHEMA: ConfigSchema = {
     result_min_black_ratio: { min: 0, max: 0.5, step: 0.01, label: "Мин. доля чёрного", unit: "" },
     mask_soft_sigma: { min: 1, max: 4, step: 0.5, label: "Мягкость краёв маски", unit: "σ" },
     contour_smooth_epsilon: { min: 0.001, max: 0.01, step: 0.001, label: "Сглаживание контура", unit: "" },
+    face_oval_enabled: { type: "checkbox", label: "Овал лица", default: true },
     laser_standard: {
       glow_size_min: { min: 5, max: 100, step: 1, label: "Glow: мин. размер", unit: "px" },
       glow_size_max: { min: 5, max: 100, step: 1, label: "Glow: макс. размер", unit: "px" },
@@ -241,7 +243,7 @@ export const PARAM_SECTIONS = [
     key: "face",
     label: "Лицо",
     icon: "ri-user-line",
-    params: ["face_brightness_target_min", "face_brightness_target_max", "face_region_top", "highlight_start"],
+    params: ["face_oval_enabled", "face_brightness_target_min", "face_brightness_target_max", "face_region_top", "highlight_start"],
   },
   {
     key: "shadow",
