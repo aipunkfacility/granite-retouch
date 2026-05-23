@@ -4,6 +4,7 @@
 1. Замер по face_skin (исключая волосы/бороду)
 2. Linear shift: bounded delta ±15, weight=norm^0.5
 3. Re-measure + curves fine-tune если median ещё вне target
+4. Soft rolloff ceiling по highlights зоне (НЕ face_skin!)
 """
 
 import logging
@@ -12,9 +13,17 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 
+from retouch.processing.correction.rolloff import soft_rolloff_masked
 from retouch.processing.correction.mask_utils import apply_masked
 
 logger = logging.getLogger(__name__)
+
+# Safety margin: face_skin must stay at least this many levels BELOW the
+# rolloff knee after gamma is applied.  Without this margin, face_skin
+# reaches exactly knee — any slight overshoot from unsharp or rounding
+# pushes it into the rolloff zone, compressing tonal variation (gray plateau).
+# MUST match the constant in steps.py safety cap.
+FACE_SKIN_KNEE_MARGIN = 10
 
 
 def _compute_gamma_aware_target(
@@ -22,6 +31,25 @@ def _compute_gamma_aware_target(
     target_max: int,
     machine_cfg: dict,
 ) -> tuple[float, float]:
+    """Compute effective target range adjusted for stone_gamma.
+
+    When gamma < 1.0, pixel values are raised after face_brightness_correction.
+    This function computes pre-gamma targets so that after gamma, the output
+    stays safely below the rolloff knee (by FACE_SKIN_KNEE_MARGIN levels).
+
+    The safety cap (Level 2) is applied in steps.py AFTER unsharp mask and
+    BEFORE postprocess, using the same FACE_SKIN_KNEE_MARGIN constant.
+
+    Args:
+        target_min: original target minimum (e.g. 200 for impact)
+        target_max: original target maximum (e.g. 225 for impact)
+        machine_cfg: dict with stone_gamma, white_ceiling
+
+    Returns:
+        (effective_min, effective_max):
+            effective_min: adjusted target_min for Phase 1/2
+            effective_max: adjusted target_max for Phase 1/2
+    """
     gamma = machine_cfg.get("stone_gamma", 1.0)
 
     if gamma is None or gamma >= 1.0:
@@ -30,18 +58,26 @@ def _compute_gamma_aware_target(
     ceiling = float(machine_cfg.get("white_ceiling", 250))
     knee = ceiling * 0.90
 
-    max_pre_gamma = np.power(knee / 255.0, 1.0 / gamma) * 255.0
+    # Maximum pre-gamma value so that after gamma, face_skin stays
+    # at most (knee - FACE_SKIN_KNEE_MARGIN).  This prevents face_skin
+    # from entering the rolloff compression zone.
+    safe_post_gamma = knee - FACE_SKIN_KNEE_MARGIN
+    max_pre_gamma = np.power(safe_post_gamma / 255.0, 1.0 / gamma) * 255.0
 
+    # Pre-gamma values that produce target_min/target_max after gamma
     pre_gamma_min = np.power(target_min / 255.0, 1.0 / gamma) * 255.0
     pre_gamma_max = np.power(target_max / 255.0, 1.0 / gamma) * 255.0
 
+    # Clamp both to max_pre_gamma (in case target exceeds what gamma can reach)
     effective_min = min(pre_gamma_min, max_pre_gamma)
     effective_max = min(pre_gamma_max, max_pre_gamma)
 
     logger.info(
-        "Gamma-aware target: gamma=%.2f, knee=%.1f, max_pre_gamma=%.1f, "
-        "target_min=%d->effective_min=%.1f, target_max=%d->effective_max=%.1f",
-        gamma, knee, max_pre_gamma,
+        "Gamma-aware target: gamma=%.2f, knee=%.1f, margin=%d, "
+        "safe_post_gamma=%.1f, max_pre_gamma=%.1f, "
+        "target_min=%d→effective_min=%.1f, target_max=%d→effective_max=%.1f",
+        gamma, knee, FACE_SKIN_KNEE_MARGIN,
+        safe_post_gamma, max_pre_gamma,
         target_min, effective_min,
         target_max, effective_max,
     )
@@ -55,6 +91,7 @@ def face_brightness_correction(
     face_skin_mask: np.ndarray | None,
     machine_cfg: dict,
     analytics: dict,
+    zone_masks=None,
     face_brightness_target_min: int = 180,
     face_brightness_target_max: int = 220,
     highlight_start: int = 200,
@@ -69,9 +106,11 @@ def face_brightness_correction(
         machine_cfg: dict — параметры станка (face_brightness_target_min/max,
             white_ceiling, rolloff_compression)
         analytics: dict — метрики от analyze_input()
+        zone_masks: ZoneMasks или None — для rolloff по highlights
         face_brightness_target_min/max: fallback target range
         highlight_start: порог затухания curves (0-255)
         max_delta: максимальная дельта (safety envelope)
+        variance_loss_threshold: порог клиппинга variance loss в %
 
     Returns:
         tuple: (Image, brightness_before, brightness_after, correction_factor, face_brightness_delta)
@@ -144,6 +183,22 @@ def face_brightness_correction(
         soft_mask = np.clip(soft_mask_float * subj_bool.astype(np.float32), 0, 1)
 
         corrected = corrected + delta_curve * weight_curve * soft_mask
+
+    # --- Ceiling: soft rolloff on highlights ONLY ---
+    # face_skin is NOT included in the rolloff mask — the gamma-aware target
+    # + safety cap in steps.py keep face_skin below knee after gamma.
+    # Applying rolloff to face_skin compresses its tonal variation into a
+    # narrow band (gray plateau), which is the root cause of face burnout.
+    # Highlights (specular reflections) still need rolloff to prevent stone burning.
+    ceiling = float(machine_cfg.get("white_ceiling", 250))
+    compression = machine_cfg.get("rolloff_compression", 0.35)
+
+    if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
+        rolloff_mask = (zone_masks.highlights > 128).astype(np.uint8) * 255
+    else:
+        rolloff_mask = np.array(subject_mask, dtype=np.uint8)
+
+    corrected = soft_rolloff_masked(corrected, rolloff_mask, ceiling * 0.90, ceiling, compression)
 
     result_arr = apply_masked(arr, corrected, subject_mask)
     result_img = Image.fromarray(result_arr.astype(np.uint8))

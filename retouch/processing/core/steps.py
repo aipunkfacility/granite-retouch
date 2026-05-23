@@ -30,6 +30,10 @@ from retouch.processing.correction.rolloff import soft_rolloff_masked
 
 logger = logging.getLogger(__name__)
 
+# Safety margin: face_skin must stay at least this many levels BELOW the
+# rolloff knee after gamma.  MUST match the constant in face_brightness.py.
+FACE_SKIN_KNEE_MARGIN = 10
+
 
 def _get_gate_thresholds(config: dict) -> dict:
     """Extract quality gate thresholds from config."""
@@ -45,8 +49,7 @@ def _get_gate_thresholds(config: dict) -> dict:
     }
 
 
-def _compute_quality_metrics(img_final, subject_mask, machine_cfg,
-                              zone_masks=None, face_skin_variance_before=None):
+def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
     """F.2: Вычислить метрики качества выходного изображения."""
     metrics = {
         "clipped_pixels_pct": 0.0,
@@ -54,8 +57,6 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg,
         "tonal_range_output": 0.0,
         "quality_warnings": [],
     }
-    if face_skin_variance_before is not None:
-        metrics["face_skin_variance_before"] = face_skin_variance_before
 
     if img_final is None or subject_mask is None:
         return metrics
@@ -96,25 +97,6 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg,
         quality_warnings.append(
             f"Узкий тональный диапазон: {p90 - p10:.0f} (p10={p10:.0f}, p90={p90:.0f})"
         )
-
-    # Variance loss from postprocess — Level 3 diagnostic
-    if zone_masks is not None:
-        face_skin_mask = zone_masks.face_skin
-        if face_skin_mask is not None and np.any(face_skin_mask > 128):
-            fs_bool = face_skin_mask > 128
-            face_pixels = img_arr[fs_bool]
-            if len(face_pixels) > 0:
-                face_variance = float(np.var(face_pixels))
-                pre_variance = metrics.get("face_skin_variance_before", None)
-                if pre_variance is not None and pre_variance > 0:
-                    loss_pct = (1.0 - face_variance / pre_variance) * 100
-                    if loss_pct > 35.0:
-                        quality_warnings.append(
-                            f"Потеря тональной вариации лица: {loss_pct:.1f}% "
-                            f"(variance {pre_variance:.0f}->{face_variance:.0f}). "
-                            f"Возможно, пресет не оптимален для этого фото."
-                        )
-
     metrics["quality_warnings"] = quality_warnings
 
     return metrics
@@ -245,14 +227,6 @@ def run_pipeline_steps(
     )
     _record_step("glow", img_glow)
 
-    # Record face_skin variance after glow, before face_brightness.
-    if zone_masks is not None and zone_masks.face_skin is not None and np.any(zone_masks.face_skin > 128):
-        _fs_bool_pre = zone_masks.face_skin > 128
-        _pre_arr = np.array(img_glow, dtype=np.float32)
-        _face_px_pre = _pre_arr[_fs_bool_pre]
-        if len(_face_px_pre) > 0:
-            ctx.face_skin_variance_before = float(np.var(_face_px_pre))
-
     face_before = 0.0
     face_after = 0.0
     correction_factor = 1.0
@@ -268,6 +242,7 @@ def run_pipeline_steps(
             face_skin_mask=face_skin_mask_for_levels,
             machine_cfg=ctx.machine_cfg,
             analytics=ctx.analytics,
+            zone_masks=zone_masks,
         )
         _record_step("levels", img_leveled)
     else:
@@ -282,6 +257,35 @@ def run_pipeline_steps(
         _record_step("unsharp", img_postproc)
     else:
         img_postproc = img_leveled
+
+    # --- Safety cap: clip face_skin pixels that exceed pre-gamma ceiling ---
+    # Applied AFTER unsharp (which can add +5-15 levels overshoot) and BEFORE
+    # gamma+rolloff in postprocess.  Ensures face_skin stays below
+    # (knee - FACE_SKIN_KNEE_MARGIN) after gamma, so rolloff never compresses
+    # face_skin tonal variation into a gray plateau.
+    _safety_gamma = ctx.machine_cfg.get("stone_gamma", 1.0)
+    if _safety_gamma is not None and _safety_gamma < 1.0 and zone_masks is not None:
+        _fs_mask = zone_masks.face_skin
+        if _fs_mask is not None and np.any(_fs_mask > 128):
+            _ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
+            _knee = _ceiling * 0.90
+            _safe_post_gamma = _knee - FACE_SKIN_KNEE_MARGIN
+            _max_pre_gamma = np.power(_safe_post_gamma / 255.0, 1.0 / _safety_gamma) * 255.0
+            _arr = np.array(img_postproc, dtype=np.float32)
+            _fs_bool = _fs_mask > 128
+            _above = _arr[_fs_bool] > _max_pre_gamma
+            if np.any(_above):
+                _clipped_count = int(np.sum(_above))
+                _arr[_fs_bool] = np.minimum(_arr[_fs_bool], _max_pre_gamma)
+                img_postproc = Image.fromarray(
+                    np.clip(_arr, 0, 255).astype(np.uint8), mode='L',
+                )
+                logger.info(
+                    "Safety cap: %d face_skin pixels clipped at %.1f "
+                    "(knee=%.1f, margin=%d, gamma=%.2f)",
+                    _clipped_count, _max_pre_gamma, _knee,
+                    FACE_SKIN_KNEE_MARGIN, _safety_gamma,
+                )
 
     shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
         gate_state, ctx.machine_cfg, validated, ctx,
@@ -303,34 +307,12 @@ def run_pipeline_steps(
             shadow_floor=shadow_floor,
         )
 
-    # --- Level 2: Safety cap — clip face_skin pixels above pre-gamma ceiling ---
-    _safety_gamma = ctx.machine_cfg.get("stone_gamma", 1.0)
-    if _safety_gamma is not None and _safety_gamma < 1.0 and zone_masks is not None:
-        _fs_mask = zone_masks.face_skin
-        if _fs_mask is not None and np.any(_fs_mask > 128):
-            _ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
-            _knee = _ceiling * 0.90
-            _max_pre_gamma = np.power(_knee / 255.0, 1.0 / _safety_gamma) * 255.0
-            _arr = np.array(img_postproc, dtype=np.float32)
-            _fs_bool = _fs_mask > 128
-            _above = _arr[_fs_bool] > _max_pre_gamma
-            if np.any(_above):
-                _clipped_count = int(np.sum(_above))
-                _arr[_fs_bool] = np.minimum(_arr[_fs_bool], _max_pre_gamma)
-                img_postproc = Image.fromarray(
-                    np.clip(_arr, 0, 255).astype(np.uint8), mode='L',
-                )
-                logger.info(
-                    "Safety cap: %d face_skin pixels clipped at %.1f "
-                    "(knee=%.1f, gamma=%.2f)",
-                    _clipped_count, _max_pre_gamma, _knee, _safety_gamma,
-                )
-
     if set(validated.plan.active_steps) & {"shadow_floor", "stone_gamma", "white_ceiling"}:
         img_postproc = apply_postprocess(
             img_postproc,
             subject_mask=ctx.subject_mask,
             face_mask=ctx.face_mask,
+            zone_masks=zone_masks,
             machine_type=ctx.machine_type,
             shadow_floor=shadow_floor,
             stone_gamma=stone_gamma,
@@ -339,9 +321,6 @@ def run_pipeline_steps(
         )
         _record_step("postproc", img_postproc)
     elif "highlight_rolloff" in validated.plan.active_steps:
-        # DEPRECATED (v6.5): single rolloff moved to apply_postprocess with full subject mask.
-        # This path uses zone-limited highlights mask — kept for profile backward compat
-        # but produces different results. Remove when profiles are updated.
         if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
             arr = np.array(img_postproc, dtype=np.float32)
             rolloff_mask_arr = (zone_masks.highlights > 128).astype(np.uint8) * 255
@@ -362,11 +341,7 @@ def run_pipeline_steps(
         result_min_black = proc_cfg.get("result_min_black_ratio", 0.25)
         black_ratio = validate_result_black_ratio(img_final, min_black_ratio=result_min_black)
 
-    quality = _compute_quality_metrics(
-        img_final, ctx.subject_mask, ctx.machine_cfg,
-        zone_masks=zone_masks,
-        face_skin_variance_before=ctx.face_skin_variance_before,
-    )
+    quality = _compute_quality_metrics(img_final, ctx.subject_mask, ctx.machine_cfg)
 
     sc_gate = post_check_shadow_crush(
         quality["shadow_crush_pct"],

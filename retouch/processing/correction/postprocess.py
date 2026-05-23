@@ -6,12 +6,19 @@
 Порядок операций:
 1. Shadow floor (impact — full subject, laser — face_mask only)
 2. Stone gamma (SOP 5.1)
-3. White ceiling с soft rolloff (по highlights-зоне или subject)
+3. White ceiling с soft rolloff (по subject mask MINUS face_skin)
+
+ВАЖНО: rolloff маска исключает face_skin. face_skin не должен подвергаться
+rolloff сжатию — это сжимает тональную вариацию в узкую полосу (серое плато),
+корневая причина выжигания лица. Safety cap в steps.py гарантирует, что
+face_skin остаётся ниже ceiling после gamma. Все остальные зоны субъекта
+(highlights, clothes, hair и т.д.) проходят через rolloff как обычно.
 """
 
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
@@ -20,6 +27,9 @@ from retouch.processing.correction.mask_utils import clamp_masked
 from retouch.processing.correction.gamma import apply_stone_gamma_masked
 from retouch.processing.correction.rolloff import soft_rolloff_masked
 
+if TYPE_CHECKING:
+    from retouch.processing.analysis.zones import ZoneMasks
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +37,7 @@ def apply_postprocess(
     img: Image.Image,
     subject_mask: np.ndarray,
     face_mask: np.ndarray | None,
+    zone_masks: ZoneMasks | None,
     machine_type: str,
     shadow_floor: int = 0,
     stone_gamma: float | None = None,
@@ -39,6 +50,7 @@ def apply_postprocess(
         img: изображение после unsharp + shadow_noise
         subject_mask: маска субъекта (uint8)
         face_mask: маска лица (uint8) или None
+        zone_masks: ZoneMasks для highlights-зоны или None
         machine_type: "laser_standard", "laser_80w", или "impact"
         shadow_floor: минимальный уровень теней (0 = отключён)
         stone_gamma: gamma камня (None или 1.0 = отключена)
@@ -87,14 +99,35 @@ def apply_postprocess(
         logger.info("Stone gamma applied: %.2f", stone_gamma)
 
     # 3. White ceiling clamp ПОСЛЕ gamma — gamma < 1.0 осветляет
+    # Rolloff applies to ALL subject pixels EXCEPT face_skin.
+    # face_skin must be excluded from the rolloff mask because rolloff
+    # compresses tonal variation above knee into a narrow band (gray plateau),
+    # which is the root cause of face burnout.  The safety cap in steps.py
+    # (with FACE_SKIN_KNEE_MARGIN=10) ensures face_skin stays below knee
+    # after gamma, so excluding it from rolloff is safe — face_skin won't
+    # exceed ceiling because the safety cap prevents it.
+    # All other zones (highlights, clothes, hair, etc.) get rolloff normally.
     if white_ceiling is not None:
         knee = white_ceiling * 0.90
-        rolloff_mask = np.array(subject_mask, dtype=np.uint8)
+        if zone_masks is not None and zone_masks.face_skin is not None:
+            fs_bool = zone_masks.face_skin > 128 if zone_masks.face_skin.dtype != bool else zone_masks.face_skin
+            rolloff_mask_bool = mask_bool & ~fs_bool
+            rolloff_mask = rolloff_mask_bool.astype(np.uint8) * 255
+            logger.info(
+                "White ceiling rolloff applied to subject minus face_skin (%d px)",
+                int(rolloff_mask_bool.sum()),
+            )
+        else:
+            rolloff_mask = np.array(subject_mask, dtype=np.uint8)
+            logger.info(
+                "White ceiling rolloff applied to full subject (no face_skin zone) (%d px)",
+                int(mask_bool.sum()),
+            )
         arr = soft_rolloff_masked(
             arr, rolloff_mask, knee, float(white_ceiling), compression
         )
         logger.info(
-            "White ceiling rolloff (post-gamma, full subject): %d, compression=%.2f",
+            "White ceiling rolloff (post-gamma): %d, compression=%.2f",
             white_ceiling, compression,
         )
 
