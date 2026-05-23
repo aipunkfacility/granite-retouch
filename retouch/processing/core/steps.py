@@ -26,7 +26,7 @@ from retouch.processing.correction.postprocess import apply_postprocess
 from retouch.processing.output.vignette import apply_vignette
 from retouch.processing.analysis.zones import build_zone_masks, ZoneMasks
 from retouch.processing.analysis.metrics import compute_zone_metrics, make_step_record, StepMetricsRecord, ZoneMetrics
-from retouch.processing.correction.rolloff import soft_rolloff_masked
+from retouch.processing.correction.rolloff import soft_rolloff_masked, build_face_safe_rolloff_mask
 from dataclasses import replace
 
 logger = logging.getLogger(__name__)
@@ -272,15 +272,23 @@ def run_pipeline_steps(
     # (knee - FACE_SKIN_KNEE_MARGIN) after gamma, so rolloff never compresses
     # face_skin tonal variation into a gray plateau.
     _safety_gamma = ctx.machine_cfg.get("stone_gamma", 1.0)
-    if _safety_gamma is not None and _safety_gamma < 1.0 and zone_masks is not None:
-        _fs_mask = zone_masks.face_skin
-        if _fs_mask is not None and np.any(_fs_mask > 128):
+    if _safety_gamma is not None and _safety_gamma < 1.0:
+        _fs_mask = None
+        _mask_source = "none"
+        if zone_masks is not None and zone_masks.face_skin is not None and np.any(zone_masks.face_skin > 128):
+            _fs_mask = zone_masks.face_skin
+            _mask_source = "zone_masks.face_skin"
+        elif ctx.face_mask is not None and np.any(np.array(ctx.face_mask) > 128):
+            _fs_mask = np.array(ctx.face_mask) > 128
+            _mask_source = "ctx.face_mask (fallback)"
+
+        if _fs_mask is not None:
             _ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
             _knee = _ceiling * 0.90
             _safe_post_gamma = _knee - FACE_SKIN_KNEE_MARGIN
             _max_pre_gamma = np.power(_safe_post_gamma / 255.0, 1.0 / _safety_gamma) * 255.0
             _arr = np.array(img_postproc, dtype=np.float32)
-            _fs_bool = _fs_mask > 128
+            _fs_bool = _fs_mask > 128 if _fs_mask.dtype != bool else _fs_mask
             _above = _arr[_fs_bool] > _max_pre_gamma
             if np.any(_above):
                 _clipped_count = int(np.sum(_above))
@@ -290,9 +298,9 @@ def run_pipeline_steps(
                 )
                 logger.info(
                     "Safety cap: %d face_skin pixels clipped at %.1f "
-                    "(knee=%.1f, margin=%d, gamma=%.2f)",
+                    "(knee=%.1f, margin=%d, gamma=%.2f, mask=%s)",
                     _clipped_count, _max_pre_gamma, _knee,
-                    FACE_SKIN_KNEE_MARGIN, _safety_gamma,
+                    FACE_SKIN_KNEE_MARGIN, _safety_gamma, _mask_source,
                 )
 
     shadow_floor, stone_gamma, white_ceiling, compression = enforce_gates(
@@ -333,29 +341,13 @@ def run_pipeline_steps(
         ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
         knee = ceiling * 0.90
 
-        if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
-            rolloff_mask_arr = (zone_masks.highlights > 0).astype(np.uint8) * 255
-            arr = soft_rolloff_masked(arr, rolloff_mask_arr, knee, ceiling, compression)
-            logger.info(
-                "highlight_rolloff: applied to highlights zone (%d px, knee=%.0f, ceiling=%d)",
-                int(rolloff_mask_arr.sum() // 255), knee, ceiling,
-            )
-        elif zone_masks is not None:
-            # highlights пустой — тёмный портрет
-            rolloff_mask = np.array(ctx.subject_mask, dtype=np.uint8)
+        rolloff_mask = build_face_safe_rolloff_mask(
+            ctx.subject_mask, ctx.face_mask, zone_masks,
+            primary_zone="highlights_only",
+            logger_prefix="highlight_rolloff",
+        )
+        if rolloff_mask is not None:
             arr = soft_rolloff_masked(arr, rolloff_mask, knee, ceiling, compression)
-            logger.info(
-                "highlight_rolloff: fallback to subject_mask — highlights empty (dark portrait?) (%d px)",
-                int(np.sum(rolloff_mask > 128)),
-            )
-        else:
-            # zone_masks=None — build_zone_masks не вызывался или упал
-            rolloff_mask = np.array(ctx.subject_mask, dtype=np.uint8)
-            arr = soft_rolloff_masked(arr, rolloff_mask, knee, ceiling, compression)
-            logger.info(
-                "highlight_rolloff: fallback to subject_mask — zone_masks not built (%d px)",
-                int(np.sum(rolloff_mask > 128)),
-            )
 
         img_postproc = Image.fromarray(arr.astype(np.uint8))
         _record_step("highlight_rolloff", img_postproc)

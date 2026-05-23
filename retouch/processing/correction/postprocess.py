@@ -25,7 +25,7 @@ from PIL import Image
 
 from retouch.processing.correction.mask_utils import clamp_masked
 from retouch.processing.correction.gamma import apply_stone_gamma_masked
-from retouch.processing.correction.rolloff import soft_rolloff_masked
+from retouch.processing.correction.rolloff import soft_rolloff_masked, build_face_safe_rolloff_mask
 
 if TYPE_CHECKING:
     from retouch.processing.analysis.zones import ZoneMasks
@@ -109,23 +109,15 @@ def apply_postprocess(
     # All other zones (highlights, clothes, hair, etc.) get rolloff normally.
     if white_ceiling is not None:
         knee = white_ceiling * 0.90
-        if zone_masks is not None and zone_masks.face_skin is not None:
-            fs_bool = zone_masks.face_skin > 128 if zone_masks.face_skin.dtype != bool else zone_masks.face_skin
-            rolloff_mask_bool = mask_bool & ~fs_bool
-            rolloff_mask = rolloff_mask_bool.astype(np.uint8) * 255
-            logger.info(
-                "White ceiling rolloff applied to subject minus face_skin (%d px)",
-                int(rolloff_mask_bool.sum()),
-            )
-        else:
-            rolloff_mask = np.array(subject_mask, dtype=np.uint8)
-            logger.info(
-                "White ceiling rolloff applied to full subject (no face_skin zone) (%d px)",
-                int(mask_bool.sum()),
-            )
-        arr = soft_rolloff_masked(
-            arr, rolloff_mask, knee, float(white_ceiling), compression
+        rolloff_mask = build_face_safe_rolloff_mask(
+            subject_mask, face_mask, zone_masks,
+            primary_zone="exclude_face_skin",
+            logger_prefix="White ceiling rolloff",
         )
+        if rolloff_mask is not None:
+            arr = soft_rolloff_masked(
+                arr, rolloff_mask, knee, float(white_ceiling), compression
+            )
         logger.info(
             "White ceiling rolloff (post-gamma): %d, compression=%.2f",
             white_ceiling, compression,

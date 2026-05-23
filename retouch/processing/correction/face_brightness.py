@@ -2,9 +2,14 @@
 
 Решает проблему двойной коррекции (levels + face_correction с разными масками):
 1. Замер по face_skin (исключая волосы/бороду)
-2. Linear shift: bounded delta ±15, weight=norm^0.5
+2. Linear shift: bounded delta ±15, shadow-priority weight (1 - norm^0.5)
 3. Re-measure + curves fine-tune если median ещё вне target
-4. Soft rolloff ceiling по highlights зоне (НЕ face_skin!)
+
+Rolloff НЕ применяется в этом модуле — postprocess.py делает rolloff
+после gamma, когда известны реальные значения пикселей.
+Применение rolloff до gamma некорректно и вызывает двойной rolloff на highlights.
+
+Note: параметр zone_masks deprecated и игнорируется.
 """
 
 import logging
@@ -13,7 +18,6 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 
-from retouch.processing.correction.rolloff import soft_rolloff_masked
 from retouch.processing.correction.mask_utils import apply_masked
 
 logger = logging.getLogger(__name__)
@@ -68,9 +72,23 @@ def _compute_gamma_aware_target(
     pre_gamma_min = np.power(target_min / 255.0, 1.0 / gamma) * 255.0
     pre_gamma_max = np.power(target_max / 255.0, 1.0 / gamma) * 255.0
 
-    # Clamp both to max_pre_gamma (in case target exceeds what gamma can reach)
-    effective_min = min(pre_gamma_min, max_pre_gamma)
-    effective_max = min(pre_gamma_max, max_pre_gamma)
+    # Preserve target range width when targets exceed max_pre_gamma.
+    # Naive clamping collapses effective_min == effective_max when both
+    # targets are above the gamma-safe ceiling (laser presets: 230/245 with gamma 0.88).
+    # Instead, shift the range down so effective_max = max_pre_gamma
+    # and effective_min preserves the original range width.
+    if pre_gamma_max > max_pre_gamma:
+        original_width = pre_gamma_max - pre_gamma_min
+        effective_max = max_pre_gamma
+        # Shift down, preserving width — but don't go below 0
+        effective_min = max(0.0, max_pre_gamma - original_width)
+    else:
+        effective_max = pre_gamma_max
+        if pre_gamma_min > max_pre_gamma:
+            # edge case: min above ceiling but max isn't — clamp min
+            effective_min = max_pre_gamma
+        else:
+            effective_min = pre_gamma_min
 
     logger.info(
         "Gamma-aware target: gamma=%.2f, knee=%.1f, margin=%d, "
@@ -91,7 +109,7 @@ def face_brightness_correction(
     face_skin_mask: np.ndarray | None,
     machine_cfg: dict,
     analytics: dict,
-    zone_masks=None,
+    zone_masks=None,  # deprecated: не используется, rolloff перенесён в postprocess
     face_brightness_target_min: int = 180,
     face_brightness_target_max: int = 220,
     highlight_start: int = 200,
@@ -106,7 +124,9 @@ def face_brightness_correction(
         machine_cfg: dict — параметры станка (face_brightness_target_min/max,
             white_ceiling, rolloff_compression)
         analytics: dict — метрики от analyze_input()
-        zone_masks: ZoneMasks или None — для rolloff по highlights
+        zone_masks: ZoneMasks или None — DEPRECATED, игнорируется.
+            Rolloff перенесён в postprocess.py. Параметр оставлен для
+            обратной совместимости — будет удалён в будущей версии.
         face_brightness_target_min/max: fallback target range
         highlight_start: порог затухания curves (0-255)
         max_delta: максимальная дельта (safety envelope)
@@ -117,6 +137,14 @@ def face_brightness_correction(
     """
     arr = np.array(img_gray, dtype=np.float32)
     subj_bool = np.array(subject_mask) > 128
+
+    # Deprecation warning
+    if zone_masks is not None:
+        logger.warning(
+            "face_brightness_correction: zone_masks parameter is deprecated "
+            "and ignored. Rolloff is now handled by postprocess.py after gamma. "
+            "Remove zone_masks from call sites."
+        )
 
     # Определяем маску применения — face_skin с защитой субъекта
     if face_skin_mask is not None:
@@ -152,7 +180,7 @@ def face_brightness_correction(
     corrected = arr.copy()
     if delta != 0:
         norm = arr / 255.0
-        weight = np.power(norm, 0.5)
+        weight = 1.0 - np.power(norm, 0.5)
         corrected[apply_mask] = arr[apply_mask] + delta * weight[apply_mask]
 
     median_after_linear = float(np.median(corrected[apply_mask]))
@@ -170,10 +198,12 @@ def face_brightness_correction(
     if correction != 1.0:
         h = highlight_start / 255.0
         norm_full = corrected / 255.0
+        shadow_weight = 1.0 - np.power(norm_full, 0.5)
+        highlight_taper = np.clip(1.0 - (norm_full - h) / (1.0 - h), 0, 1)
         weight_curve = np.where(
             norm_full < h,
-            1.0,
-            np.clip(1.0 - (norm_full - h) / (1.0 - h), 0, 1),
+            shadow_weight,
+            highlight_taper,
         )
         linear = corrected * correction
         delta_curve = linear - corrected
@@ -183,22 +213,6 @@ def face_brightness_correction(
         soft_mask = np.clip(soft_mask_float * subj_bool.astype(np.float32), 0, 1)
 
         corrected = corrected + delta_curve * weight_curve * soft_mask
-
-    # --- Ceiling: soft rolloff on highlights ONLY ---
-    # face_skin is NOT included in the rolloff mask — the gamma-aware target
-    # + safety cap in steps.py keep face_skin below knee after gamma.
-    # Applying rolloff to face_skin compresses its tonal variation into a
-    # narrow band (gray plateau), which is the root cause of face burnout.
-    # Highlights (specular reflections) still need rolloff to prevent stone burning.
-    ceiling = float(machine_cfg.get("white_ceiling", 250))
-    compression = machine_cfg.get("rolloff_compression", 0.35)
-
-    if zone_masks is not None and zone_masks.highlights is not None and zone_masks.highlights.any():
-        rolloff_mask = (zone_masks.highlights > 128).astype(np.uint8) * 255
-    else:
-        rolloff_mask = np.array(subject_mask, dtype=np.uint8)
-
-    corrected = soft_rolloff_masked(corrected, rolloff_mask, ceiling * 0.90, ceiling, compression)
 
     result_arr = apply_masked(arr, corrected, subject_mask)
     result_img = Image.fromarray(result_arr.astype(np.uint8))
