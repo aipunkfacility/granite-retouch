@@ -45,7 +45,8 @@ def _get_gate_thresholds(config: dict) -> dict:
     }
 
 
-def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
+def _compute_quality_metrics(img_final, subject_mask, machine_cfg,
+                              zone_masks=None, face_skin_variance_before=None):
     """F.2: Вычислить метрики качества выходного изображения."""
     metrics = {
         "clipped_pixels_pct": 0.0,
@@ -53,6 +54,8 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
         "tonal_range_output": 0.0,
         "quality_warnings": [],
     }
+    if face_skin_variance_before is not None:
+        metrics["face_skin_variance_before"] = face_skin_variance_before
 
     if img_final is None or subject_mask is None:
         return metrics
@@ -93,6 +96,25 @@ def _compute_quality_metrics(img_final, subject_mask, machine_cfg):
         quality_warnings.append(
             f"Узкий тональный диапазон: {p90 - p10:.0f} (p10={p10:.0f}, p90={p90:.0f})"
         )
+
+    # Variance loss from postprocess — Level 3 diagnostic
+    if zone_masks is not None:
+        face_skin_mask = zone_masks.face_skin
+        if face_skin_mask is not None and np.any(face_skin_mask > 128):
+            fs_bool = face_skin_mask > 128
+            face_pixels = img_arr[fs_bool]
+            if len(face_pixels) > 0:
+                face_variance = float(np.var(face_pixels))
+                pre_variance = metrics.get("face_skin_variance_before", None)
+                if pre_variance is not None and pre_variance > 0:
+                    loss_pct = (1.0 - face_variance / pre_variance) * 100
+                    if loss_pct > 35.0:
+                        quality_warnings.append(
+                            f"Потеря тональной вариации лица: {loss_pct:.1f}% "
+                            f"(variance {pre_variance:.0f}->{face_variance:.0f}). "
+                            f"Возможно, пресет не оптимален для этого фото."
+                        )
+
     metrics["quality_warnings"] = quality_warnings
 
     return metrics
@@ -223,6 +245,14 @@ def run_pipeline_steps(
     )
     _record_step("glow", img_glow)
 
+    # Record face_skin variance after glow, before face_brightness.
+    if zone_masks is not None and zone_masks.face_skin is not None and np.any(zone_masks.face_skin > 128):
+        _fs_bool_pre = zone_masks.face_skin > 128
+        _pre_arr = np.array(img_glow, dtype=np.float32)
+        _face_px_pre = _pre_arr[_fs_bool_pre]
+        if len(_face_px_pre) > 0:
+            ctx.face_skin_variance_before = float(np.var(_face_px_pre))
+
     face_before = 0.0
     face_after = 0.0
     correction_factor = 1.0
@@ -332,7 +362,11 @@ def run_pipeline_steps(
         result_min_black = proc_cfg.get("result_min_black_ratio", 0.25)
         black_ratio = validate_result_black_ratio(img_final, min_black_ratio=result_min_black)
 
-    quality = _compute_quality_metrics(img_final, ctx.subject_mask, ctx.machine_cfg)
+    quality = _compute_quality_metrics(
+        img_final, ctx.subject_mask, ctx.machine_cfg,
+        zone_masks=zone_masks,
+        face_skin_variance_before=ctx.face_skin_variance_before,
+    )
 
     sc_gate = post_check_shadow_crush(
         quality["shadow_crush_pct"],

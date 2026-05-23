@@ -48,6 +48,7 @@ class PipelineContext:
     face_brightness_after: float = 0.0
     correction_factor: float = 1.0
     face_brightness_delta: float = 0.0
+    face_skin_variance_before: float = 0.0
     warnings: list[str] = field(default_factory=list)
     debug_dir: str | None = None
 
