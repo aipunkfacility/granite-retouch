@@ -391,6 +391,91 @@ class TestFaceOvalInPipelineResult:
             f"Не должно быть face_skin warnings при отключённом овале: {result.warnings}"
         )
 
+    def test_preserve_profile_rolloff_applied(self, tmp_path):
+        """Preserve-профиль: highlight_rolloff реально сжимает светлые пиксели."""
+        from copy import deepcopy
+        from retouch.processing.core.pipeline import process_steps
+        from retouch.processing.core.plan import PROFILE_PRESERVE
+
+        config = deepcopy(DEFAULTS)
+        white_ceiling = config["processing"]["laser_standard"].get("white_ceiling", 250)
+        knee = white_ceiling * 0.90
+
+        arr = np.zeros((512, 512, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = 256, 256
+        rx, ry = 128, 150
+        y_c, x_c = np.ogrid[:512, :512]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 240
+        arr[ellipse, 1] = 240
+        arr[ellipse, 2] = 240
+        arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "bright_input.png")
+        img.save(path, "PNG")
+
+        result = process_steps(
+            path, machine_type="laser_standard", config=config,
+            profile=PROFILE_PRESERVE,
+        )
+
+        assert result.zone_masks is not None, "zone_masks должен строиться"
+        step_names = [r.step_name for r in result.step_metrics]
+        assert "highlight_rolloff" in step_names, f"highlight_rolloff отсутствует: {step_names}"
+        assert "postproc" not in step_names, f"postproc не должен быть: {step_names}"
+        final_arr = np.array(result.img_final)
+        subject_mask_arr = np.array(result.subject_mask) > 128
+        subject_pixels = final_arr[subject_mask_arr]
+        assert len(subject_pixels) > 0
+        assert subject_pixels.max() < 240, (
+            f"rolloff не сжал пиксели: max={subject_pixels.max()} >= 240"
+        )
+
+    def test_preserve_profile_rolloff_fallback_empty_highlights(self, tmp_path):
+        """Preserve-профиль: rolloff fallback при пустом highlights."""
+        from copy import deepcopy
+        from retouch.processing.core.pipeline import process_steps
+        from retouch.processing.core.plan import PROFILE_PRESERVE
+
+        config = deepcopy(DEFAULTS)
+
+        arr = np.zeros((512, 512, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = 256, 200
+        rx, ry = 128, 100
+        y_c, x_c = np.ogrid[:512, :512]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 80
+        arr[ellipse, 1] = 80
+        arr[ellipse, 2] = 80
+        arr[ellipse, 3] = 255
+        arr[300:340, 160:360, 0] = 240
+        arr[300:340, 160:360, 1] = 240
+        arr[300:340, 160:360, 2] = 240
+        arr[300:340, 160:360, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "dark_face_bright_clothes.png")
+        img.save(path, "PNG")
+
+        result = process_steps(
+            path, machine_type="laser_standard", config=config,
+            profile=PROFILE_PRESERVE,
+        )
+
+        assert result.img_final is not None
+        step_names = [r.step_name for r in result.step_metrics]
+        assert "highlight_rolloff" in step_names, f"highlight_rolloff отсутствует: {step_names}"
+        final_arr = np.array(result.img_final)
+        subject_mask_arr = np.array(result.subject_mask) > 128
+        subject_pixels = final_arr[subject_mask_arr]
+        assert len(subject_pixels) > 0
+        assert subject_pixels.max() < 240, (
+            f"rolloff fallback не сжал: max={subject_pixels.max()} >= 240"
+        )
+
 
 class TestPipelineStepsAPI:
     """Тесты нового API: process_steps, process_preview, process_export."""
