@@ -17,6 +17,38 @@ from retouch.processing.correction.mask_utils import apply_masked
 logger = logging.getLogger(__name__)
 
 
+def _compute_gamma_aware_target(
+    target_min: int,
+    target_max: int,
+    machine_cfg: dict,
+) -> tuple[float, float]:
+    gamma = machine_cfg.get("stone_gamma", 1.0)
+
+    if gamma is None or gamma >= 1.0:
+        return float(target_min), float(target_max)
+
+    ceiling = float(machine_cfg.get("white_ceiling", 250))
+    knee = ceiling * 0.90
+
+    max_pre_gamma = np.power(knee / 255.0, 1.0 / gamma) * 255.0
+
+    pre_gamma_min = np.power(target_min / 255.0, 1.0 / gamma) * 255.0
+    pre_gamma_max = np.power(target_max / 255.0, 1.0 / gamma) * 255.0
+
+    effective_min = min(pre_gamma_min, max_pre_gamma)
+    effective_max = min(pre_gamma_max, max_pre_gamma)
+
+    logger.info(
+        "Gamma-aware target: gamma=%.2f, knee=%.1f, max_pre_gamma=%.1f, "
+        "target_min=%d->effective_min=%.1f, target_max=%d->effective_max=%.1f",
+        gamma, knee, max_pre_gamma,
+        target_min, effective_min,
+        target_max, effective_max,
+    )
+
+    return effective_min, effective_max
+
+
 def face_brightness_correction(
     img_gray: Image.Image,
     subject_mask: Image.Image,
@@ -64,15 +96,19 @@ def face_brightness_correction(
     # --- Phase 1: Linear shift ---
     target_min = machine_cfg.get("face_brightness_target_min", face_brightness_target_min)
     target_max = machine_cfg.get("face_brightness_target_max", face_brightness_target_max)
-    target_mid = (target_min + target_max) / 2
+
+    effective_min, effective_max = _compute_gamma_aware_target(
+        target_min, target_max, machine_cfg,
+    )
+    target_mid = (effective_min + effective_max) / 2
 
     median_before = float(np.median(arr[apply_mask]))
 
     delta = 0.0
-    if median_before < target_min:
-        delta = min(target_min - median_before, max_delta)
-    elif median_before > target_max:
-        delta = max(target_max - median_before, -max_delta)
+    if median_before < effective_min:
+        delta = min(effective_min - median_before, max_delta)
+    elif median_before > effective_max:
+        delta = max(effective_max - median_before, -max_delta)
 
     corrected = arr.copy()
     if delta != 0:
@@ -84,11 +120,11 @@ def face_brightness_correction(
 
     # --- Phase 2: Curves fine-tune ---
     correction = 1.0
-    if median_after_linear < target_min:
-        delta2 = min(target_min - median_after_linear, max_delta / 2)
+    if median_after_linear < effective_min:
+        delta2 = min(effective_min - median_after_linear, max_delta / 2)
         correction = (median_after_linear + delta2) / max(median_after_linear, 1)
         correction = max(1.0, min(1.10, correction))
-    elif median_after_linear > target_max:
+    elif median_after_linear > effective_max:
         correction = target_mid / max(median_after_linear, 1)
         correction = max(0.85, min(1.00, correction))
 
@@ -116,9 +152,9 @@ def face_brightness_correction(
 
     logger.info(
         "Face brightness: %.1f -> linear %.1f -> final %.1f "
-        "(delta=%.1f, curves=%.3f, target=[%d,%d])",
+        "(delta=%.1f, curves=%.3f, target=[%d,%d], effective=[%.1f,%.1f])",
         median_before, median_after_linear, median_after,
-        delta, correction, target_min, target_max,
+        delta, correction, target_min, target_max, effective_min, effective_max,
     )
 
     return result_img, median_before, median_after, correction, delta
