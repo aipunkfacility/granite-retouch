@@ -273,6 +273,29 @@ def run_pipeline_steps(
             shadow_floor=shadow_floor,
         )
 
+    # --- Level 2: Safety cap — clip face_skin pixels above pre-gamma ceiling ---
+    _safety_gamma = ctx.machine_cfg.get("stone_gamma", 1.0)
+    if _safety_gamma is not None and _safety_gamma < 1.0 and zone_masks is not None:
+        _fs_mask = zone_masks.face_skin
+        if _fs_mask is not None and np.any(_fs_mask > 128):
+            _ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))
+            _knee = _ceiling * 0.90
+            _max_pre_gamma = np.power(_knee / 255.0, 1.0 / _safety_gamma) * 255.0
+            _arr = np.array(img_postproc, dtype=np.float32)
+            _fs_bool = _fs_mask > 128
+            _above = _arr[_fs_bool] > _max_pre_gamma
+            if np.any(_above):
+                _clipped_count = int(np.sum(_above))
+                _arr[_fs_bool] = np.minimum(_arr[_fs_bool], _max_pre_gamma)
+                img_postproc = Image.fromarray(
+                    np.clip(_arr, 0, 255).astype(np.uint8), mode='L',
+                )
+                logger.info(
+                    "Safety cap: %d face_skin pixels clipped at %.1f "
+                    "(knee=%.1f, gamma=%.2f)",
+                    _clipped_count, _max_pre_gamma, _knee, _safety_gamma,
+                )
+
     if set(validated.plan.active_steps) & {"shadow_floor", "stone_gamma", "white_ceiling"}:
         img_postproc = apply_postprocess(
             img_postproc,
