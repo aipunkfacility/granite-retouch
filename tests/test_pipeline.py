@@ -350,6 +350,47 @@ class TestFaceOvalInPipelineResult:
             f"zone_masks должен быть None, получен: {type(result.zone_masks)}"
         )
 
+    def test_face_oval_enabled_default_true_backward_compat(self, tmp_path):
+        """Старый конфиг без face_oval_enabled -> пайплайн как раньше (oval detected)."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        # Удаляем ключ — симулируем старый конфиг
+        config["processing"].pop("face_oval_enabled", None)
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        # Должен работать как обычно — овал определён
+        assert result.face_oval is not None, (
+            "Без face_oval_enabled овал должен определяться (default True)"
+        )
+        assert result.img_final is not None
+
+    def test_face_oval_disabled_rolloff_full_subject(self, tmp_path):
+        """face_oval_enabled=False -> rolloff по всему subject_mask (нет face_skin exclusion)."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["processing"]["face_oval_enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        # Проверяем что результат не пустой и нет тревожных варнингов
+        assert result.img_final is not None
+        assert not any("face_skin" in w.lower() for w in result.warnings), (
+            f"Не должно быть face_skin warnings при отключённом овале: {result.warnings}"
+        )
+
 
 class TestPipelineStepsAPI:
     """Тесты нового API: process_steps, process_preview, process_export."""
