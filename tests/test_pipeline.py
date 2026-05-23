@@ -311,6 +311,45 @@ class TestFaceOvalInPipelineResult:
         arr = np.array(result.img_final)
         assert arr.mean() > 10, "Результат не должен быть полностью чёрным"
 
+    def test_face_oval_disabled_no_levels_in_step_metrics(self, tmp_path):
+        """face_oval_enabled=False -> 'levels' отсутствует в step_metrics."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["processing"]["face_oval_enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        step_names = [r.step_name for r in result.step_metrics]
+        assert "levels" not in step_names, (
+            f"'levels' не должен выполняться при face_oval_enabled=False. "
+            f"Активные шаги: {step_names}"
+        )
+        assert "glow" in step_names, "glow должен выполняться всегда"
+
+    def test_face_oval_disabled_zone_masks_none(self, tmp_path):
+        """face_oval_enabled=False -> zone_masks=None в результате."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["processing"]["face_oval_enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        assert result.zone_masks is None, (
+            f"zone_masks должен быть None, получен: {type(result.zone_masks)}"
+        )
+
 
 class TestPipelineStepsAPI:
     """Тесты нового API: process_steps, process_preview, process_export."""

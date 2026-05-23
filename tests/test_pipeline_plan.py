@@ -140,3 +140,23 @@ class TestValidatePlan:
         result = validate_plan(plan, "invalid")
         # Invalid profile results in empty active_steps
         assert len(result.plan.active_steps) == 0
+
+
+class TestFaceOvalDisabledPlan:
+    """face_oval_enabled=False — уровни active_steps."""
+
+    def test_face_oval_enabled_plan_still_has_levels(self, default_config):
+        """face_oval_enabled=False НЕ влияет на validate_plan (levels убирается в steps.py)."""
+        from retouch.processing.core.plan import (
+            PipelinePlan, SafetyEnvelope, validate_plan,
+        )
+
+        machine_cfg = default_config["processing"]["laser_standard"]
+        plan = PipelinePlan.from_profile("standard", machine_cfg)
+        envelope = SafetyEnvelope.from_config(default_config)
+        validated = validate_plan(plan, "standard", machine_cfg, envelope=envelope)
+
+        # validate_plan не убирает levels — это делает steps.py
+        assert "levels" in validated.plan.active_steps, (
+            "validate_plan должен сохранять levels (удаление происходит в steps.py)"
+        )

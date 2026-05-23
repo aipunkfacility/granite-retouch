@@ -27,6 +27,7 @@ from retouch.processing.output.vignette import apply_vignette
 from retouch.processing.analysis.zones import build_zone_masks, ZoneMasks
 from retouch.processing.analysis.metrics import compute_zone_metrics, make_step_record, StepMetricsRecord, ZoneMetrics
 from retouch.processing.correction.rolloff import soft_rolloff_masked
+from dataclasses import replace
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,14 @@ def run_pipeline_steps(
 
     thresholds = _get_gate_thresholds(ctx.config)
 
+    # face_oval_enabled: если False, убираем 'levels' из active_steps
+    face_oval_enabled = ctx.config.get("processing", {}).get("face_oval_enabled", True)
+
     plan = PipelinePlan.from_profile(profile, ctx.machine_cfg)
+    if not face_oval_enabled and "levels" in plan.active_steps:
+        plan = replace(plan, active_steps=plan.active_steps - {"levels"})
+        logger.info("face_oval_enabled=False: 'levels' убран из active_steps")
+
     envelope = SafetyEnvelope.from_config(ctx.config)
     validated = validate_plan(plan, profile, ctx.machine_cfg, envelope=envelope)
 
