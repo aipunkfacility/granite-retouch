@@ -135,34 +135,54 @@ def process_steps(
     # 2. Grayscale — RGB уже pre-multiplied по альфе в chromakey
     img_gray = img_chromakey.convert("L")
 
-    # 2a. Детекция зоны лица (C.1: трёхуровневая стратегия)
-    # FIX-ORD-007: делаем ДО analyze_input, чтобы метрики считались по лицу
-    if face_oval is None:
-        face_oval = detect_face_oval(img_gray, subject_mask=subject_mask)
+    # 2a. Детекция зоны лица — можно отключить через face_oval_enabled
+    face_oval_enabled = proc_cfg.get("face_oval_enabled", True)
 
-    # 2b. Генерация маски лица из овала (C.2)
-    face_mask = generate_face_mask(width, height, face_oval, subject_mask)
+    if face_oval_enabled:
+        # C.1: трёхуровневая стратегия
+        # FIX-ORD-007: делаем ДО analyze_input, чтобы метрики считались по лицу
+        if face_oval is None:
+            face_oval = detect_face_oval(img_gray, subject_mask=subject_mask)
 
-    # 2d. Генерация маски волос (Этап 0: hair_mask в diagnostics)
-    hair_mask = generate_hair_mask(face_mask, subject_mask)
-    hair_mask_arr = np.array(hair_mask) > 128
-    hair_area = int(np.sum(hair_mask_arr))
-    subject_area = int(np.sum(np.array(subject_mask) > 128))
-    hair_ratio = hair_area / max(subject_area, 1)
+        # 2b. Генерация маски лица из овала (C.2)
+        face_mask = generate_face_mask(width, height, face_oval, subject_mask)
 
-    # Anomaly detection: hair-зона подозрительно велика или мала
-    hair_anomaly = False
-    hair_anomaly_reason = ""
-    if subject_area > 0:
-        if hair_ratio > 0.50:
-            hair_anomaly = True
-            hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} > 0.50 (подозрительно велика)"
-        elif hair_ratio < 0.02 and hair_area > 0:
-            hair_anomaly = True
-            hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} < 0.02 (подозрительно мала)"
+        # 2d. Генерация маски волос (Этап 0: hair_mask в diagnostics)
+        hair_mask = generate_hair_mask(face_mask, subject_mask)
+        hair_mask_arr = np.array(hair_mask) > 128
+        hair_area = int(np.sum(hair_mask_arr))
+        subject_area = int(np.sum(np.array(subject_mask) > 128))
+        hair_ratio = hair_area / max(subject_area, 1)
 
-    # 2c. Преданализ — метрики по лицу (не по субъекту с одеждой)
-    analytics = analyze_input(img_gray, np.array(subject_mask), np.array(face_mask))
+        # Anomaly detection: hair-зона подозрительно велика или мала
+        hair_anomaly = False
+        hair_anomaly_reason = ""
+        if subject_area > 0:
+            if hair_ratio > 0.50:
+                hair_anomaly = True
+                hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} > 0.50 (подозрительно велика)"
+            elif hair_ratio < 0.02 and hair_area > 0:
+                hair_anomaly = True
+                hair_anomaly_reason = f"hair_ratio={hair_ratio:.2f} < 0.02 (подозрительно мала)"
+
+        # 2c. Преданализ — метрики по лицу (не по субъекту с одеждой)
+        analytics = analyze_input(img_gray, np.array(subject_mask), np.array(face_mask))
+    else:
+        # Овал лица отключён — пустые маски, без коррекции лица.
+        # ВНИМАНИЕ: если оператор передал face_oval вручную (FaceOvalOverlay),
+        # оно игнорируется — отключённый овал = никакого овала.
+        logger.info("face_oval_enabled=False: пропуск детекции овала и коррекции лица")
+        face_oval = None
+        face_mask = Image.new("L", (width, height), 0)
+        hair_mask = Image.new("L", (width, height), 0)
+        hair_anomaly = False
+        hair_anomaly_reason = ""
+        hair_ratio = 0.0
+        # ВАЖНО: передаём None вместо face_mask!
+        # Пустой PIL-объект — не None: face_bool = весь False -> metric_pixels = []
+        # -> _empty_result() с нулями -> adaptive glow ломается (fallback на midpoint).
+        # None -> analyze_input берёт metric_pixels по subj_bool -> метрики по субъекту -> glow адаптивный.
+        analytics = analyze_input(img_gray, np.array(subject_mask), None)
 
     # B.1: Заполняем PipelineContext — внутренняя упаковка
     machine_cfg = proc_cfg.get(machine_type, {})

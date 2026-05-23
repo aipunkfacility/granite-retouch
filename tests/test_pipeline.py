@@ -271,6 +271,46 @@ class TestFaceOvalInPipelineResult:
         assert result.face_oval["cy"] == 0.25
         assert result.face_oval["source"] == "manual"
 
+    def test_face_oval_disabled_skips_detection(self, tmp_path):
+        """face_oval_enabled=False → face_oval=None, face_mask пустая."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["processing"]["face_oval_enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        assert result.face_oval is None, (
+            f"face_oval должен быть None, получен: {result.face_oval}"
+        )
+        assert result.face_mask is not None, "face_mask должен быть Image, не None"
+        fm_arr = np.array(result.face_mask)
+        assert fm_arr.max() == 0, "face_mask должна быть полностью чёрной (все 0)"
+
+    def test_face_oval_disabled_pipeline_completes(self, tmp_path):
+        """face_oval_enabled=False — пайплайн завершается, результат не пустой."""
+        from copy import deepcopy
+
+        from retouch.processing.core.pipeline import process_steps
+
+        config = deepcopy(DEFAULTS)
+        config["processing"]["face_oval_enabled"] = False
+
+        input_path = self._save_chromakey_png(tmp_path)
+        result = process_steps(
+            input_path, machine_type="laser_standard", config=config,
+        )
+
+        assert result.img_final is not None, "img_final не должен быть None"
+        assert result.img_final.mode == "L"
+        arr = np.array(result.img_final)
+        assert arr.mean() > 10, "Результат не должен быть полностью чёрным"
+
 
 class TestPipelineStepsAPI:
     """Тесты нового API: process_steps, process_preview, process_export."""
