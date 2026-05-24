@@ -34,7 +34,7 @@ Soft knee (rolloff) не применяется — все пиксели ниж
 
 ## Quality gate warnings
 
-Всего 7 quality gates: 3 pre-check (до обработки) + 4 post-check (после обработки).
+Всего 7 quality gates: 2 pre-check (до обработки) + 5 post-check (после обработки).
 
 ### `face_dark_small`
 
@@ -64,11 +64,11 @@ Soft knee (rolloff) не применяется — все пиксели ниж
 
 ---
 
-### `skin_delta_envelope`
+### `skin_delta_envelope` (Safety Envelope — не gate)
 
 **`skin_delta X.X > safety envelope — clamped to ±max_delta`**
 
-Дельта коррекции кожи превысила safety envelope из config.yaml.
+Дельта коррекции кожи превысила safety envelope из config.yaml. Это **не quality gate** — ограничение применяется через `validate_plan()` в `core/plan.py`, а не через gate-систему. Срабатывания не попадают в `gate_state`, но логируются в `validated_plan.warnings`.
 
 **Причины:**
 - Слишком агрессивная коррекция
@@ -106,9 +106,9 @@ Soft knee (rolloff) не применяется — все пиксели ниж
 
 ### `p95_shift`
 
-**`p95 shift X.X > 20 — delta weakened 50%`**
+**`p95 shift X.X > threshold — delta weakened 50%`**
 
-P95 (95-й перцентиль яркости) сдвинулся более чем на 20 уровней.
+P95 (95-й перцентиль яркости) face_skin сдвинулся больше допустимого порога. Порог зависит от станка: `face_skin_p95_shift_threshold` — 3.0 для laser_standard, 5.0 для impact, null (отключён) для laser_80w.
 
 **Причины:**
 - Агрессивная коррекция яркости

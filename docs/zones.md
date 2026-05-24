@@ -86,7 +86,7 @@ delta = clamp(target - median, -max_delta, +max_delta)
 1. `bounded_delta()` вычисляет сырую дельту как `target - median`
 2. Клиппит по `[-max_delta, +max_delta]`
 3. Возвращает `(delta, clamped)` — clamped=true если сработала оболочка
-4. Проверяется gate `skin_delta_envelope` — если `|delta| > max_delta`, warning в diagnostics
+4. Проверяется safety envelope через `validate_plan()` — если `|delta| > max_delta`, warning в `validated_plan.warnings` (это НЕ gate, см. troubleshooting.md)
 
 **Вес коррекции (curves):**
 
@@ -119,8 +119,8 @@ output = knee + rolloff                # результат
 
 **Применение по зонам (v6.5):**
 
-Rolloff применяется только к `highlights` зоне (не ко всему subject):
-- Если ZoneMasks доступны → rolloff по `highlights` + `face_skin`
+Rolloff применяется к `highlights` и `face_skin` зонам (не ко всему subject):
+- Если ZoneMasks доступны → rolloff по `highlights` + `face_skin` (v6.5)
 - Если ZoneMasks недоступны → fallback на `subject_mask`
 
 **Gate: `clipped_pct`**

@@ -8,7 +8,7 @@
 
 ```bash
 uv sync --extra dev   # pytest + jsonschema
-make test                     # 451+ тестов + 31 backend API тест
+make test              # 460+ тестов + 31 backend API тест
 ```
 
 ## Быстрый старт
@@ -22,6 +22,9 @@ uv run python -m retouch process -i ai.png -o final.bmp -m laser_standard
 
 # Мощный лазер 60-80W+
 uv run python -m retouch process -i ai.png -o final.bmp -m laser_80w
+
+# Ударный станок
+uv run python -m retouch process -i ai.png -o final.bmp -m impact
 
 # Список заказов
 uv run python -m retouch order list
@@ -42,13 +45,15 @@ make ui-prod     # production: один процесс uvicorn, статику �
 - Загрузка изображения через drag & drop
 - Живой предпросмотр при изменении параметров (слайдеры)
 - Переключение станка laser_standard / laser_80w / impact
-- Пресеты (готовые наборы параметров из `presets/`)
+- Выбор материала (granite, gabbro, marble, acrylic, slate)
+- Пресеты по производителю (Mirtels, САУНО, Stanzone, STONE-ГРАФ)
 - Экспорт BMP/PNG/TIFF в полном разрешении
 - FaceOval overlay — интерактивная коррекция овала лица (перетащить 4 handle)
 - **Advanced Mode** — технические параметры скрыты по умолчанию, доступны по чекбоксу
 - **Pin Face Oval** — фиксация овала кнопкой-пин, блокировка автообновления при ручном перемещении
-- **Просмотр дизеринга** — предпросмотр Jarvis дизеринга для laser_80w (по кнопке)
+- **Просмотр дизеринга** — предпросмотр Jarvis/Stucki дизеринга для всех станков (по кнопке)
 - **ParamToggle** — сегментный контрол для glow_style (Outer/Inner) вместо слайдера
+- **Profile Selector** — выбор профиля обработки (standard / preserve / diagnostic)
 
 ## Конфигурация
 
@@ -70,7 +75,9 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 | [docs/guides/style-guide-laser.md](docs/guides/style-guide-laser.md) | Стиль лазерной генерации (20-40W) |
 | [docs/guides/style-guide-laser-80w.md](docs/guides/style-guide-laser-80w.md) | Стиль генерации для мощных лазеров (60-80W+) |
 | [docs/guides/style-guide-impact.md](docs/guides/style-guide-impact.md) | Стиль ударной генерации |
-| [docs/architecture/pipeline.md](docs/architecture/pipeline.md) | Пайплайн обработки |
+| [docs/guides/pipeline-overview.md](docs/guides/pipeline-overview.md) | Как работает пайплайн (без кода) |
+| [docs/architecture/pipeline.md](docs/architecture/pipeline.md) | Пайплайн обработки (техническая документация) |
+| [docs/architecture/overview.md](docs/architecture/overview.md) | Архитектура проекта, структура каталогов |
 | [docs/zones.md](docs/zones.md) | Зональное разделение (ZoneMasks) |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Расшифровка diagnostics warnings |
 | [docs/integration/crm.md](docs/integration/crm.md) | Интеграция с granite-crm |
@@ -92,11 +99,13 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 - **Адаптивный pipeline:** Преданализ (13 метрик, ImageAnalytics dataclass) + масочная защита — коррекция только внутри маски субъекта
 - **Детекция лица:** трёхуровневая стратегия (профиль ширины маски → ручной овал → mediapipe в будущем)
 - **PipelineContext:** внутренняя упаковка параметров для уменьшения связности между шагами пайплайна
-- **Антиалиасный контур:** векторная трассировка через OpenCV (`cv2.LINE_AA`) — гладкий контур хромакея без лесенки на диагоналях. Без cv2 — fallback на GaussianBlur
-- **ZoneMasks:** автоматическое зональное разделение (face_skin, face_dark, hair, clothes, highlights) — коррекция применяется только к нужным зонам
-- **Processing profiles:** `standard` (полная обработка), `preserve` (минимальное вмешательство), `diagnostic` (расширенный сбор метрик)
-- **Quality gates:** 7 контрольных точек (3 pre-check, 4 post-check) — автоматическое ослабление агрессивных шагов
+- **Градиентная маска хромакея:** вместо бинарного порога — soft-step вокруг threshold. Плавный контур без зазубрин на диагоналях. Параметр `contour_smooth_epsilon` deprecated (игнорируется)
+- **ZoneMasks:** автоматическое зональное разделение (face_skin, face_dark, hair, clothes, highlights) — коррекция применяется только к нужным зонам. Beard detection — переклассификация тёмных зон нижней трети лица в hair
+- **Processing profiles:** `standard` (полная обработка), `preserve` (минимальное вмешательство — только chromakey, grayscale, glow, highlight_rolloff, vignette), `diagnostic` (расширенный сбор метрик)
+- **Quality gates:** 7 контрольных точек (2 pre-check, 5 post-check) — автоматическое ослабление агрессивных шагов
 - **Step metrics:** метрики по зонам после каждого шага — видно какой шаг ухудшил результат
+- **Safety Cap:** мягкий rolloff на face_skin перед gamma — предотвращает попадание лица в зону rolloff knee
+- **Двухпроходный postprocess:** пробный проход → gate check → ослабление gamma → повторный проход при необходимости
 
 ### Processing Profiles
 
@@ -105,8 +114,8 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 
 | Profile | Активные шаги | Назначение |
 |---------|--------------|------------|
-| `preserve` | chromakey → gray → glow → rolloff → vignette | Минимальное вмешательство, почти не меняет исходную AI-ретушь |
-| `standard` | Все шаги (chromakey, gray, glow, levels, face_correction, unsharp, shadow_noise, postproc, vignette) | Полная обработка с автокоррекцией |
+| `preserve` | chromakey, grayscale, glow, highlight_rolloff, vignette | Минимальное вмешательство, почти не меняет исходную AI-ретушь |
+| `standard` | chromakey, grayscale, glow, levels, unsharp, shadow_noise, shadow_floor, stone_gamma, white_ceiling, vignette | Полная обработка с автокоррекцией |
 | `diagnostic` | Все шаги + расширенные маски и step-метрики | Отладка и анализ качества |
 
 Выбор профиля: через CLI (`--profile preserve`) или UI (Profile Selector).
@@ -118,19 +127,32 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 **Pre-check (до шага):**
 | Gate | Триггер | Действие |
 |------|---------|----------|
-| `face_dark_small` | < 5% тёмных пикселей лица | Пропустить коррекцию |
+| `face_dark_small` | face_dark < 5% от face_mask | Пропустить коррекцию |
 | `contour_inner_quality` | контур > 30% субъекта | Fallback на morphological contour |
-| `skin_delta_envelope` | delta > safety envelope | Клиппинг до ±max_delta |
 
 **Post-check (после шага):**
 | Gate | Триггер | Действие |
 |------|---------|----------|
-| `variance_loss` | потеря variance > 35% | Ослабить stone_gamma на 50% |
-| `clipped_pct` | клиппинг > 5% | Увеличить rolloff compression на 20% |
-| `p95_shift` | сдвиг p95 > 20 | Ослабить skin_delta на 50% |
+| `variance_loss` | потеря variance face_skin > 35% | Ослабить stone_gamma на 50% |
+| `clipped_pct` | клиппинг face_skin > 5% | Увеличить rolloff compression на 20% |
+| `p95_shift` | сдвиг face_skin p95 > порога (3.0 laser_standard, 5.0 impact) | Ослабить stone_gamma на 50% |
+| `p95_shift_cumulative` | cumulative сдвиг face_skin p95 от baseline > порога | Diagnostic only (warning) |
 | `shadow_crush` | crush теней > 10% | Отключить shadow_floor и stone_gamma |
 
+Пороги настраиваются через `quality_gates` секцию в config.yaml, включая per-machine переопределения.
+
 Все срабатывания пишутся в `diagnostics` с `gate_name`, `original_value`, `adjusted_value`, `reason`.
+
+### Safety Envelope
+
+Максимальные допустимые дельты коррекции по зонам (настраиваются через `safety_envelope` в config.yaml):
+
+| Зона | Макс. дельта | Обоснование |
+|------|-------------|-------------|
+| face_skin | ±15 уровней (~6%) | Едва заметно на гравировке |
+| face_dark | ±5 уровней | Минимальное вмешательство (брови, тени) |
+| hair | ±3 уровня | Почти не трогаем |
+| clothes | 0 | Одежда не меняется по решению лица |
 
 ### Rolling Ceiling
 
@@ -138,8 +160,8 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 
 - **Принцип:** Плавное сжатие light-зоны после порога knee, а не обрезание
 - **Формула:** `output = knee + max(value - knee, 0) * (1 - compression)`
-- **По зонам (v6.5):** Rolloff применяется только к `highlights` и `face_skin` (не ко всему subject)
-- **Параметры:** `rolloff_knee` (по умолч. 200), `rolloff_compression` (по умолч. 0.35) из config.yaml
+- **По зонам (v6.5):** Rolloff применяется к `highlights` и `face_skin` (не ко всему subject)
+- **Параметры:** `rolloff_knee` (по умолч. 90% от white_ceiling), `rolloff_compression` (по умолч. 0.35) из config.yaml
 
 ## Known Limitations
 
@@ -156,8 +178,10 @@ Python `DEFAULTS` в `retouch/config.py` — единственный источ
 
 Конфигурация использует `stone_gamma` (SOP 5.1) вместо устаревшего `brightness`. Если в `config.yaml` или через UI передан `brightness`, он автоматически мигрируется в `stone_gamma` с DeprecationWarning. Рекомендуется обновить конфигурацию вручную.
 
-### Антиалиасный контур хромакея
+### Deprecated поле `stone.type` → `stone.material`
 
-Начиная с v5.0.0-dev контур хромакея использует OpenCV `cv2.LINE_AA` для субпиксельного антиалиасинга. Это требует `opencv-python` (~30MB). Если cv2 не установлен — fallback на GaussianBlur (видимая лесенка на диагоналях).
+Конфигурация использует `material` вместо устаревшего `stone.type`. Оба ключа синхронизируются автоматически — `material` является источником истины. `stone.type` будет удалён в v5.
 
-Контур вырезки хромакея — градиентная маска (soft-step вокруг threshold) вместо бинарного порога. Плавный контур без зазубрин на диагоналях. Параметр `contour_smooth_epsilon` deprecated (игнорируется).
+### Градиентная маска хромакея
+
+Контур вырезки хромакея — градиентная маска (soft-step вокруг threshold) вместо бинарного порога. Плавный контур без зазубрин на диагоналях. Параметр `contour_smooth_epsilon` deprecated (игнорируется). Ветка `if HAS_CV2:` убрана — один путь кода для всех окружений.

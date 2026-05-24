@@ -70,7 +70,7 @@ source .venv/bin/activate
 ## 3. Проверка установки
 
 ```bash
-# Все тесты (536+ тестов)
+# Все тесты (460+ тестов + 31 backend API тест)
 .venv\Scripts\python.exe -m pytest tests/ -v
 
 # Справка CLI

@@ -16,6 +16,7 @@
 - Файл существует и открывается Pillow
 - Формат: PNG, JPEG, TIFF
 - Разрешение >= `min_resolution` (default: 512px)
+- Разрешение <= `max_resolution` (default: 8192px) — защита от OOM
 - Синий хромакей: >= `min_blue_ratio` (default: 15%) синих пикселей
 
 Ошибка → `ValidationError` + exit 1.
@@ -45,27 +46,7 @@ img_gray = img.convert("L")
 
 Изображение становится одноканальным. Все дальнейшие шаги работают в режиме L.
 
-### 4a. Преданализ (analytics)
-
-**Модуль:** `retouch/processing/analysis/analysis.py`
-
-После конвертации в grayscale pipeline измеряет 13 метрик входного изображения **внутри маски лица** (если face_mask доступен, иначе — внутри маски субъекта). Метрики по лицу точнее — чёрная одежда не тянет медиану вниз (FIX-ORD-007).
-
-| Метрика | Описание |
-|---------|----------|
-| `median_brightness` | Медианная яркость лица |
-| `mean_brightness` | Средняя яркость лица |
-| `p10_brightness` / `p90_brightness` | Глубокие тени / блики (перцентили) |
-| `tonal_range` | Тональный диапазон (p90 - p10) |
-| `highlight_clipping_pct` | % пикселей ≥250 (пересвет) |
-| `shadow_clipping_pct` | % пикселей ≤5 (провалы) |
-| `bg_median_brightness` | Медианная яркость фона (~0 после хромакея) |
-| `subject_separation` | |face_median - bg_median| |
-| `input_class` | Классификация: dark / medium / bright / overbright |
-
-Метрики возвращаются в виде `ImageAnalytics` dataclass с методами `from_dict()`/`to_dict()` для обратной совместимости. Результат передаётся во все последующие шаги (Glow, Levels, Unsharp). Если numpy недоступен — используется legacy mode с фиксированными параметрами из конфига.
-
-### 4b. Детекция зоны лица (C.1)
+### 4a. Детекция зоны лица (C.1)
 
 **Модуль:** `retouch/processing/detection/face_region.py`
 
@@ -102,7 +83,7 @@ useEffect(() => {
 | Overlay OFF, Pin ON | Овал НЕ обновляется, фиксируется |
 | Overlay ON, любой Pin | Овал обновляется из ручного drag |
 
-### 4c. Генерация маски лица и волос из овала (C.2)
+### 4b. Генерация маски лица и волос из овала (C.2)
 
 **Модуль:** `retouch/processing/detection/face_region.py`
 
@@ -110,6 +91,50 @@ useEffect(() => {
 - `generate_hair_mask(face_mask, subject_mask, gap_ratio=0.05)` — маска волос = субъект выше овала лица с зазором `gap_ratio` (доля высоты изображения)
 
 Маска лица точнее, чем топологический `face_region_top` — овал ограничивает замер яркости зоной лица, исключая лоб/волосы/шею.
+
+### 4c. Преданализ (analytics)
+
+**Модуль:** `retouch/processing/analysis/analysis.py`
+
+После конвертации в grayscale pipeline измеряет 13 метрик входного изображения **внутри маски лица** (если face_mask доступен, иначе — внутри маски субъекта). Метрики по лицу точнее — чёрная одежда не тянет медиану вниз (FIX-ORD-007).
+
+| Метрика | Описание |
+|---------|----------|
+| `median_brightness` | Медианная яркость лица |
+| `mean_brightness` | Средняя яркость лица |
+| `p10_brightness` / `p90_brightness` | Глубокие тени / блики (перцентили) |
+| `tonal_range` | Тональный диапазон (p90 - p10) |
+| `highlight_clipping_pct` | % пикселей ≥250 (пересвет) |
+| `shadow_clipping_pct` | % пикселей ≤5 (провалы) |
+| `bg_median_brightness` | Медианная яркость фона (~0 после хромакея) |
+| `subject_separation` | |face_median - bg_median| |
+| `input_class` | Классификация: dark / medium / bright / overbright |
+
+Метрики возвращаются в виде `ImageAnalytics` dataclass с методами `from_dict()`/`to_dict()` для обратной совместимости. Результат передаётся во все последующие шаги (Glow, Levels, Unsharp). Если numpy недоступен — используется legacy mode с фиксированными параметрами из конфига.
+
+### 4d. Зональное разделение (ZoneMasks)
+
+**Модуль:** `retouch/processing/analysis/zones.py`
+
+Изображение разбивается на дизъюнктные технические зоны для дифференцированной обработки:
+
+| Зона | Описание | Порог |
+|------|----------|-------|
+| `face_skin` | Кожа лица (адаптивный порог по `median_brightness`) | `face_skin_threshold` (default: 100) |
+| `face_dark` | Тёмные участки лица (брови, тени, борода) | ниже skin_threshold |
+| `hair` | Волосы (субъект выше овала лица) | — |
+| `clothes` | Одежда (субъект ниже овала лица) | — |
+| `highlights` | Яркие зоны субъекта | `highlight_start` (default: 200) |
+| `contour_inner` | Внутренний край для glow | из gradient/fallback morphological |
+| `contour_outer` | Внешний край для антифринги | из gradient |
+| `background` | Фон (вне маски субъекта) | — |
+
+`build_zone_masks()` возвращает `ZoneMasks` dataclass. `resolve_zone_priority()` гарантирует дизъюнктность масок (каждый пиксель принадлежит только одной зоне). Приоритет: highlights > face_skin > face_dark > hair > clothes > contour_inner. `background` явно исключён из priority resolution — не получает тональных коррекций.
+
+Дополнительные возможности:
+- **Адаптивный порог кожи:** двухпроходной алгоритм — Pass 1: coarse_skin = face_pixels >= threshold, Pass 2: histogram_mode(coarse_skin) сглаживание → clamp(mode - delta, min, max)
+- **Beard detection:** если face_dark > 40% лица и концентрируется в нижней трети овала — подозрение бороды, переклассификация face_dark → hair
+- **Contour fallback:** если gradient-маска некачественная (>30% subject), автоматический fallback на morphological contour (dilate - erode)
 
 ### 5. Glow (inner | outer, детерминированный)
 
@@ -125,49 +150,43 @@ useEffect(() => {
 
 Параметры зависят от типа станка и аналитики:
 - **Laser Standard:** glow 40–80px, opacity 30–40% (широкий, мягкий)
-- **Laser 80W:** фиксированные параметры (20, 15) — мощный лазер сам создаёт контраст. Glow фиксирован на середине диапазона для обеспечения детерминированности (D.1).
+- **Laser 80W:** фиксированные параметры (15–25, 10–20) — мощный лазер сам создаёт контраст. Glow фиксируется на середине диапазона для обеспечения детерминированности (D.1).
 - **Impact:** параметры зависят от `subject_separation` и `tonal_range` — при низкой сепарации glow усиливается
 
-### 6. Levels (яркость)
+### 6. Face Brightness Correction (bounded delta + curves)
 
-**Модуль:** `retouch/processing/correction/levels.py`
+**Модуль:** `retouch/processing/correction/face_brightness.py`
+
+> **Переименование**: ранее функция называлась `check_face_brightness()` в модуле `face_correction.py`. Начиная с v6.4 — `face_brightness_correction()` в `face_brightness.py`.
 
 Двусторонняя bounded delta формула (рефакторинг v6.4):
-- `target_pre_fb`: laser_standard=210, laser_80w=170, impact=180
+- `target_pre_fb`: laser_standard=180, laser_80w=150, impact=160
 - `delta = target_pre_fb - median_brightness`, ограничен `±max_delta`
 - `factor = 1 + delta / median_brightness`, ограничен `[min_factor, max_factor]`
 - Защита от клиппинга: если `p90 * factor > 250` → фактор снижается
 - Без analytics — legacy mode (фиксированный `brightness_factor` из конфига)
 
+Нелинейная (curves) коррекция:
+- Тени корректируются полностью, света минимально
+- Это поднимает лицо (тёмное) без пересвета воротника (светлого)
+- Коррекция применяется только внутри `subject_mask`
+
+Целевые диапазоны по типу станка:
+- **Laser Standard:** 230–245, white_ceiling: 250, highlight_start: 210
+- **Laser 80W:** 160–210, white_ceiling: 235, highlight_start: 195
+- **Impact:** 170–215, white_ceiling: 245, highlight_start: 185
+
+`highlight_start` вычисляется по формуле `white_ceiling - 40`, чтобы коррекция уровней плавно затухала только после достижения целевой яркости лица.
+
 ### 6a. Масочная защита
 
-`apply_levels()` и `apply_unsharp_mask()` принимают `subject_mask`. Пиксели вне маски (фон) остаются без изменений — предотвращает серую дымку на чёрном фоне и halo на границе субъект/фон. Это критично: после хромакея фон должен быть абсолютно чёрным (~0), и любая коррекция яркости или резкости за пределами маски субъекта создаёт видимые артефакты на готовой гравировке.
+`face_brightness_correction()` и `apply_unsharp_mask()` принимают `subject_mask` и `face_skin_mask`. Пиксели вне маски (фон) остаются без изменений — предотвращает серую дымку на чёрном фоне и halo на границе субъект/фон. Это критично: после хромакея фон должен быть абсолютно чёрным (~0), и любая коррекция яркости или резкости за пределами маски субъекта создаёт видимые артефакты на готовой гравировке.
 
-### 7. Face Brightness (по маске лица)
-
-**Модуль:** `retouch/processing/correction/face_correction.py` → `check_face_brightness()`
-
-Начиная с этапа C.3, `check_face_brightness()` принимает `face_mask_img` (маску лица из овала) вместо топологического `face_region_top`. Маска лица точнее — овал ограничивает замер яркости зоной лица, исключая лоб/волосы/шею.
-
-- Сжимает маску лица на `glow_size` пикселей (исключает внутренний контур свечения из замера)
-- Измеряет среднюю яркость по сжатой маске
-- Если вне диапазона `face_brightness_target`:
-  - Вычисляет correction factor: `target_mid / current_avg`
-  - Ограничивает: `max(0.60, min(1.40, correction))`
-  - Применяет **нелинейную (curves) коррекцию**: тени корректируются полностью, света минимально
-  - Это поднимает лицо (тёмное) без пересвета воротника (светлого)
-- Масочная защита: коррекция применяется только внутри `subject_mask`
-- Целевые диапазоны по типу станка:
-  - **Laser Standard:** 230–245, white_ceiling: 250, highlight_start: 210
-  - **Laser 80W:** 190–210, white_ceiling: 235, highlight_start: 195
-  - **Impact:** 200–225, white_ceiling: 240, highlight_start: 200
-- **highlight_start** теперь вычисляется по формуле `white_ceiling - 40`, чтобы коррекция уровней плавно затухала только после достижения целевой яркости лица. Это гарантирует, что яркое лицо не будет «задушено» защитой от пересвета слишком рано.
-
-### 8. Unsharp Mask (адаптивный)
+### 7. Unsharp Mask (адаптивный, с face_skin overshoot limit)
 
 **Модуль:** `retouch/processing/correction/unsharp.py`
 
-Порядок шагов изменён (A.3): unsharp mask теперь **ПОСЛЕ** face_brightness correction. Старый порядок доступен через `legacy_step_order: true` в config.yaml.
+Unsharp mask теперь **ПОСЛЕ** face_brightness correction (A.3). Старый порядок доступен через `legacy_step_order: true` в config.yaml.
 
 - `ImageFilter.UnsharpMask(radius=1.5, percent=<adaptive>, threshold=0)`
 - Адаптивный percent зависит от analytics:
@@ -175,8 +194,21 @@ useEffect(() => {
   - `tonal_range < 40` → 150 (усиленный — узкий диапазон требует чёткости)
   - Норма → 120 (стандартный)
 - Масочная защита: резкость применяется только внутри `subject_mask`
+- **Face skin overshoot limit** (v6.4): если доступна `face_skin_mask`, пиксели внутри неё не могут превысить `white_ceiling + face_overshoot_limit` (default: 8–10 уровней). Это предотвращает «звенящий» пересвет на коже лица при агрессивной резкости, сохраняя детализацию в одежде
 
-### 8a. Shadow Noise (impact)
+### 7a. Safety Cap (face_skin soft rolloff перед gamma)
+
+**Встроен в:** `retouch/processing/core/steps.py`
+
+Если `stone_gamma < 1.0` (осветляющая gamma) и доступна `face_skin_mask`:
+1. Вычисляется `knee = white_ceiling × 0.90`
+2. Вычисляется `safe_post_gamma = knee - FACE_SKIN_KNEE_MARGIN (10 уровней)`
+3. Обратный расчёт: `max_pre_gamma = (safe_post_gamma / 255)^(1/gamma) × 255`
+4. Пиксели face_skin выше `soft_knee_start = max_pre_gamma - 5` плавно сжимаются (soft rolloff)
+
+**Цель:** гарантировать, что после применения gamma лицо не попадёт в зону rolloff knee — иначе tonal variation лица будет сжата в серое плато. Safety cap применяется **после** unsharp (чтобы overshoot тоже был ограничен) и **до** postprocess (gamma + rolloff).
+
+### 7b. Shadow Noise (impact only)
 
 **Модуль:** `retouch/processing/correction/shadow_noise.py`
 
@@ -184,19 +216,31 @@ useEffect(() => {
 
 Это даёт игле impact-станка «зацепку» в полностью чёрных областях — без шума игла не бьёт в пиксели со значением 0.
 
-### 8b. Shadow Floor (impact)
+### 8. Postprocess (shadow_floor + stone_gamma + white_ceiling + soft_rolloff)
 
-**Встроен в:** `retouch/processing/correction/postprocess.py`
+**Модуль:** `retouch/processing/correction/postprocess.py`
 
-Отдельный шаг для impact: `np.maximum(arr, shadow_floor)`. Предотвращает уход теней в 0 — игла застревает на чистом чёрном. Shadow floor — machine-specific логика, вынесена из `_curves_correction()` чтобы не нарушать SRP.
+`apply_postprocess()` — унифицированный шаг, объединяющий:
+- **Shadow floor:** `np.maximum(arr, shadow_floor)` — предотвращает уход теней в 0. Для `laser_standard` и `laser_80w` shadow floor ограничен `face_mask` — применяется только к коже лица, не затрагивая волосы и одежду (v6.4 fix)
+- **Stone gamma:** `apply_stone_gamma_masked()` — гамма-коррекция (< 1.0 осветляет, > 1.0 затемняет)
+- **White ceiling + soft rolloff:** `soft_rolloff_masked()` — плавное сжатие яркости в зоне highlights. Заменяет hard clamp `np.clip` — сохраняет текстуру в зоне пересвета. Rolloff применяется к `highlights` и `face_skin` зонам (v6.5), не ко всему subject
 
-Для `laser_standard` и `laser_80w` shadow floor ограничен `face_mask` — применяется только к коже лица, не затрагивая волосы и одежду (v6.4 fix).
+#### Двухпроходный postprocess
 
-### 8c. White Ceiling Clamp + Soft Rolloff
+Postprocess выполняется в два прохода с gate check между ними:
 
-**Встроен в:** `retouch/processing/correction/postprocess.py`, `retouch/processing/correction/rolloff.py`
+1. **Pass 1** (пробный): `apply_postprocess()` с текущими параметрами
+2. **Gate check**: замер `face_skin p95` до и после. Если per-step shift ≥ `face_skin_p95_shift_threshold` → gate сработал
+3. **Pass 2** (при необходимости): `stone_gamma` ослабляется до `1.0 + (gamma - 1.0) × 0.5`, postprocess повторяется
 
-Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — плавное сжатие яркости в зоне highlights. Заменяет hard clamp `np.clip` — сохраняет текстуру в зоне пересвета. Используется в levels и face_correction.
+Это предотвращает «перекоррекцию» — когда gamma слишком сильно сдвигает лицо, gate автоматически ослабляет gamma и пересчитывает результат.
+
+### 8a. Highlight Rolloff (профиль preserve)
+
+Для профиля `preserve` вместо полного postprocess применяется только `highlight_rolloff`:
+- `build_face_safe_rolloff_mask()` создаёт маску только для `highlights` зоны (не face_skin)
+- `soft_rolloff_masked()` плавно сжимает яркие пиксели
+- Без gamma, без shadow_floor — минимальное вмешательство в исходную AI-ретушь
 
 ### 9. Арховая виньетка
 
@@ -206,6 +250,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 - Размывает край Gaussian Blur
 - Композитит обработанное изображение поверх чёрного фона через виньеточную маску
 - Параметры: vertical_offset, vertical_diameter, blur_radius, headroom, horizontal_oversize
+- Можно отключить через `vignette.enabled: false` в config.yaml
 
 См. [guides/vignette.md](../guides/vignette.md).
 
@@ -250,36 +295,24 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 ## PipelineContext (B.1)
 
-**Модуль:** `retouch/processing/core/pipeline.py`
+**Модуль:** `retouch/processing/core/context.py`
 
-`PipelineContext` dataclass — внутренняя упаковка параметров пайплайна (только внутри `pipeline.py`). Публичный API функций обработки НЕ меняется — они сохраняют текущие сигнатуры.
+`PipelineContext` dataclass — внутренняя упаковка параметров пайплайна (только внутри `pipeline.py` и `steps.py`). Публичный API функций обработки НЕ меняется — они сохраняют текущие сигнатуры.
 
 Поля:
 - `img_gray`, `img_chromakey`, `subject_mask`, `face_mask`, `hair_mask` — изображения и маски
 - `hair_anomaly`, `hair_ratio` — диагностика hair-зоны (v6.4)
 - `analytics` — ImageAnalytics или dict
-- `machine_type`, `config`, `stone_type`, `stone_heterogeneity`, `step_mm` — параметры конфигурации
-- `face_brightness_before`, `face_brightness_after`, `correction_factor` — диагностические метрики
+- `machine_type`, `config`, `machine_cfg`, `stone_type`, `step_mm` — параметры конфигурации
+- `face_brightness_before`, `face_brightness_after`, `correction_factor`, `face_brightness_delta` — диагностические метрики
+- `face_skin_variance_before` — variance face_skin до коррекции
 - `warnings`, `debug_dir` — предупреждения и директория отладки
 
-`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`), параметры овала лица (`face_oval` — для передачи preview → export без повторной детекции), диагностику hair-зоны (`hair_mask`, `hair_anomaly`, `hair_ratio`) и метод `release_intermediates()` для освобождения памяти.
+`PipelineResult` содержит все промежуточные изображения, метрики качества (F.2: `clipped_pixels_pct`, `shadow_crush_pct`, `tonal_range_output`, `quality_warnings`), параметры овала лица (`face_oval` — для передачи preview → export без повторной детекции), диагностику hair-зоны (`hair_mask`, `hair_anomaly`, `hair_ratio`), step-метрики (`step_metrics`), plan (`plan`, `validated_plan`), zone masks (`zone_masks`), gate state (`gate_state`) и метод `release_intermediates()` для освобождения памяти.
 
 ---
 
-## Новые модули обработки (v6.4)
-
-### ZoneMasks
-
-**Модуль:** `retouch/processing/analysis/zones.py`
-
-Зональное разделение изображения для дифференцированной обработки:
-- `face_skin` — кожа лица (адаптивный порог по `median_brightness`)
-- `face_dark` — тёмные участки лица (брови, тени)
-- `hair` — волосы (субъект выше овала лица)
-- `clothes` — одежда (субъект ниже овала лица)
-- `background` — фон (вне маски субъекта)
-
-`build_zone_masks()` возвращает `ZoneMasks` dataclass. `resolve_zone_priority()` гарантирует дизъюнктность масок (каждый пиксель принадлежит только одной зоне). `background` явно исключён из priority resolution — не получает тональных коррекций.
+## Принятие решений
 
 ### PipelinePlan
 
@@ -287,18 +320,56 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 Структурированное описание плана обработки:
 - `PipelinePlan` — активные шаги, параметры (skin_delta, glow_size, unsharp_*, stone_gamma, shadow_floor, white_ceiling)
-- `SafetyEnvelope` — лимиты коррекций по зонам: `face_skin ±15`, `face_dark ±5`, `hair ±3`, `clothes 0`
-- `ValidatedPlan` — результат `validate_plan()` с флагами нарушений
-- Профили: `standard` (все шаги), `preserve` (только chromakey → gray → glow → rolloff → vignette), `diagnostic` (с сохранением масок и метрик)
+- `SafetyEnvelope` — лимиты коррекций по зонам: `face_skin ±15`, `face_dark ±5`, `hair ±3`, `clothes 0`. Настраивается через `safety_envelope` секцию в config.yaml
+- `ValidatedPlan` — результат `validate_plan()` с флагами нарушений, отключёнными шагами, клипнутыми параметрами
+- Профили: `standard` (все шаги), `preserve` (только chromakey → gray → glow → highlight_rolloff → vignette), `diagnostic` (с сохранением масок и метрик)
 
 ### ZoneMetrics
 
 **Модуль:** `retouch/processing/analysis/metrics.py`
 
 Метрики по зонам после каждого шага обработки:
-- `ZoneMetrics` — median, mean, p10, p90, tonal_range для каждой зоны
-- `StepMetricsRecord` — снимок метрик после конкретного шага пайплайна
+- `ZoneMetrics` — median, mean, p10, p90, p95, max, variance, clipped_pct для каждой зоны
+- `StepMetricsRecord` — снимок метрик после конкретного шага пайплайна + timestamp + warnings
 - `compute_zone_metrics()` — вычисление метрик по `ZoneMasks`
+
+### Quality Gates
+
+**Модуль:** `retouch/processing/core/gates.py`
+
+Контрольные точки качества пайплайна:
+
+**Pre-check (2):**
+
+| Gate | Функция | Триггер | Действие |
+|------|---------|---------|----------|
+| `face_dark_small` | `pre_check_face_dark_small()` | face_dark < 5% от face_mask | Пропустить коррекцию |
+| `contour_inner_quality` | `pre_check_contour_inner_quality()` | contour_inner > 30% субъекта | Fallback на morphological contour |
+
+**Post-check (5):**
+
+| Gate | Функция | Триггер | Действие |
+|------|---------|---------|----------|
+| `variance_loss` | `post_check_variance_loss()` | потеря variance face_skin > 35% | Ослабить stone_gamma на 50% |
+| `clipped_pct` | `post_check_clipped_pct()` | клиппинг face_skin > 5% | Увеличить rolloff compression на 20% |
+| `p95_shift` | `post_check_p95_shift()` | сдвиг face_skin p95 > порога (3.0 laser, 5.0 impact) | Ослабить stone_gamma на 50% |
+| `p95_shift_cumulative` | `post_check_p95_shift(gate_name=...)` | cumulative сдвиг face_skin p95 > порога | Diagnostic only (warning) |
+| `shadow_crush` | `post_check_shadow_crush()` | crush теней > 10% | Отключить shadow_floor и stone_gamma |
+
+Каждый gate возвращает `GateResult(gate_name, step_name, triggered, original_value, adjusted_value, reason)`. `gate_state` в `PipelineResult` — сводка всех gate'ов.
+
+### Gates Enforcement
+
+**Модуль:** `retouch/processing/core/gates_enforcement.py`
+
+`enforce_gates()` применяется после unsharp, до postprocess. Порядок ослабления:
+
+1. **shadow_crush** (P1.3, экстренный): сбрасывает `shadow_floor = 0` и `stone_gamma = 1.0`. Проверяется первым — если тени раздавлены, остальные ослабления бессмысленны
+2. **variance_loss / p95_shift**: ослабляют `stone_gamma` до `1.0 + (gamma - 1.0) × 0.5` (single-pass, не кумулятивно). Если shadow_crush уже сбросил gamma — пропускается
+3. **p95_shift_cumulative**: diagnostic only — добавляет warning, НЕ ослабляет gamma
+4. **clipped_pct**: увеличивает `rolloff_compression` на 20% (max 0.80)
+
+Пороги настраиваются через `quality_gates` секцию в config.yaml. Per-machine переопределения: `face_skin_p95_shift_threshold_by_machine`.
 
 ### Soft Rolloff
 
@@ -307,17 +378,8 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 Унифицированная функция `soft_rolloff_masked(arr, mask, knee, ceiling, compression)`:
 - Плавное сжатие яркости в зоне highlights (soft knee)
 - Заменяет inline `np.clip` — сохраняет текстуру в зоне пересвета
-- Используется в levels и face_correction
-
-### Quality Gates
-
-**Модуль:** `retouch/processing/core/gates.py`
-
-7 контрольных точек качества пайплайна:
-- **Pre-check (3):** `pre_check_face_dark_small`, `pre_check_contour_inner_quality`, `pre_check_skin_delta_envelope`
-- **Post-check (4):** `post_check_variance_loss`, `post_check_clipped_pct`, `post_check_p95_shift`, `post_check_shadow_crush`
-
-Каждый gate возвращает `GateResult(gate_name, step_name, triggered, original_value, adjusted_value, reason)`. `gate_state` в `PipelineResult` — сводка всех gate'ов.
+- Используется в postprocess и face_brightness
+- `build_face_safe_rolloff_mask()` — строит маску для rolloff: `highlights` зона (основная) + `face_skin` (v6.5), исключая face_dark, hair, clothes
 
 ---
 
@@ -329,14 +391,15 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 Решение:
 1. Понизить `face_brightness_target` (напр. [100, 130] вместо [200, 225])
-2. Установить `brightness: 1.00`
+2. Установить `stone_gamma: 1.00`
 3. Проверить что glow не завышает замер (маска сжимается на glow_size)
+4. Проверить gate_state — если `p95_shift` сработал, gamma ослаблена автоматически
 
 ### Воротник пересвечен
 
 Причина: коррекция яркости применялась ко всему изображению без маски. Начиная с v5.0.0 маска лица из овала (C.3) ограничивает замер зоной лица — воротник исключается.
 
-Решение: убедитесь, что `face_mask` передаётся в `check_face_brightness()`. Если проблема остаётся — понизить `face_brightness_target`.
+Решение: убедитесь, что `face_mask` передаётся в `face_brightness_correction()`. Если проблема остаётся — понизить `face_brightness_target`.
 
 ### Белый фон (не чёрный)
 
@@ -348,7 +411,7 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 
 Причина: коррекция яркости или резкость «задела» фоновые пиксели. Исправлено масочной защитой (шаг 6a).
 
-Решение: убедитесь, что `subject_mask` передаётся в `apply_levels()` и `apply_unsharp_mask()`.
+Решение: убедитесь, что `subject_mask` передаётся в `face_brightness_correction()` и `apply_unsharp_mask()`.
 
 ### Голова обрезана виньеткой
 
@@ -361,3 +424,15 @@ Soft rolloff: `soft_rolloff_masked(arr, mask, knee, ceiling, compression)` — �
 Причина: до v5.0.0 glow рандомизировался, давая разный результат при каждом запуске.
 
 Решение: обновлено до v5.0.0 — glow детерминирован (D.1), preview и export дают одинаковый результат.
+
+### Лицо серое плоское после postprocess
+
+Причина: face_skin попал в зону rolloff knee — tonal variation сжалась в серое плато.
+
+Решение: safety cap (шаг 7a) предотвращает это автоматически. Если проблема остаётся — проверьте `face_skin_p95_shift_threshold` в quality_gates, возможно gamma слишком агрессивная и gate не успевает сработать.
+
+### Gate срабатывает постоянно
+
+Причина: параметры слишком агрессивные для данного фото.
+
+Решение: проверить `gate_state` в diagnostics — какой gate triggered и почему. Увеличить порог или использовать профиль `preserve`.

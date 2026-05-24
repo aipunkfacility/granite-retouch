@@ -39,4 +39,4 @@
 - [knowledge/machines/laser.md](../../knowledge/machines/laser.md) — специфика лазерных станков
 - [style-guide-laser-80w.md](style-guide-laser-80w.md) — стиль генерации для мощных лазеров (60–80W+)
 
-> **Примечание:** Гладкость контура вырезки настраивается через `contour_smooth_epsilon` в config.yaml (0.001–0.01). Для портретов с мелкими прядями волос используйте 0.001 — минимальное сглаживание.
+> **Примечание:** Гладкость контура вырезки обеспечивается градиентной маской хромакея (soft-step вокруг threshold). Параметр `contour_smooth_epsilon` **DEPRECATED** и игнорируется — OpenCV contour tracing больше не используется.

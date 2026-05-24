@@ -25,6 +25,10 @@ python -m retouch process -i <input.png> -o <output.bmp> [-m laser_standard|lase
 | `--input` | `-i` | Да | Путь к входному PNG (с синим хромакеем) |
 | `--output` | `-o` | Да | Путь к выходному файлу (BMP по умолчанию) |
 | `--machine` | `-m` | Нет | Тип станка: `laser_standard` (default), `laser_80w` или `impact` |
+| `--preset` | — | Нет | Имя пресета из `presets/` (напр. `stanzone-laser-1bit`, `mirtels-impact`). Накладывается поверх config.yaml |
+| `--material` | — | Нет | Тип материала: `granite`, `marble`, `gabbro`, `basalt`, `acrylic`. Применяет автокоррекции из MATERIAL_PROFILES |
+| `--stone` | — | Нет | **DEPRECATED** — используйте `--material` |
+| `--profile` | — | Нет | Профиль обработки: `standard` (default), `preserve` или `diagnostic` |
 | `--format` | `-f` | Нет | Формат экспорта: `bmp` (default), `bmp_1bit`, `bmp_8bit`, `png`, `tiff` |
 | `--glow-size` | — | Нет | Переопределить размер Glow (px) |
 | `--glow-opacity` | — | Нет | Переопределить opacity Glow (%) |
@@ -217,6 +221,44 @@ python -m retouch order create ORD-2026-042 --crm CMP-0042 -m impact
 - `orders/active/ORD-2026-042/generated/`
 
 Следующий шаг: `copy source.jpg → orders/active/ORD-2026-042/source.jpg`
+
+---
+
+## retouch debug report
+
+Попиксельный анализ результата пайплайна (диагностика).
+
+```bash
+python -m retouch debug report -i <source.png> -o <result.bmp> [options]
+```
+
+### Аргументы
+
+| Параметр | Сокращение | Обязательный | Описание |
+|----------|-----------|-------------|----------|
+| `--input` | `-i` | Да | Исходное изображение (source) |
+| `--output` | `-o` | Да | Результат пайплайна (output) |
+| `--machine` | `-m` | Нет | `laser_standard` (default), `laser_80w` или `impact` |
+| `--face-mask` | `-f` | Нет | Путь к маске лица (PNG) |
+| `--subject-mask` | `-s` | Нет | Путь к маске субъекта (PNG) |
+| `--output-dir` | `-d` | Нет | Папка для отчётов (JSON+TXT+heatmap) |
+| `--json` | — | Нет | Путь для JSON отчёта |
+| `--txt` | — | Нет | Путь для текстового отчёта |
+| `--heatmap` | — | Нет | Путь для heatmap PNG |
+
+---
+
+## Глобальные флаги
+
+### --list-presets
+
+Показать список всех доступных пресетов из `PRESET_CATALOG`.
+
+```bash
+python -m retouch --list-presets
+```
+
+Вывод: категория, название, machine_type, alert (если есть).
 
 ---
 

@@ -23,6 +23,8 @@
 | `mask_soft_sigma` | float | 1.5 | 0–5.0 | Ширина размытия краёв маски субъекта. 0 = бинарная маска (старое поведение). 1.0–2.0 = плавные края (рекомендуется). Размытие применяется к subject_mask, но не к альфа-каналу. **[Advanced]** |
 | `contour_smooth_epsilon` | float | 0.002 | 0.0–0.01 | **DEPRECATED** — игнорируется. Градиентная маска хромакея не использует contour tracing. Параметр оставлен для совместимости. Ранее: параметр сглаживания через `cv2.approxPolyDP`. **[Advanced]** |
 | `legacy_step_order` | bool | false | true/false | Использовать старый порядок шагов (unsharp ДО face_brightness). Для rollback без redeploy. **[Hidden — убран из UI, доступен только через config.yaml]** |
+| `max_resolution` | int | 8192 | 512–16384 | Максимальное разрешение (px по длинной стороне). Защита от OOM: 8192×8192 × 4 байт ≈ 256 MB. **[Advanced]** |
+| `face_oval_enabled` | bool | true | true/false | Включить детекцию овала лица и коррекцию яркости. При False — шаг `levels` убирается из active_steps. **[Advanced]** |
 
 ---
 
@@ -42,7 +44,7 @@
 | `shadow_floor` | 5 | 5 | 2 |
 | `target_pre_fb` | 180 | 150 | 160 |
 | `face_brightness_target_min` | 230 | 160 | 170 |
-| `face_brightness_target_max` | 245 | 180 | 215 |
+| `face_brightness_target_max` | 245 | 210 | 215 |
 | `white_ceiling` | 250 | 235 | 245 |
 | `face_region_top` | 0.45 | 0.45 | 0.45 |
 | `highlight_start` | 200 | 195 | 185 |
@@ -50,6 +52,7 @@
 | `shadow_noise_min` | — | — | 5 |
 | `shadow_noise_max` | — | — | 15 |
 | `shadow_noise_threshold` | — | — | 30 |
+| `face_overshoot_limit` | 10 | 10 | 8 |
 | `export_mode` | `"8bit"` | `"8bit"` | `"8bit"` |
 | `step_mm` | 0.300 | 0.250 | 0.300 |
 | `dither_method_1bit` | `"jarvis"` | `"jarvis"` | `"stucki"` |
@@ -74,6 +77,7 @@
 | `stone_gamma` | float | 0.88 | 0.5–1.5 | Поправочная гамма для камня (заменяет `brightness`). < 1.0 осветляет тени, > 1.0 затемняет |
 | `face_brightness_target_min` | int | 230 | 80–255 | Минимальная целевая яркость лица. Если текущая ниже — применяется автокоррекция |
 | `face_brightness_target_max` | int | 245 | 80–255 | Максимальная целевая яркость лица. Если текущая выше — коррекция не применяется |
+| `face_overshoot_limit` | int | 10 | 1–30 | Максимальное превышение white_ceiling для face_skin после unsharp mask (уровней). Предотвращает «звенящий» пересвет на коже |
 | `white_ceiling` | int | 250 | 200–255 | Потолок белой точки. Ни одного пикселя (кроме зрачков) не может быть ярче. Предотвращает пережжённые блики на камне |
 | `rolloff_compression` | float | 0.35 | 0.1–0.8 | Степень сжатия highlights в soft rolloff. 0.35 = мягкий (сохраняет текстуру), 0.50 = средний, 0.80 = жёсткий (ближе к hard clip). Gates могут увеличивать при clipped_pct > 5% |
 
@@ -104,7 +108,7 @@
 | `glow_style` | toggle | `"outer"` | `"inner"` / `"outer"` | Стиль glow |
 | `stone_gamma` | float | 1.0 | 0.5–1.5 | Поправочная гамма для камня. При export_mode='8bit' Engrave сам управляет яркостью |
 | `face_brightness_target_min` | int | 160 | 80–255 | Минимальная целевая яркость лица (перекалибровка для gamma=1.0) |
-| `face_brightness_target_max` | int | 180 | 80–255 | Максимальная целевая яркость лица |
+| `face_brightness_target_max` | int | 210 | 80–255 | Максимальная целевая яркость лица. Все production-пресеты используют 210 |
 | `export_mode` | toggle | `"8bit"` | `"8bit"` / `"1bit"` | Режим экспорта BMP. 8bit=grayscale (Engrave растрирует сам), 1bit=дизеринг |
 | `step_mm` | float | 0.250 | 0.10–0.50 | Шаг ЧПУ (мм). Для лазера: 0.125–0.250 (по мануалу САУНО) |
 | `dither_method_1bit` | toggle | `"jarvis"` | `"jarvis"` / `"stucki"` | Метод дизеринга при export_mode='1bit' |
@@ -136,8 +140,9 @@
 | `glow_style` | toggle | `"inner"` | `"inner"` / `"outer"` | Стиль glow |
 | `stone_gamma` | float | 0.88 | 0.5–1.5 | Поправочная гамма для камня |
 | `face_brightness_target_min` | int | 170 | 80–255 | Минимальная целевая яркость лица. Для impact ниже чем для laser_standard |
-| `face_brightness_target_max` | int | 215 | 80–255 | Максимальная целевая яркость лица. Пересвет критичен для иглы |
+| `face_brightness_target_max` | int | 245 | 80–255 | Максимальная целевая яркость лица. Пересвет критичен для иглы |
 | `white_ceiling` | int | 245 | 200–255 | Потолок белой точки |
+| `face_overshoot_limit` | int | 8 | 1–30 | Максимальное превышение white_ceiling для face_skin после unsharp mask |
 | `shadow_noise_min` | int | 5 | 0–50 | Минимальный шум в глубоких тенях. 0 = без шума |
 | `shadow_noise_max` | int | 15 | 0–50 | Максимальный шум в глубоких тенях. 0 = без шума |
 | `shadow_floor` | int | 2 | 0–30 | Минимальная яркость в тенях субъекта. Для impact — применяется ко всей `subject_mask` (needle floor). Для laser — только к пересечению с `face_mask` |
@@ -169,8 +174,9 @@
 
 | Параметр | Тип | Default | Описание |
 |----------|-----|---------|----------|
-| `type` | string | `granite` | Тип камня: `granite`, `marble`, `gabbro`, `basalt` — профиль камня |
-| `heterogeneity` | float | null | Неоднородность камня. null = auto по stone_type (будущее) |
+| `material` | string | `granite` | Тип материала: `granite`, `marble`, `gabbro`, `basalt`, `acrylic`, `slate` — определяет профиль обработки (v4). Является источником истины |
+| `type` | string | `granite` | **DEPRECATED** — используйте `material`. Автоматически синхронизируется с `material`. Будет удалён в v5 |
+| `heterogeneity` | float | null | Неоднородность камня. null = auto по material (будущее) |
 
 ---
 
@@ -282,7 +288,7 @@ Pipeline автоматически выполняет преданализ из
 | Профиль | Активные шаги | Описание |
 |---------|--------------|----------|
 | `standard` | все | Полная обработка (по умолчанию) |
-| `preserve` | chromakey, grayscale, glow, rolloff, vignette | Минимальное вмешательство — без levels, face_correction, unsharp |
+| `preserve` | chromakey, grayscale, glow, highlight_rolloff, vignette | Минимальное вмешательство — без levels, face_correction, unsharp |
 | `diagnostic` | все + расширенный сбор масок | Для отладки — сохраняет все промежуточные маски и метрики |
 
 Профиль и пресет ортогональны: `preserve + laser_80w` = параметры `laser_80w`, но безопасный набор шагов.
@@ -320,10 +326,21 @@ safety_envelope:
 |----------|---------|----------|
 | `variance_loss_threshold` | 35.0 | % потери variance по face_skin, после которого delta ослабляется на 50% |
 | `clipped_pct_threshold` | 5.0 | % clipped пикселей по subject, после которого rolloff уменьшается на 20% |
-| `p95_shift_threshold` | 20.0 | Сдвиг p95 по face_skin в уровнях, после которого delta ослабляется на 50% |
+| `p95_shift_threshold` | 20.0 | Общий порог сдвига p95 (для не-face_skin зон). Для face_skin используется `face_skin_p95_shift_threshold` |
+| `face_skin_p95_shift_threshold` | 3.0 | Глобальный порог сдвига p95 по face_skin (уровней). Перекрывается per-machine значением |
+| `face_skin_p95_shift_threshold_by_machine` | см. ниже | Per-machine переопределение порога face_skin p95 shift |
+| `face_skin_cumulative_shift_threshold` | null | Кумулятивный сдвиг face_skin p95 от baseline. null = disabled. Diagnostic only (warning) |
 | `shadow_crush_threshold` | 10.0 | % пикселей < 5 в subject, после которого floor/gamma пропускаются |
 | `face_dark_small_threshold` | 5.0 | % face_dark от face_mask, ниже которого коррекция пропускается |
 | `contour_inner_quality_threshold` | 30.0 | % contour_inner от subject, выше которого — morphological fallback |
+
+**Per-machine пороги face_skin_p95_shift_threshold:**
+
+| Machine type | Порог | Примечание |
+|---|---|---|
+| `laser_standard` | 3.0 | Строгий — лицо не должно сдвигаться сильно |
+| `laser_80w` | null | Gate отключён (gamma=1.0, сдвиг минимальный) |
+| `impact` | 5.0 | Менее строгий — допустим больший сдвиг для объёма |
 
 Пример:
 ```yaml
@@ -331,6 +348,12 @@ quality_gates:
   variance_loss_threshold: 35.0
   clipped_pct_threshold: 5.0
   p95_shift_threshold: 20.0
+  face_skin_p95_shift_threshold: 3.0
+  face_skin_p95_shift_threshold_by_machine:
+    laser_standard: 3.0
+    laser_80w: null
+    impact: 5.0
+  face_skin_cumulative_shift_threshold: null
   shadow_crush_threshold: 10.0
   face_dark_small_threshold: 5.0
   contour_inner_quality_threshold: 30.0
