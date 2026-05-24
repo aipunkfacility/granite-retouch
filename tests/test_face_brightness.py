@@ -352,58 +352,6 @@ class TestShadowPriorityWeight:
         )
 
 
-class TestZoneMasksDeprecated:
-    """zone_masks parameter is deprecated and ignored."""
-
-    def test_zone_masks_warning_logged(self, caplog):
-        """Передача zone_masks логирует deprecation warning."""
-        arr = np.full((200, 200), 100, dtype=np.uint8)
-        img = Image.fromarray(arr)
-        mask = Image.new("L", (200, 200), 255)
-        face_skin = np.ones((200, 200), dtype=np.uint8) * 255
-
-        class _MockZM:
-            highlights = np.zeros((200, 200), dtype=np.uint8)
-            face_skin = np.ones((200, 200), dtype=np.uint8) * 255
-
-        with caplog.at_level(logging.WARNING, logger="retouch.processing.correction.face_brightness"):
-            face_brightness_correction(
-                img, mask, face_skin,
-                {"face_brightness_target_min": 80, "face_brightness_target_max": 120},
-                {"median_brightness": 100.0, "p90_brightness": 120.0},
-                zone_masks=_MockZM(),
-            )
-        assert any("deprecated" in r.message.lower() for r in caplog.records), (
-            "Передача zone_masks должна логировать deprecation warning"
-        )
-
-    def test_zone_masks_does_not_affect_result(self):
-        """Результат одинаков с zone_masks и без."""
-        arr = np.full((200, 200), 100, dtype=np.uint8)
-        img = Image.fromarray(arr)
-        mask = Image.new("L", (200, 200), 255)
-        face_skin = np.ones((200, 200), dtype=np.uint8) * 255
-
-        class _MockZM:
-            highlights = np.zeros((200, 200), dtype=np.uint8)
-            face_skin = np.ones((200, 200), dtype=np.uint8) * 255
-
-        cfg = {"face_brightness_target_min": 80, "face_brightness_target_max": 120}
-        analytics = {"median_brightness": 100.0, "p90_brightness": 120.0}
-
-        result_without, _, _, _, _ = face_brightness_correction(
-            img, mask, face_skin, cfg, analytics,
-        )
-        result_with, _, _, _, _ = face_brightness_correction(
-            img, mask, face_skin, cfg, analytics,
-            zone_masks=_MockZM(),
-        )
-
-        assert np.array_equal(np.array(result_without), np.array(result_with)), (
-            "zone_masks не должен влиять на результат"
-        )
-
-
 class TestGammaAwareTargetNoCollapse:
     """_compute_gamma_aware_target не должен коллапсировать диапазон."""
 

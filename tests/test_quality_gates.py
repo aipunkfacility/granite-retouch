@@ -195,14 +195,15 @@ class TestQualityGatesFromConfig:
         assert quality_gates["contour_inner_quality_threshold"] == 30.0
 
     def test_get_gate_thresholds_returns_all_keys(self):
-        """_get_gate_thresholds returns all 7 threshold keys."""
+        """_get_gate_thresholds returns all 8 threshold keys."""
         from retouch.processing.core.steps import _get_gate_thresholds
         thresholds = _get_gate_thresholds({"processing": {"quality_gates": {}}})
-        assert len(thresholds) == 7
+        assert len(thresholds) == 8
         assert all(k in thresholds for k in [
             "variance_loss_threshold", "clipped_pct_threshold", "p95_shift_threshold",
-            "face_skin_p95_shift_threshold", "shadow_crush_threshold",
-            "face_dark_small_threshold", "contour_inner_quality_threshold",
+            "face_skin_p95_shift_threshold", "face_skin_cumulative_shift_threshold",
+            "shadow_crush_threshold", "face_dark_small_threshold",
+            "contour_inner_quality_threshold",
         ])
 
     def test_get_gate_thresholds_uses_custom_values(self):
@@ -241,9 +242,9 @@ class TestQualityGatesFromConfig:
         from retouch.processing.core.steps import _get_gate_thresholds
         config = {"processing": {"quality_gates": None}}
         thresholds = _get_gate_thresholds(config)
-        assert len(thresholds) == 7
+        assert len(thresholds) == 8
         assert thresholds["variance_loss_threshold"] == 35.0
-        assert thresholds["face_skin_p95_shift_threshold"] == 5.0
+        assert thresholds["face_skin_p95_shift_threshold"] == 3.0
 
 
 class TestP21FaceSkinP95ShiftGate:
@@ -256,9 +257,9 @@ class TestP21FaceSkinP95ShiftGate:
         assert gate.gate_name == "p95_shift"
 
     def test_face_skin_p95_shift_at_threshold(self):
-        """shift=5.0 == threshold 5.0 → gate does NOT trigger (> semantics)."""
+        """shift=5.0 == threshold 5.0 → gate triggers (>= semantics)."""
         gate = post_check_p95_shift(190.0, 195.0, threshold_levels=5.0)
-        assert gate.triggered is False
+        assert gate.triggered is True
 
     def test_face_skin_p95_shift_just_above_threshold(self):
         """shift=5.1 > threshold 5.0 → gate triggers."""
@@ -282,3 +283,73 @@ class TestP21FaceSkinP95ShiftGate:
         """p95 shift=7 > 5 → gate triggers (typical case after amplitude cap ±8)."""
         gate = post_check_p95_shift(190.0, 197.0, threshold_levels=5.0)
         assert gate.triggered is True
+
+
+# --- >= semantics ---
+def test_p95_shift_at_boundary_triggers():
+    """shift == threshold → triggers (>= semantics)."""
+    gate = post_check_p95_shift(200.0, 203.0, threshold_levels=3.0)
+    assert gate.triggered is True
+
+
+def test_variance_loss_at_boundary_triggers():
+    gate = post_check_variance_loss(100.0, 65.0, threshold_pct=35.0)
+    assert gate.triggered is True
+
+
+def test_clipped_pct_at_boundary_triggers():
+    gate = post_check_clipped_pct(5.0, threshold_pct=5.0)
+    assert gate.triggered is True
+
+
+def test_shadow_crush_at_boundary_triggers():
+    gate = post_check_shadow_crush(10.0, threshold_pct=10.0)
+    assert gate.triggered is True
+
+
+# --- gate_name parameter ---
+def test_p95_shift_default_gate_name():
+    gate = post_check_p95_shift(200.0, 208.0, threshold_levels=3.0)
+    assert gate.gate_name == "p95_shift"
+
+
+def test_p95_shift_cumulative_gate_name():
+    gate = post_check_p95_shift(
+        198.0, 208.0, threshold_levels=8.0,
+        step_name="postproc_cumulative",
+        gate_name="p95_shift_cumulative",
+    )
+    assert gate.gate_name == "p95_shift_cumulative"
+    assert gate.triggered is True
+
+
+# --- per-machine-type lookup ---
+def test_per_machine_type_threshold_lookup():
+    from retouch.processing.core.steps import _get_gate_thresholds
+    config = {
+        "processing": {
+            "quality_gates": {
+                "face_skin_p95_shift_threshold": 3.0,
+                "face_skin_p95_shift_threshold_by_machine": {
+                    "laser_standard": 3.0,
+                    "laser_80w": None,
+                    "impact": 5.0,
+                },
+            }
+        }
+    }
+    assert _get_gate_thresholds(config, "laser_standard")["face_skin_p95_shift_threshold"] == 3.0
+    assert _get_gate_thresholds(config, "laser_80w")["face_skin_p95_shift_threshold"] is None
+    assert _get_gate_thresholds(config, "impact")["face_skin_p95_shift_threshold"] == 5.0
+    assert _get_gate_thresholds(config, "unknown")["face_skin_p95_shift_threshold"] == 3.0
+    assert _get_gate_thresholds(config, None)["face_skin_p95_shift_threshold"] == 3.0
+
+
+# --- None threshold guard ---
+def test_none_threshold_guard():
+    """When threshold is None, gate must NOT be called (would TypeError)."""
+    thresholds = {"face_skin_p95_shift_threshold": None}
+    fs_threshold = thresholds.get("face_skin_p95_shift_threshold")
+    assert fs_threshold is None
+    # post_check_p95_shift(threshold_levels=None) → TypeError
+    # Guard ensures gate is NOT called when fs_threshold is None

@@ -61,7 +61,6 @@ def test_face_skin_not_compressed_by_rolloff():
         face_skin_mask=face_skin,
         machine_cfg=cfg,
         analytics=analytics,
-        zone_masks=zm,
     )
 
     arr = np.array(result)
@@ -220,7 +219,6 @@ def test_no_rolloff_fallback_on_subject_mask():
         face_skin_mask=face_skin,
         machine_cfg=cfg,
         analytics=analytics,
-        zone_masks=zm,
     )
 
     arr = np.array(result)

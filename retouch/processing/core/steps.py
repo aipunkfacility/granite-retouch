@@ -36,15 +36,23 @@ logger = logging.getLogger(__name__)
 FACE_SKIN_KNEE_MARGIN = 10
 
 
-def _get_gate_thresholds(config: dict) -> dict:
+def _get_gate_thresholds(config: dict, machine_type: str | None = None) -> dict:
     """Extract quality gate thresholds from config."""
     processing = config.get("processing", {})
     quality_gates = processing.get("quality_gates") or {}
+
+    # Per-machine-type face_skin threshold
+    fs_threshold = quality_gates.get("face_skin_p95_shift_threshold", 3.0)
+    if machine_type:
+        machine_overrides = quality_gates.get("face_skin_p95_shift_threshold_by_machine", {})
+        fs_threshold = machine_overrides.get(machine_type, fs_threshold)
+
     return {
         "variance_loss_threshold": quality_gates.get("variance_loss_threshold", 35.0),
         "clipped_pct_threshold": quality_gates.get("clipped_pct_threshold", 5.0),
-        "p95_shift_threshold": quality_gates.get("p95_shift_threshold", 20.0),  # default for non-face_skin zones (not used in _record_step yet)
-        "face_skin_p95_shift_threshold": quality_gates.get("face_skin_p95_shift_threshold", 5.0),  # face_skin: > 5.0 triggers gate
+        "p95_shift_threshold": quality_gates.get("p95_shift_threshold", 20.0),
+        "face_skin_p95_shift_threshold": fs_threshold,
+        "face_skin_cumulative_shift_threshold": quality_gates.get("face_skin_cumulative_shift_threshold", None),
         "shadow_crush_threshold": quality_gates.get("shadow_crush_threshold", 10.0),
         "face_dark_small_threshold": quality_gates.get("face_dark_small_threshold", 5.0),
         "contour_inner_quality_threshold": quality_gates.get("contour_inner_quality_threshold", 30.0),
@@ -129,7 +137,7 @@ def run_pipeline_steps(
     width = ctx.img_gray.width
     height = ctx.img_gray.height
 
-    thresholds = _get_gate_thresholds(ctx.config)
+    thresholds = _get_gate_thresholds(ctx.config, machine_type=ctx.machine_type)
 
     # face_oval_enabled: если False, убираем 'levels' из active_steps
     face_oval_enabled = ctx.config.get("processing", {}).get("face_oval_enabled", True)
@@ -205,13 +213,15 @@ def run_pipeline_steps(
                         gate_state.results.append(gate)
                         warnings.append(gate.reason)
 
-                    gate = post_check_p95_shift(
-                        fs_prev.p95, fs_curr.p95, step_name=step_name,
-                        threshold_levels=thresholds["face_skin_p95_shift_threshold"],
-                    )
-                    if gate.triggered:
-                        gate_state.results.append(gate)
-                        warnings.append(gate.reason)
+                    fs_threshold = thresholds.get("face_skin_p95_shift_threshold")
+                    if fs_threshold is not None:
+                        gate = post_check_p95_shift(
+                            fs_prev.p95, fs_curr.p95, step_name=step_name,
+                            threshold_levels=fs_threshold,
+                        )
+                        if gate.triggered:
+                            gate_state.results.append(gate)
+                            warnings.append(gate.reason)
 
                 subj_clipped = zm.get("face_skin")
                 if subj_clipped and subj_clipped.clipped_pct > 0:
@@ -223,9 +233,30 @@ def run_pipeline_steps(
                         gate_state.results.append(gate)
                         warnings.append(gate.reason)
 
+            # Cumulative shift gate — от baseline ("input")
+            if len(step_metrics) > 0 and zone_masks is not None:
+                fs_curr_cum = zm.get("face_skin")
+                if fs_curr_cum:
+                    baseline_zm = step_metrics[0].zone_metrics.get("face_skin")
+                    if baseline_zm:
+                        _cumulative_shift = abs(fs_curr_cum.p95 - baseline_zm.p95)
+                        cumulative_threshold = thresholds.get("face_skin_cumulative_shift_threshold")
+                        if cumulative_threshold is not None and _cumulative_shift >= cumulative_threshold:
+                            gate = post_check_p95_shift(
+                                baseline_zm.p95, fs_curr_cum.p95,
+                                step_name=f"{step_name}_cumulative",
+                                threshold_levels=cumulative_threshold,
+                                gate_name="p95_shift_cumulative",
+                            )
+                            if gate.triggered:
+                                gate_state.results.append(gate)
+                                warnings.append(gate.reason)
+
             step_metrics.append(make_step_record(step_name, zm, warnings))
         else:
             step_metrics.append(make_step_record(step_name, {}, []))
+
+    _record_step("input", ctx.img_gray)
 
     img_glow, glow_size, glow_opacity = apply_glow(
         ctx.img_gray, ctx.subject_mask, ctx.machine_cfg,
@@ -251,7 +282,6 @@ def run_pipeline_steps(
             face_skin_mask=face_skin_mask_for_levels,
             machine_cfg=ctx.machine_cfg,
             analytics=ctx.analytics,
-            zone_masks=zone_masks,
         )
         _record_step("levels", img_leveled)
     else:
@@ -262,8 +292,11 @@ def run_pipeline_steps(
         if zone_masks is not None and zone_masks.face_skin is not None:
             _face_skin_for_unsharp = zone_masks.get_bool("face_skin")
         elif ctx.face_mask is not None and np.any(np.array(ctx.face_mask) > 128):
-            _face_skin_for_unsharp = np.array(ctx.face_mask)
-            logger.info("Unsharp: using face_mask as face_skin fallback for overshoot protection")
+            logger.warning(
+                "Unsharp: face_skin mask unavailable, face_mask fallback skipped "
+                "(would clamp entire oval including brows/eyes). "
+                "Overshoot protection applied without face_skin zone."
+            )
 
         _overshoot_limit = max(1, ctx.machine_cfg.get("face_overshoot_limit", 8))
 

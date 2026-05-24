@@ -109,13 +109,13 @@ def post_check_variance_loss(
     threshold_pct: float = 35.0,
     step_name: str = "levels",
 ) -> GateResult:
-    """Если variance loss > 35% — ослабить delta."""
+    """Если variance loss >= threshold — ослабить delta."""
     if variance_before == 0:
         return GateResult("variance_loss", step_name, False)
 
     loss_pct = (variance_before - variance_after) / variance_before * 100
 
-    if loss_pct > threshold_pct:
+    if loss_pct >= threshold_pct:
         logger.info(
             "Gate variance_loss: %.1f%% > %.1f%% — weaken step",
             loss_pct, threshold_pct,
@@ -135,8 +135,8 @@ def post_check_clipped_pct(
     threshold_pct: float = 5.0,
     step_name: str = "levels",
 ) -> GateResult:
-    """Если clipped_pct > 5% — уменьшить rolloff/ceiling."""
-    if clipped_pct <= threshold_pct:
+    """Если clipped_pct >= threshold — уменьшить rolloff/ceiling."""
+    if clipped_pct < threshold_pct:
         return GateResult("clipped_pct", step_name, False)
 
     logger.info(
@@ -156,22 +156,23 @@ def post_check_p95_shift(
     p95_after: float,
     threshold_levels: float = 20.0,
     step_name: str = "levels",
+    gate_name: str = "p95_shift",
 ) -> GateResult:
-    """Если p95 shift > 20 уровней — ослабить delta."""
+    """Если p95 shift >= threshold_levels — ослабить delta."""
     shift = abs(p95_after - p95_before)
 
-    if shift <= threshold_levels:
-        return GateResult("p95_shift", step_name, False)
+    if shift < threshold_levels:
+        return GateResult(gate_name, step_name, False)
 
     logger.info(
-        "Gate p95_shift: %.1f > %.1f — weaken delta",
-        shift, threshold_levels,
+        "Gate %s: %.1f >= %.1f — weaken delta",
+        gate_name, shift, threshold_levels,
     )
     return GateResult(
-        "p95_shift", step_name, True,
+        gate_name, step_name, True,
         original_value=shift,
         adjusted_value=threshold_levels,
-        reason=f"p95 shift {shift:.1f} > {threshold_levels} — delta weakened 50%",
+        reason=f"p95 shift {shift:.1f} >= {threshold_levels} — delta weakened 50%",
     )
 
 
@@ -181,7 +182,7 @@ def post_check_shadow_crush(
     step_name: str = "shadow_floor",
 ) -> GateResult:
     """Если shadow crush > 10% — не применять floor/gamma."""
-    if crush_pct <= threshold_pct:
+    if crush_pct < threshold_pct:
         return GateResult("shadow_crush", step_name, False)
 
     logger.info(

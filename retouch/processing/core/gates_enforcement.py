@@ -70,6 +70,22 @@ def enforce_gates(gate_state, machine_cfg, validated_plan, ctx):
             f"stone_gamma weakened: {original_gamma:.2f} → {stone_gamma:.2f} ({_weaken_reason} gate)"
         )
 
+    # Cumulative shift — diagnostic only: warning + log, NO gamma weakening
+    if "p95_shift_cumulative" in triggered:
+        if "p95_shift" not in triggered:
+            logger.info(
+                "Gates enforcement: p95_shift_cumulative triggered without per-step gate "
+                "— logging only, no gamma weakening (each step within per-step threshold)"
+            )
+        else:
+            logger.info(
+                "Gates enforcement: p95_shift_cumulative + p95_shift both triggered "
+                "— gamma already weakened by per-step gate"
+            )
+        ctx.warnings.append(
+            "cumulative p95 shift exceeds threshold — check pipeline parameters"
+        )
+
     # clipped_pct — не влияет на gamma
     if "clipped_pct" in triggered:
         orig_compression = compression

@@ -109,7 +109,6 @@ def face_brightness_correction(
     face_skin_mask: np.ndarray | None,
     machine_cfg: dict,
     analytics: dict,
-    zone_masks=None,  # deprecated: не используется, rolloff перенесён в postprocess
     face_brightness_target_min: int = 180,
     face_brightness_target_max: int = 220,
     highlight_start: int = 200,
@@ -124,9 +123,6 @@ def face_brightness_correction(
         machine_cfg: dict — параметры станка (face_brightness_target_min/max,
             white_ceiling, rolloff_compression)
         analytics: dict — метрики от analyze_input()
-        zone_masks: ZoneMasks или None — DEPRECATED, игнорируется.
-            Rolloff перенесён в postprocess.py. Параметр оставлен для
-            обратной совместимости — будет удалён в будущей версии.
         face_brightness_target_min/max: fallback target range
         highlight_start: порог затухания curves (0-255)
         max_delta: максимальная дельта (safety envelope)
@@ -137,14 +133,6 @@ def face_brightness_correction(
     """
     arr = np.array(img_gray, dtype=np.float32)
     subj_bool = np.array(subject_mask) > 128
-
-    # Deprecation warning
-    if zone_masks is not None:
-        logger.warning(
-            "face_brightness_correction: zone_masks parameter is deprecated "
-            "and ignored. Rolloff is now handled by postprocess.py after gamma. "
-            "Remove zone_masks from call sites."
-        )
 
     # Определяем маску применения — face_skin с защитой субъекта
     if face_skin_mask is not None:

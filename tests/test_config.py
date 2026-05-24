@@ -480,3 +480,15 @@ class TestConfigYamlLaser80wGlowMatchesDefaults:
                 f"config.yaml laser_80w.{key}={yaml_val} != "
                 f"DEFAULTS laser_80w.{key}={defaults_val}"
             )
+
+
+def test_config_yaml_laser_80w_threshold_null():
+    import yaml
+    with open("config.yaml") as f:
+        config = yaml.safe_load(f)
+    overrides = config["processing"]["quality_gates"].get(
+        "face_skin_p95_shift_threshold_by_machine", {}
+    )
+    assert overrides.get("laser_80w") is None
+    assert overrides.get("laser_standard") == 3.0
+    assert overrides.get("impact") == 5.0
