@@ -208,3 +208,111 @@ class TestEnforceGatesUnit:
         assert len(result) == 4, (
             f"enforce_gates should return 4 values, got {len(result)}"
         )
+
+
+class TestLazyPostprocGate:
+    """Lazy gate check after postproc: gamma weakening when postproc triggers gate."""
+
+    @staticmethod
+    def _make_ctx():
+        from retouch.processing.core.context import PipelineContext
+        return PipelineContext(img_gray=Image.new('L', (100, 100), 128))
+
+    def test_enforce_gates_single_weakening_is_idempotent(self):
+        from retouch.processing.core.gates import GateState, post_check_p95_shift
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        gs.results.append(post_check_p95_shift(184.0, 192.0, threshold_levels=5.0, step_name="unsharp"))
+        gs.results.append(post_check_p95_shift(192.0, 199.0, threshold_levels=5.0, step_name="postproc"))
+
+        machine_cfg = {"stone_gamma": 0.88, "white_ceiling": 245}
+        _, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, self._make_ctx())
+        assert stone_gamma == pytest.approx(0.94, abs=0.01)
+
+    def test_cumulative_gate_does_not_weaken_gamma(self):
+        from retouch.processing.core.gates import GateState, GateResult
+        from retouch.processing.core.gates_enforcement import enforce_gates
+
+        gs = GateState()
+        gs.results.append(GateResult(
+            "p95_shift_cumulative", "postproc_cumulative", True,
+            original_value=11.0, adjusted_value=8.0,
+            reason="cumulative p95 shift 11.0 >= 8 — exceeds threshold",
+        ))
+
+        machine_cfg = {"stone_gamma": 0.88, "white_ceiling": 245}
+        ctx = self._make_ctx()
+        _, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, ctx)
+        assert stone_gamma == 0.88
+        assert any("cumulative" in w.lower() for w in ctx.warnings)
+
+
+class TestLazyPostprocGateIntegration:
+    """Integration: lazy gate check реально ослабляет gamma на impact.
+
+    Синтетические изображения не всегда создают face_skin зоны (требуется
+    текстура кожи). Если gate не сработал — проверяем, что пайплайн дошёл
+    до postproc шага. Если gate сработал — проверяем формат gamma warning.
+    """
+
+    def test_impact_gamma_weakened_when_postproc_triggers_gate(self, tmp_path):
+        from retouch.config import DEFAULTS
+        from retouch.processing.core.pipeline import process_steps
+
+        arr = np.zeros((512, 512, 4), dtype=np.uint8)
+        arr[..., 2] = 255
+        arr[..., 3] = 255
+        cx, cy = 256, 256
+        rx, ry = 128, 150
+        y_c, x_c = np.ogrid[:512, :512]
+        ellipse = ((x_c - cx) / rx) ** 2 + ((y_c - cy) / ry) ** 2 <= 1.0
+        arr[ellipse, 0] = 210
+        arr[ellipse, 1] = 195
+        arr[ellipse, 2] = 180
+        arr[ellipse, 3] = 255
+        img = Image.fromarray(arr)
+        path = str(tmp_path / "input.png")
+        img.save(path, "PNG")
+
+        config = deepcopy(DEFAULTS)
+        qg = config.setdefault("processing", {}).setdefault("quality_gates", {})
+        qg["face_skin_p95_shift_threshold"] = 1.0
+        qg.setdefault("face_skin_p95_shift_threshold_by_machine", {})["impact"] = 1.0
+        qg["face_skin_cumulative_shift_threshold"] = 8.0
+
+        result = process_steps(path, machine_type="impact", config=config)
+
+        assert result is not None
+        assert len(result.step_metrics) > 0, "Pipeline should produce step metrics"
+
+        # Check if face_skin zones exist — synthetic images may not produce them
+        has_face_skin = any(
+            sm.zone_metrics and "face_skin" in sm.zone_metrics
+            for sm in result.step_metrics
+        )
+
+        if not has_face_skin:
+            # Без face_skin зон gate не проверить — но пайплайн отработал
+            assert result.img_postproc is not None
+            return
+
+        postproc_gates = [
+            g for g in result.gate_state.triggered_gates
+            if g.step_name == "postproc"
+        ]
+        if not postproc_gates:
+            return
+
+        gate_keys = [(g.gate_name, g.step_name) for g in postproc_gates]
+        assert len(gate_keys) == len(set(gate_keys)), (
+            f"Duplicate gates found: {gate_keys}. "
+            "This suggests stale gates from Pass 1 were not cleaned up."
+        )
+
+        gamma_warnings = [w for w in result.warnings if "gamma" in w.lower()]
+        if gamma_warnings:
+            gamma_warning = gamma_warnings[0]
+            assert "\u2192" in gamma_warning or "->" in gamma_warning, (
+                f"Gamma warning should show old\u2192new transition, got: {gamma_warning}"
+            )

@@ -247,6 +247,23 @@ class TestQualityGatesFromConfig:
         assert thresholds["face_skin_p95_shift_threshold"] == 3.0
 
 
+def test_get_gate_thresholds_from_defaults():
+    """DEFAULTS quality_gates: ключи существуют, cumulative=None (disabled by default)."""
+    from retouch.config import DEFAULTS
+    from retouch.processing.core.steps import _get_gate_thresholds
+
+    thresholds = _get_gate_thresholds(DEFAULTS, machine_type=None)
+    assert thresholds["face_skin_p95_shift_threshold"] == 3.0
+    assert thresholds["face_skin_cumulative_shift_threshold"] is None
+    assert thresholds["p95_shift_threshold"] == 20.0
+
+    thresholds_impact = _get_gate_thresholds(DEFAULTS, machine_type="impact")
+    assert thresholds_impact["face_skin_p95_shift_threshold"] == 5.0
+
+    thresholds_80w = _get_gate_thresholds(DEFAULTS, machine_type="laser_80w")
+    assert thresholds_80w["face_skin_p95_shift_threshold"] is None
+
+
 class TestP21FaceSkinP95ShiftGate:
     """P2.1: face_skin zone uses lowered p95 shift threshold (5 instead of 20)."""
 
@@ -321,6 +338,15 @@ def test_p95_shift_cumulative_gate_name():
     )
     assert gate.gate_name == "p95_shift_cumulative"
     assert gate.triggered is True
+    assert "exceeds threshold" in gate.reason
+    assert "weakened" not in gate.reason
+
+
+def test_p95_shift_per_step_reason_mentions_weakening():
+    """Per-step gate reason still says 'weakened' — it actually weakens gamma."""
+    gate = post_check_p95_shift(190.0, 197.0, threshold_levels=5.0)
+    assert gate.triggered is True
+    assert "weakened" in gate.reason
 
 
 # --- per-machine-type lookup ---
@@ -353,3 +379,27 @@ def test_none_threshold_guard():
     assert fs_threshold is None
     # post_check_p95_shift(threshold_levels=None) → TypeError
     # Guard ensures gate is NOT called when fs_threshold is None
+
+
+class TestCumulativeGateEnforcement:
+    """Cumulative gate does NOT weaken gamma — diagnostic only."""
+
+    def test_cumulative_gate_no_gamma_weakening(self):
+        from retouch.processing.core.gates import GateState, GateResult
+        from retouch.processing.core.gates_enforcement import enforce_gates
+        from retouch.processing.core.context import PipelineContext
+        from PIL import Image
+
+        gs = GateState()
+        gs.results.append(GateResult(
+            "p95_shift_cumulative", "postproc_cumulative", True,
+            original_value=11.0, adjusted_value=8.0,
+            reason="cumulative p95 shift 11.0 >= 8 — exceeds threshold",
+        ))
+
+        ctx = PipelineContext(img_gray=Image.new('L', (100, 100), 128))
+        machine_cfg = {"stone_gamma": 0.88, "white_ceiling": 245}
+
+        _, stone_gamma, _, _ = enforce_gates(gs, machine_cfg, None, ctx)
+        assert stone_gamma == 0.88
+        assert any("cumulative" in w.lower() for w in ctx.warnings)

@@ -164,15 +164,21 @@ def post_check_p95_shift(
     if shift < threshold_levels:
         return GateResult(gate_name, step_name, False)
 
+    _is_cumulative = gate_name == "p95_shift_cumulative"
     logger.info(
-        "Gate %s: %.1f >= %.1f — weaken delta",
+        "Gate %s: %.1f >= %.1f — %s",
         gate_name, shift, threshold_levels,
+        "exceeds threshold" if _is_cumulative else "weaken delta",
     )
     return GateResult(
         gate_name, step_name, True,
         original_value=shift,
         adjusted_value=threshold_levels,
-        reason=f"p95 shift {shift:.1f} >= {threshold_levels} — delta weakened 50%",
+        reason=(
+            f"cumulative p95 shift {shift:.1f} >= {threshold_levels} — exceeds threshold"
+            if _is_cumulative
+            else f"p95 shift {shift:.1f} >= {threshold_levels} — delta weakened 50%"
+        ),
     )
 
 

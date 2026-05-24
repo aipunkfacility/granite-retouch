@@ -383,8 +383,11 @@ def run_pipeline_steps(
         )
 
     if set(validated.plan.active_steps) & {"shadow_floor", "stone_gamma", "white_ceiling"}:
+        img_before_postproc = img_postproc
+
+        # Pass 1: пробный postprocess для замера метрик
         img_postproc = apply_postprocess(
-            img_postproc,
+            img_before_postproc,
             subject_mask=ctx.subject_mask,
             face_mask=ctx.face_mask,
             zone_masks=zone_masks,
@@ -394,7 +397,92 @@ def run_pipeline_steps(
             white_ceiling=white_ceiling,
             compression=compression,
         )
+
+        # Lazy gate check: проверяем ТОЛЬКО per-step gate вручную, БЕЗ _record_step.
+        # Если per-step gate сработал — ослабляем gamma и повторяем postprocess.
+        # Cumulative gate НЕ проверяем здесь — он будет вычислен в _record_step
+        # на финальном изображении (после возможного Pass 2), и warning добавится
+        # после _record_step. Это избегает: (1) дублей warnings и (2) устаревших
+        # warnings от Pass 1, которые Pass 2 мог исправить.
+        _needs_pass2 = False
+        _postproc_step_gate_reasons = []
+
+        if zone_masks is not None:
+            _pp_arr = np.array(img_postproc, dtype=np.float32)
+            _pp_masks = {
+                "face_skin": zone_masks.face_skin,
+                "face_dark": zone_masks.face_dark,
+                "hair": zone_masks.hair,
+                "clothes": zone_masks.clothes,
+                "highlights": zone_masks.highlights,
+            }
+            _pp_wc = ctx.machine_cfg.get("white_ceiling", 250)
+            _pp_zm = compute_zone_metrics(_pp_arr, _pp_masks, white_ceiling=_pp_wc)
+            _fs_pp = _pp_zm.get("face_skin")
+            _fs_prev = step_metrics[-1].zone_metrics.get("face_skin") if step_metrics else None
+
+            if _fs_prev and _fs_pp:
+                # Per-step gate only — cumulative проверяется ниже
+                _pp_shift = abs(_fs_pp.p95 - _fs_prev.p95)
+                _fs_threshold = thresholds.get("face_skin_p95_shift_threshold")
+                if _fs_threshold is not None and _pp_shift >= _fs_threshold:
+                    _needs_pass2 = True
+                    _postproc_step_gate_reasons.append(
+                        f"p95 shift {_pp_shift:.1f} >= {_fs_threshold} on postproc step"
+                    )
+
+        if _needs_pass2:
+            _original_gamma = ctx.machine_cfg.get("stone_gamma", None)
+            if _original_gamma is not None and _original_gamma != 1.0:
+                _weakened_gamma = 1.0 + (_original_gamma - 1.0) * 0.5
+                if abs(stone_gamma - _weakened_gamma) > 0.001:
+                    logger.info(
+                        "Postproc gate: stone_gamma %.2f \u2192 %.2f (gates: %s)",
+                        stone_gamma, _weakened_gamma,
+                        "; ".join(_postproc_step_gate_reasons),
+                    )
+                    ctx.warnings.append(
+                        f"stone_gamma weakened after postproc: "
+                        f"{_original_gamma:.2f} \u2192 {_weakened_gamma:.2f} "
+                        f"(gate triggered during postproc step)"
+                    )
+                    stone_gamma = _weakened_gamma
+                    # Pass 2: повторный postprocess с ослабленной gamma
+                    img_postproc = apply_postprocess(
+                        img_before_postproc,
+                        subject_mask=ctx.subject_mask,
+                        face_mask=ctx.face_mask,
+                        zone_masks=zone_masks,
+                        machine_type=ctx.machine_type,
+                        shadow_floor=shadow_floor,
+                        stone_gamma=stone_gamma,
+                        white_ceiling=white_ceiling,
+                        compression=compression,
+                    )
+
+        # Единый вызов _record_step на финальное изображение
         _record_step("postproc", img_postproc)
+
+        # Post-_record_step cumulative warning:
+        # _record_step добавляет GateResult в gate_state.results, но НЕ добавляет
+        # warning в ctx.warnings. enforce_gates уже вызван раньше и не увидит
+        # новые gates. Поэтому проверяем вручную — на основе финального изображения.
+        _cum_gates = [
+            g for g in gate_state.results
+            if g.gate_name == "p95_shift_cumulative"
+            and g.step_name == "postproc_cumulative"
+            and g.triggered
+        ]
+        for _cg in _cum_gates:
+            logger.info(
+                "Cumulative gate: p95 shift %.1f >= %.1f — diagnostic only "
+                "(does not trigger gamma weakening)",
+                _cg.original_value, _cg.adjusted_value,
+            )
+            ctx.warnings.append(
+                f"cumulative p95 shift {_cg.original_value:.1f} >= "
+                f"{_cg.adjusted_value:.1f} — check pipeline parameters"
+            )
     elif "highlight_rolloff" in validated.plan.active_steps:
         arr = np.array(img_postproc, dtype=np.float32)
         ceiling = float(ctx.machine_cfg.get("white_ceiling", 250))

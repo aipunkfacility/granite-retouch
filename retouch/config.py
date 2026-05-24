@@ -127,6 +127,21 @@ DEFAULTS = {
         "fringe_radius": 3,
         "mask_soft_sigma": 1.5,  # Софт-маска хромакея: 0=бинарная, 1-2=плавные края
         "face_oval_enabled": True,  # False = отключить овал лица (детекцию + коррекцию)
+        "quality_gates": {
+            "variance_loss_threshold": 35.0,
+            "clipped_pct_threshold": 5.0,
+            "p95_shift_threshold": 20.0,
+            "face_skin_p95_shift_threshold": 3.0,
+            "face_skin_p95_shift_threshold_by_machine": {
+                "laser_standard": 3.0,
+                "laser_80w": None,
+                "impact": 5.0,
+            },
+            "face_skin_cumulative_shift_threshold": None,
+            "shadow_crush_threshold": 10.0,
+            "face_dark_small_threshold": 5.0,
+            "contour_inner_quality_threshold": 30.0,
+        },
         "laser_standard": {
             "glow_size_min": 40, "glow_size_max": 80,
             "glow_opacity_min": 30, "glow_opacity_max": 40,

@@ -9,6 +9,21 @@
     "fringe_radius": 3,
     "mask_soft_sigma": 1.5,
     "face_oval_enabled": true,
+    "quality_gates": {
+      "variance_loss_threshold": 35.0,
+      "clipped_pct_threshold": 5.0,
+      "p95_shift_threshold": 20.0,
+      "face_skin_p95_shift_threshold": 3.0,
+      "face_skin_p95_shift_threshold_by_machine": {
+        "laser_standard": 3.0,
+        "laser_80w": null,
+        "impact": 5.0
+      },
+      "face_skin_cumulative_shift_threshold": null,
+      "shadow_crush_threshold": 10.0,
+      "face_dark_small_threshold": 5.0,
+      "contour_inner_quality_threshold": 30.0
+    },
     "laser_standard": {
       "glow_size_min": 40,
       "glow_size_max": 80,
