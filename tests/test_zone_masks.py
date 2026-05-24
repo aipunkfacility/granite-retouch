@@ -237,3 +237,164 @@ class TestMorphologicalContour:
         assert np.sum(contour) > 0
         # Contour должен быть на краях
         assert contour[10, 10] == 0  # центр не contour
+
+
+class TestGetBool:
+    """ZoneMasks.get_bool() нормализует маски в bool."""
+
+    def test_get_bool_01_mask(self):
+        """get_bool() handles 0/1 uint8 mask."""
+        zm = ZoneMasks(
+            subject=np.ones((10, 10), dtype=np.uint8),
+            face=np.ones((10, 10), dtype=np.uint8) * 255,
+            face_skin=np.ones((10, 10), dtype=np.uint8),
+            face_dark=np.zeros((10, 10), dtype=np.uint8),
+            hair=np.zeros((10, 10), dtype=np.uint8),
+            clothes=np.zeros((10, 10), dtype=np.uint8),
+            highlights=np.zeros((10, 10), dtype=np.uint8),
+            contour_inner=np.zeros((10, 10), dtype=np.uint8),
+            contour_outer=np.zeros((10, 10), dtype=np.uint8),
+            background=np.zeros((10, 10), dtype=np.uint8),
+        )
+        result = zm.get_bool("face_skin")
+        assert result.dtype == bool
+        assert result.all()
+
+    def test_get_bool_0255_mask(self):
+        """get_bool() handles 0/255 uint8 mask."""
+        zm = ZoneMasks(
+            subject=np.ones((10, 10), dtype=np.uint8),
+            face=np.ones((10, 10), dtype=np.uint8) * 255,
+            face_skin=np.ones((10, 10), dtype=np.uint8) * 255,
+            face_dark=np.zeros((10, 10), dtype=np.uint8),
+            hair=np.zeros((10, 10), dtype=np.uint8),
+            clothes=np.zeros((10, 10), dtype=np.uint8),
+            highlights=np.zeros((10, 10), dtype=np.uint8),
+            contour_inner=np.zeros((10, 10), dtype=np.uint8),
+            contour_outer=np.zeros((10, 10), dtype=np.uint8),
+            background=np.zeros((10, 10), dtype=np.uint8),
+        )
+        result = zm.get_bool("face_skin")
+        assert result.dtype == bool
+        assert result.all()
+
+    def test_get_bool_bool_mask(self):
+        """get_bool() handles already-bool mask (passthrough)."""
+        zm = ZoneMasks(
+            subject=np.ones((10, 10), dtype=np.uint8),
+            face=np.ones((10, 10), dtype=np.uint8) * 255,
+            face_skin=np.ones((10, 10), dtype=bool),
+            face_dark=np.zeros((10, 10), dtype=np.uint8),
+            hair=np.zeros((10, 10), dtype=np.uint8),
+            clothes=np.zeros((10, 10), dtype=np.uint8),
+            highlights=np.zeros((10, 10), dtype=np.uint8),
+            contour_inner=np.zeros((10, 10), dtype=np.uint8),
+            contour_outer=np.zeros((10, 10), dtype=np.uint8),
+            background=np.zeros((10, 10), dtype=np.uint8),
+        )
+        result = zm.get_bool("face_skin")
+        assert result.dtype == bool
+        assert result.all()
+
+    def test_face_skin_mask_current_format(self):
+        """Current implementation: zone_masks.face_skin contains 0/1 (bool→uint8).
+
+        0/1 is current implementation state, not intended contract.
+        get_bool() encapsulates normalisation. If format changes, this test
+        will fail — update get_bool() and all three consumers.
+        """
+        from PIL import Image, ImageDraw
+        from retouch.processing.analysis.zones import build_zone_masks
+
+        img = Image.new("L", (200, 200), 150)
+        subject_mask = Image.new("L", (200, 200), 255)
+        face_mask = Image.new("L", (200, 200), 0)
+        draw = ImageDraw.Draw(face_mask)
+        draw.ellipse([50, 30, 150, 160], fill=255)
+
+        zm = build_zone_masks(
+            subject_mask=subject_mask,
+            face_mask=face_mask,
+            img_gray=img,
+            skin_threshold=100,
+            highlight_threshold=200,
+        )
+
+        unique = np.unique(zm.face_skin)
+        assert set(unique).issubset({0, 1}), (
+            f"face_skin mask format changed from 0/1 to: {unique}. "
+            f"Update ZoneMasks.get_bool() and verify unsharp.py, "
+            f"face_brightness.py, steps.py."
+        )
+
+        fs_bool = zm.get_bool("face_skin")
+        assert fs_bool.dtype == bool
+        assert np.array_equal(fs_bool, zm.face_skin.astype(bool))
+
+
+class TestSafetyCapGetBool:
+    """Safety cap 0/1 mask bug: get_bool() не даёт false negative."""
+
+    def test_safety_cap_01_mask_via_get_bool(self):
+        """Safety cap works with face_skin 0/1 mask through get_bool()."""
+        zm = ZoneMasks(
+            subject=np.ones((100, 100), dtype=np.uint8) * 255,
+            face=np.ones((100, 100), dtype=np.uint8) * 255,
+            face_skin=np.zeros((100, 100), dtype=np.uint8),
+            face_dark=np.zeros((100, 100), dtype=np.uint8),
+            hair=np.zeros((100, 100), dtype=np.uint8),
+            clothes=np.zeros((100, 100), dtype=np.uint8),
+            highlights=np.zeros((100, 100), dtype=np.uint8),
+            contour_inner=np.zeros((100, 100), dtype=np.uint8),
+            contour_outer=np.zeros((100, 100), dtype=np.uint8),
+            background=np.zeros((100, 100), dtype=np.uint8),
+        )
+        zm.face_skin[30:70, 30:70] = 1  # 0/1 mask
+
+        fs_bool = zm.get_bool("face_skin")
+        assert fs_bool.dtype == bool
+        assert fs_bool[50, 50] is np.True_
+        assert fs_bool[0, 0] is np.False_
+
+    def test_safety_cap_0255_mask_via_get_bool(self):
+        """Safety cap works with face_skin 0/255 mask through get_bool()."""
+        zm = ZoneMasks(
+            subject=np.ones((100, 100), dtype=np.uint8) * 255,
+            face=np.ones((100, 100), dtype=np.uint8) * 255,
+            face_skin=np.zeros((100, 100), dtype=np.uint8),
+            face_dark=np.zeros((100, 100), dtype=np.uint8),
+            hair=np.zeros((100, 100), dtype=np.uint8),
+            clothes=np.zeros((100, 100), dtype=np.uint8),
+            highlights=np.zeros((100, 100), dtype=np.uint8),
+            contour_inner=np.zeros((100, 100), dtype=np.uint8),
+            contour_outer=np.zeros((100, 100), dtype=np.uint8),
+            background=np.zeros((100, 100), dtype=np.uint8),
+        )
+        zm.face_skin[30:70, 30:70] = 255  # 0/255 mask
+
+        fs_bool = zm.get_bool("face_skin")
+        assert fs_bool.dtype == bool
+        assert fs_bool[50, 50] is np.True_
+        assert fs_bool[0, 0] is np.False_
+
+    def test_safety_cap_no_false_negative_get_bool(self):
+        """0/1 mask via get_bool() does NOT produce all-False (old bug)."""
+        zm = ZoneMasks(
+            subject=np.ones((10, 10), dtype=np.uint8) * 255,
+            face=np.ones((10, 10), dtype=np.uint8) * 255,
+            face_skin=np.ones((10, 10), dtype=np.uint8),
+            face_dark=np.zeros((10, 10), dtype=np.uint8),
+            hair=np.zeros((10, 10), dtype=np.uint8),
+            clothes=np.zeros((10, 10), dtype=np.uint8),
+            highlights=np.zeros((10, 10), dtype=np.uint8),
+            contour_inner=np.zeros((10, 10), dtype=np.uint8),
+            contour_outer=np.zeros((10, 10), dtype=np.uint8),
+            background=np.zeros((10, 10), dtype=np.uint8),
+        )
+
+        # Old bug: np.any(face_skin > 128) always False for 0/1 mask
+        assert not np.any(zm.face_skin > 128)
+
+        # get_bool() works correctly
+        fs_bool = zm.get_bool("face_skin")
+        assert fs_bool.all() == True

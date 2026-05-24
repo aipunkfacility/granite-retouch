@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 class ZoneMasks:
     """Дизъюнктное разбиение изображения на технические зоны.
 
-    Все маски — uint8 ndarray одинакового размера (H, W).
+    uint8 ndarray, values 0/1 (internal zones from bool logic) or 0/255
+    (external masks from PIL Image). Use get_bool() for normalised boolean access.
     После resolve_zone_priority() все final_* маски не пересекаются.
     """
     subject: np.ndarray       # subject_mask из chromakey
@@ -38,6 +39,28 @@ class ZoneMasks:
     contour_inner: np.ndarray # внутренний край для glow
     contour_outer: np.ndarray # внешний край для антифринги
     background: np.ndarray    # фон (хромакей)
+
+    def get_bool(self, zone: str) -> np.ndarray:
+        """Return boolean mask for a zone (handles both 0/1 and 0/255 uint8).
+
+        Internal masks are 0/1 (bool.astype(uint8)), external masks
+        are 0/255 (PIL Image). This method normalises both to boolean.
+
+        Args:
+            zone: zone name ('face_skin', 'face_dark', 'hair', etc.)
+
+        Returns:
+            np.ndarray of dtype bool, same shape as the zone mask.
+
+        Raises:
+            AttributeError: if zone name doesn't exist.
+        """
+        raw = getattr(self, zone)
+        if raw.dtype == bool:
+            return raw
+        if raw.max() <= 1:
+            return raw.astype(bool)
+        return raw > 128
 
     # Метаданные
     beard_suspected: bool = False

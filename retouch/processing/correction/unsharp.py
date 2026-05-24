@@ -64,10 +64,7 @@ def apply_unsharp_mask(img, radius=1.5, percent=120, threshold=0,
 
     # P1.1: face_skin overshoot protection (amplitude cap)
     if face_skin_mask is not None and face_overshoot_limit is not None:
-        if face_skin_mask.max() <= 1:
-            fs_bool = face_skin_mask.astype(bool)
-        else:
-            fs_bool = face_skin_mask > 128
+        fs_bool = face_skin_mask if face_skin_mask.dtype == bool else face_skin_mask > 128
 
         if fs_bool.any():
             delta_fs = sharp_arr[fs_bool] - orig_arr[fs_bool]

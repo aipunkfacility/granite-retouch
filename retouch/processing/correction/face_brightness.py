@@ -148,10 +148,7 @@ def face_brightness_correction(
 
     # Определяем маску применения — face_skin с защитой субъекта
     if face_skin_mask is not None:
-        if face_skin_mask.max() <= 1:
-            skin_bool = face_skin_mask.astype(bool)
-        else:
-            skin_bool = face_skin_mask > 128
+        skin_bool = face_skin_mask if face_skin_mask.dtype == bool else face_skin_mask > 128
         apply_mask = subj_bool & skin_bool
     else:
         apply_mask = subj_bool

@@ -195,13 +195,14 @@ class TestQualityGatesFromConfig:
         assert quality_gates["contour_inner_quality_threshold"] == 30.0
 
     def test_get_gate_thresholds_returns_all_keys(self):
-        """_get_gate_thresholds returns all 6 threshold keys."""
+        """_get_gate_thresholds returns all 7 threshold keys."""
         from retouch.processing.core.steps import _get_gate_thresholds
         thresholds = _get_gate_thresholds({"processing": {"quality_gates": {}}})
-        assert len(thresholds) == 6
+        assert len(thresholds) == 7
         assert all(k in thresholds for k in [
             "variance_loss_threshold", "clipped_pct_threshold", "p95_shift_threshold",
-            "shadow_crush_threshold", "face_dark_small_threshold", "contour_inner_quality_threshold",
+            "face_skin_p95_shift_threshold", "shadow_crush_threshold",
+            "face_dark_small_threshold", "contour_inner_quality_threshold",
         ])
 
     def test_get_gate_thresholds_uses_custom_values(self):
@@ -240,5 +241,44 @@ class TestQualityGatesFromConfig:
         from retouch.processing.core.steps import _get_gate_thresholds
         config = {"processing": {"quality_gates": None}}
         thresholds = _get_gate_thresholds(config)
-        assert len(thresholds) == 6
+        assert len(thresholds) == 7
         assert thresholds["variance_loss_threshold"] == 35.0
+        assert thresholds["face_skin_p95_shift_threshold"] == 5.0
+
+
+class TestP21FaceSkinP95ShiftGate:
+    """P2.1: face_skin zone uses lowered p95 shift threshold (5 instead of 20)."""
+
+    def test_face_skin_p95_shift_lower_threshold(self):
+        """face_skin zone uses lowered threshold 5 instead of 20."""
+        gate = post_check_p95_shift(190.0, 198.0, threshold_levels=5.0)
+        assert gate.triggered is True
+        assert gate.gate_name == "p95_shift"
+
+    def test_face_skin_p95_shift_at_threshold(self):
+        """shift=5.0 == threshold 5.0 → gate does NOT trigger (> semantics)."""
+        gate = post_check_p95_shift(190.0, 195.0, threshold_levels=5.0)
+        assert gate.triggered is False
+
+    def test_face_skin_p95_shift_just_above_threshold(self):
+        """shift=5.1 > threshold 5.0 → gate triggers."""
+        gate = post_check_p95_shift(190.0, 195.1, threshold_levels=5.0)
+        assert gate.triggered is True
+
+    def test_face_skin_p95_shift_below_threshold(self):
+        """shift=4 does not trigger lowered threshold 5."""
+        gate = post_check_p95_shift(190.0, 194.0, threshold_levels=5.0)
+        assert gate.triggered is False
+
+    def test_general_zone_uses_default_threshold(self):
+        """Non-face_skin zones use threshold 20."""
+        gate_general = post_check_p95_shift(190.0, 205.0, threshold_levels=20.0)
+        assert gate_general.triggered is False
+
+        gate_fs = post_check_p95_shift(190.0, 205.0, threshold_levels=5.0)
+        assert gate_fs.triggered is True
+
+    def test_shift_7_triggers_threshold_5(self):
+        """p95 shift=7 > 5 → gate triggers (typical case after amplitude cap ±8)."""
+        gate = post_check_p95_shift(190.0, 197.0, threshold_levels=5.0)
+        assert gate.triggered is True

@@ -43,7 +43,8 @@ def _get_gate_thresholds(config: dict) -> dict:
     return {
         "variance_loss_threshold": quality_gates.get("variance_loss_threshold", 35.0),
         "clipped_pct_threshold": quality_gates.get("clipped_pct_threshold", 5.0),
-        "p95_shift_threshold": quality_gates.get("p95_shift_threshold", 20.0),
+        "p95_shift_threshold": quality_gates.get("p95_shift_threshold", 20.0),  # default for non-face_skin zones (not used in _record_step yet)
+        "face_skin_p95_shift_threshold": quality_gates.get("face_skin_p95_shift_threshold", 5.0),  # face_skin: > 5.0 triggers gate
         "shadow_crush_threshold": quality_gates.get("shadow_crush_threshold", 10.0),
         "face_dark_small_threshold": quality_gates.get("face_dark_small_threshold", 5.0),
         "contour_inner_quality_threshold": quality_gates.get("contour_inner_quality_threshold", 30.0),
@@ -206,7 +207,7 @@ def run_pipeline_steps(
 
                     gate = post_check_p95_shift(
                         fs_prev.p95, fs_curr.p95, step_name=step_name,
-                        threshold_levels=thresholds["p95_shift_threshold"],
+                        threshold_levels=thresholds["face_skin_p95_shift_threshold"],
                     )
                     if gate.triggered:
                         gate_state.results.append(gate)
@@ -243,7 +244,7 @@ def run_pipeline_steps(
     if "levels" in validated.plan.active_steps:
         face_skin_mask_for_levels = None
         if zone_masks is not None:
-            face_skin_mask_for_levels = zone_masks.face_skin
+            face_skin_mask_for_levels = zone_masks.get_bool("face_skin")
         img_leveled, face_before, face_after, correction_factor, face_delta = face_brightness_correction(
             img_glow,
             subject_mask=ctx.subject_mask,
@@ -259,7 +260,7 @@ def run_pipeline_steps(
     if "unsharp" in validated.plan.active_steps:
         _face_skin_for_unsharp = None
         if zone_masks is not None and zone_masks.face_skin is not None:
-            _face_skin_for_unsharp = zone_masks.face_skin
+            _face_skin_for_unsharp = zone_masks.get_bool("face_skin")
         elif ctx.face_mask is not None and np.any(np.array(ctx.face_mask) > 128):
             _face_skin_for_unsharp = np.array(ctx.face_mask)
             logger.info("Unsharp: using face_mask as face_skin fallback for overshoot protection")
@@ -288,33 +289,46 @@ def run_pipeline_steps(
     # (knee - FACE_SKIN_KNEE_MARGIN) after gamma, so rolloff never compresses
     # face_skin tonal variation into a gray plateau.
     if stone_gamma is not None and stone_gamma < 1.0:
-        _fs_mask = None
+        _fs_bool = None
         _mask_source = "none"
-        if zone_masks is not None and zone_masks.face_skin is not None and np.any(zone_masks.face_skin > 128):
-            _fs_mask = zone_masks.face_skin
+        if zone_masks is not None and zone_masks.face_skin is not None:
+            _fs_bool = zone_masks.get_bool("face_skin")
             _mask_source = "zone_masks.face_skin"
         elif ctx.face_mask is not None and np.any(np.array(ctx.face_mask) > 128):
-            _fs_mask = np.array(ctx.face_mask) > 128
-            _mask_source = "ctx.face_mask (fallback)"
+            # Fallback on face_mask is NOT applied — would clip face_dark (brows, eyes, shadows).
+            # Better no cap than cap on entire oval. Log for diagnostics.
+            logger.warning(
+                "Safety cap: face_skin mask unavailable, face_mask fallback skipped "
+                "(would clip face_dark: brows, eyes, shadows). "
+                "This is expected if ZoneMasks are not built."
+            )
 
-        if _fs_mask is not None:
+        if _fs_bool is not None and _fs_bool.any():
             _ceiling = float(white_ceiling if white_ceiling is not None else ctx.machine_cfg.get("white_ceiling", 250))
             _knee = _ceiling * 0.90
             _safe_post_gamma = _knee - FACE_SKIN_KNEE_MARGIN
             _max_pre_gamma = np.power(_safe_post_gamma / 255.0, 1.0 / stone_gamma) * 255.0
+            _soft_knee_start = _max_pre_gamma - 5.0
+
             _arr = np.array(img_postproc, dtype=np.float32)
-            _fs_bool = _fs_mask > 128 if _fs_mask.dtype != bool else _fs_mask
-            _above = _arr[_fs_bool] > _max_pre_gamma
+            _above = _arr[_fs_bool] > _soft_knee_start
             if np.any(_above):
-                _clipped_count = int(np.sum(_above))
-                _arr[_fs_bool] = np.minimum(_arr[_fs_bool], _max_pre_gamma)
+                _zone = _arr[_fs_bool].copy()
+                _mask_above = _zone > _soft_knee_start
+                _before_count = int(np.sum(_mask_above))
+                _excess = _zone[_mask_above] - _soft_knee_start
+                _range = _max_pre_gamma - _soft_knee_start
+                _zone[_mask_above] = _soft_knee_start + _excess * (_range / (_excess + _range))
+                _after_count = int(np.sum(_zone > _max_pre_gamma))
+                _arr[_fs_bool] = _zone
                 img_postproc = Image.fromarray(
                     np.clip(_arr, 0, 255).astype(np.uint8), mode='L',
                 )
                 logger.info(
-                    "Safety cap: %d face_skin pixels clipped at %.1f "
+                    "Safety cap (soft rolloff): %d face_skin pixels softened, "
+                    "%d still above cap after rolloff "
                     "(knee=%.1f, margin=%d, gamma=%.2f, mask=%s)",
-                    _clipped_count, _max_pre_gamma, _knee,
+                    _before_count, _after_count, _knee,
                     FACE_SKIN_KNEE_MARGIN, stone_gamma, _mask_source,
                 )
                 _record_step("safety_cap", img_postproc)

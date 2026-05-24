@@ -73,6 +73,7 @@ processing:
     variance_loss_threshold: 35.0       # % variance loss before weakening delta
     clipped_pct_threshold: 5.0          # % clipped pixels before reducing rolloff
     p95_shift_threshold: 20.0           # levels p95 shift before weakening delta
+    face_skin_p95_shift_threshold: 5.0  # face_skin zone: gate triggers when shift > 5.0
     shadow_crush_threshold: 10.0        # % shadow crush before skipping floor/gamma
     face_dark_small_threshold: 5.0      # % face_dark ratio before skipping correction
     contour_inner_quality_threshold: 30.0  # % contour_inner ratio before morphological fallback
