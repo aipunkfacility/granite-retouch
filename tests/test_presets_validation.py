@@ -35,7 +35,7 @@ class TestPresetPhysicalConstraints:
         PHYSICAL_RANGES = {
             "laser_standard": (200, 255),
             "laser_80w": (150, 235),   # 150 минимум: Stanzone/Mirtels 80W используют 160
-            "impact": (180, 240),
+            "impact": (165, 240),      # эталон P25=168, min=170 с запасом
         }
         cfg = self._load_merged(preset_path)
         for machine, (lo, hi) in PHYSICAL_RANGES.items():

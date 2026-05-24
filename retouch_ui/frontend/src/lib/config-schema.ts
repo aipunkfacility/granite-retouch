@@ -60,7 +60,6 @@ export interface ProcessingParams {
   blue_threshold: ParamRange;
   min_blue_ratio: ParamRange;
   fringe_radius: ParamRange;
-  legacy_step_order: ParamRange;  // 0=false, 1=true — toggle [HIDDEN]
   min_resolution: ParamRange;
   result_min_black_ratio: ParamRange;
   mask_soft_sigma: ParamRange;           // НОВОЕ — Advanced

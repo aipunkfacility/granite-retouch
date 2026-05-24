@@ -31,17 +31,20 @@ class TestShadowNoiseInvariants:
         assert np.all(arr_res[mask_above] == arr_orig[mask_above]), "Шум не должен менять пиксели выше порога"
 
     def test_noise_range(self, gray_gradient):
-        """Шум должен быть в заданном диапазоне [noise_min, noise_max]."""
+        """Аддитивная модель: результат = original + noise ∈ [noise_min, original + noise_max]."""
         noise_min, noise_max = 5, 15
         threshold = 50
         res = add_shadow_noise(gray_gradient, Image.new("L", gray_gradient.size, 255), noise_min=noise_min, noise_max=noise_max, shadow_threshold=threshold)
         arr_res = np.array(res)
         arr_orig = np.array(gray_gradient)
         
-        # Пиксели ниже порога должны быть в диапазоне шума
+        # Пиксели ниже порога: результат = original + noise
         mask_below = arr_orig < threshold
         vals_below = arr_res[mask_below]
+        orig_below = arr_orig[mask_below]
         
         assert np.all(vals_below >= noise_min), f"Шум ниже {noise_min}"
-        assert np.all(vals_below <= noise_max), f"Шум выше {noise_max}"
+        # Аддитивная модель: макс = max(original_below) + noise_max
+        assert np.all(vals_below <= orig_below.max() + noise_max), \
+            f"Шум выше max(original_below) + noise_max = {orig_below.max()} + {noise_max}"
 

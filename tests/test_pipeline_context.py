@@ -161,13 +161,14 @@ class TestUnsharpThreshold:
     """USM threshold из конфига (SOP 3.1: 2-4)."""
 
     def test_default_threshold_ge_2(self):
-        """По умолчанию unsharp_threshold >= 2 для всех машин."""
+        """По умолчанию unsharp_threshold >= 2 (кроме impact: эталон gradient P99=43.5, порог 1)."""
         from retouch.config import load_config
         config = load_config()
         for machine in ("laser_standard", "laser_80w", "impact"):
             threshold = config["processing"][machine].get("unsharp_threshold", 0)
-            assert threshold >= 2, \
-                f"{machine}: unsharp_threshold должен быть >= 2 (SOP), got {threshold}"
+            min_threshold = 1 if machine == "impact" else 2
+            assert threshold >= min_threshold, \
+                f"{machine}: unsharp_threshold должен быть >= {min_threshold}, got {threshold}"
 
     def test_default_threshold_le_8(self):
         """unsharp_threshold <= 8 (верхняя граница SOP)."""

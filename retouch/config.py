@@ -448,7 +448,7 @@ try:
         laser_80w: MachineConfig = Field(default_factory=lambda: MachineConfig(
             glow_size_min=15, glow_size_max=25, glow_opacity_min=10, glow_opacity_max=20,
             glow_style="outer", stone_gamma=1.0, unsharp_threshold=3, shadow_floor=5, target_pre_fb=150,
-            face_brightness_target_min=160, face_brightness_target_max=180,
+            face_brightness_target_min=160, face_brightness_target_max=210,
             white_ceiling=235, highlight_start=195, dither_method="none",
             export_mode="8bit", step_mm=0.250, dither_method_1bit="jarvis"))
         impact: MachineConfig = Field(default_factory=lambda: MachineConfig(
@@ -477,6 +477,7 @@ try:
             return self
 
     class VignetteConfig(BaseModel):
+        enabled: bool = Field(True, description="Включить виньетку")
         vertical_offset: float = Field(0.10, ge=0.0, le=0.3)
         vertical_diameter: float = Field(0.50, ge=0.2, le=0.8)
         blur_radius: int = Field(60, ge=10, le=120)

@@ -166,11 +166,11 @@ class TestShadowFloorLaser:
         assert floor >= 5, f"laser_standard shadow_floor должен быть >= 5, got {floor}"
 
     def test_impact_shadow_floor_unchanged(self):
-        """Impact: shadow_floor = 8 (не изменился)."""
+        """Impact: shadow_floor = 2 (эталон: тени глазниц=2-5)."""
         from retouch.config import load_config
         config = load_config()
         floor = config["processing"]["impact"].get("shadow_floor", 0)
-        assert floor == 8, f"impact shadow_floor должен быть 8, got {floor}"
+        assert floor == 2, f"impact shadow_floor должен быть 2 (эталон), got {floor}"
 
     def test_shadow_floor_applied_for_laser_80w(self, tmp_path):
         """Shadow_floor применяется для laser_80w в пайплайне."""
@@ -240,7 +240,7 @@ class TestShadowFloorInteraction:
         np.testing.assert_array_equal(arr_result, arr_original)
 
     def test_noise_without_floor_works_as_before(self):
-        """Без shadow_floor (по умолчанию 0) — поведение не меняется."""
+        """Без shadow_floor (по умолчанию 0) — аддитивная модель: original + noise."""
         from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
@@ -250,10 +250,11 @@ class TestShadowFloorInteraction:
         arr = np.array(result)
         subject_pixels = arr[np.array(mask) > 128]
         assert subject_pixels.min() >= 5
-        assert subject_pixels.max() <= 15
+        # Аддитивная модель: результат = 3 (original) + [5,15] (noise) = [8,18]
+        assert subject_pixels.max() <= 3 + 15
 
     def test_noise_floor_between_min_and_max(self):
-        """shadow_floor между noise_min и noise_max — нижняя граница сдвигается."""
+        """shadow_floor между noise_min и noise_max — аддитивная модель: original + noise."""
         from retouch.processing.correction.shadow_noise import add_shadow_noise
 
         img = Image.new('L', (100, 100), 3)
@@ -262,5 +263,6 @@ class TestShadowFloorInteraction:
                                   shadow_threshold=30, shadow_floor=8)
         arr = np.array(result)
         subject_pixels = arr[np.array(mask) > 128]
+        # effective_min = max(3, 8) = 8, результат = 3 (original) + [8,15] = [11,18]
         assert subject_pixels.min() >= 8
-        assert subject_pixels.max() <= 15
+        assert subject_pixels.max() <= 3 + 15

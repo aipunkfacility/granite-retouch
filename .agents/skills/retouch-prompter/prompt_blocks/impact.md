@@ -15,3 +15,11 @@ Skin brightness 190-215 applies ONLY to highlight peaks (forehead, cheekbones, n
 
 Bold highlight/shadow transitions, sculptural hair with DOMINANT white highlights, macro-sharp clothing details, and vibrant catchlights in the eyes to prevent a "plastic" appearance on the engraved surface. Dark clothing shadow floor: 15-20 minimum except deep seams. No flat black masses on fabric. No skin area may exceed brightness 245 except eye whites (which may reach 250-255).
 
+## Calibration Note
+
+- Face brightness: 170-215 (etalon P25=168, P95=217)
+- Shadow floor: 2 (eye sockets 2-5)
+- Unsharp threshold: 1 (gradient P99=43.5)
+- White ceiling: 245 (max face=244)
+- Stone gamma: 0.88
+

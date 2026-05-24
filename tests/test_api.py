@@ -2,6 +2,9 @@
 
 import pytest
 
+pytest.importorskip("pydantic")
+pytest.importorskip("fastapi")
+
 
 class TestPydanticValidation:
     """Валидация параметров API через Pydantic."""
