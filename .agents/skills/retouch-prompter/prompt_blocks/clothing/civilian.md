@@ -3,8 +3,8 @@
 1. **Civilian Clothing Architecture:**
    Professionally replace the original outfit with formal civilian attire suitable for a memorial portrait. The new clothing—whether a refined blazer, suit jacket, or a respectful formal dress—must fit perfectly, maintaining the dignity and proportions of the subject. Focus on the sharp lines of lapels, collars, and defined buttons for a polished, high-end look.
 
-2. **Clothing Brightness Rule:**
-   Clothing must never appear as a flat white blowout without detail. The key rule: clothing must have READABLE TEXTURE and tonal variation — a bright collar with visible lace or buttons is acceptable; a solid white shape with no detail is not. When the overall clothing area lacks detail, render it darker rather than lighter to prevent over-engraving on stone. Preserve and sharpen every readable detail: lapels, collars, buttons, folds, fabric texture.
+2. **Clothing Tonal Rule:**
+   Render clothing in gray tonal ranges — solid white or solid black areas lose detail on stone. Apply tonal mapping per garment based on the source (brightness 0–255 scale): light garments as light gray (brightness 160–200), medium garments as medium gray (brightness 100–160), dark garments as dark gray (brightness 40–100), very dark garments as charcoal gray (brightness 20–60). Include only the tonal ranges present in the source clothing — skip ranges with no corresponding garment. Prioritize texture detail over brightness — adjust tonal range to preserve visible detail. When detail and brightness conflict, render darker rather than lighter. Maintain visible detail even in the lightest zones — flat white areas without texture cause over-engraving on stone. Clothing must remain below face brightness — the face is the brightest element of the portrait. Preserve and sharpen every readable detail: lapels, collars, buttons, folds, fabric texture.
 
 3. **Collar Symmetry:**
-   If the collar is at an angle, render each side individually according to perspective — do NOT mirror one side, as this produces an unnatural symmetry.
+   Render each side of the collar individually according to perspective.

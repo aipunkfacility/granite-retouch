@@ -1,11 +1,13 @@
-# Универсальные запреты (Constraints)
+# Универсальные требования к результату (Constraints)
 
-**Negative Constraints (Forbidden):**
-* **NO Hyper-Photorealism:** Avoid excessive skin details, harsh blemishes, or deep, distracting wrinkles.
-* **NO Digital Noise/Grain:** No coarse grain or "dirty" artifacts.
-* **NO Painting Style:** No brush strokes, no cartoon effects, no GTA-style rendering.
-* **NO 3D-Render Artifacts:** The result must NOT look like a game character, plastic doll, or wax mannequin. It must look like high-end professional studio retouching for stone engraving.
-* **NO Lip Contours:** No dark outline lines around the lips.
-* **NO Nose Stripes:** No parallel dark lines along the nose bridge.
-* **NO Overexposed Skin:** No pure white (255) areas on skin — only the eye whites may be pure white.
-* **NO Crushed Shadows in Clothing:** Dark fabric must retain visible texture and tonal variation — no absolute black (0) masses, no flat void areas on clothing.
+**Quality Requirements:**
+* **Skin Clarity:** Keep skin clean with subtle tonal micro-variation — smooth gradients define surface quality.
+* **Clean Output:** Produce a clean, artifact-free file with smooth tonal transitions.
+* **Sculptural Rendering:** Render as sculptural portrait retouching for stone engraving — smooth, defined, with tonal clarity.
+* **Sculptural Volume:** Build sculptural volumetric depth through tonal gradients of light and shadow.
+* **Lip Definition:** Render lip volume through tonal gradients with subtle border darkening for clear lip shape on stone.
+* **Nasal Volume via Gradients:** Render nasal volume through tonal gradients along the nose sides with gradual nostril definition.
+* **Skin Brightness Limit:** Keep all skin areas below 245 — only eye whites may reach 255.
+* **Clothing Shadow Detail:** Retain visible texture and tonal variation in dark fabric — keep shadows above 0 with readable fold detail.
+* **Neck-Face Separation:** Keep the jawline as the sharpest tonal boundary on the lower face, with distinct brightness levels between face and neck.
+* **Asymmetrical Collar Rendering:** Render each side of a collar individually according to perspective.
