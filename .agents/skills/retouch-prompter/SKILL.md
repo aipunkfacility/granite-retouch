@@ -40,7 +40,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
 
 ## Алгоритм работы
 
-1. Читает `order.json` из папки заказа (ID заказа, тип станка, данные анализа). Папка заказа — та, где лежит исходник.
+1. Читает `order.json` из папки заказа. Папка заказа: `<project_root>/orders/active/<order_id>/`. `order_id` и `machine_type` берутся из `order.json`.
 2. Определяет набор блоков для сборки:
    - **Основа**: `prompt_blocks/base.md` (содержит все Guidelines 1–4; base.md вставляется двумя частями — до и после маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`, см. шаг 4).
    - **Композиция**:
@@ -92,7 +92,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
    - Блок `constraints.md` (универсальные запреты).
    - Блок `edge-separation/` по machine_type.
    - Блок станка (Goal) из `*-goal.md`.
-5. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
+5. Сохраняет `prompt.md` в папку заказа: `<project_root>/orders/active/<order_id>/prompt.md`. Обновляет `order.final_prompt` и `order.status = "prompting"` в `order.json`.
 
 ## Важно
 

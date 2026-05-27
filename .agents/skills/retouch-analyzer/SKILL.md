@@ -68,7 +68,7 @@ description: Анализирует исходное фото для грави�
     - **Жёсткое правило:** одежда не ярче лица. Если рубашка на фото белая → `tone: "light"`, не `"medium"` — промптер перекодирует её в light gray (160–200), а не оставит белой (240–255).
 
 6. **Сохрани результат в order.json:**
-   - Прочитай существующий `order.json` из папки заказа (там же, где лежит исходник).
+   - Прочитай существующий `order.json` из папки заказа: `<project_root>/orders/active/<order_id>/`. `order_id` берётся из контекста задачи (напр. ORD-2026-042). Если `order_id` неизвестен — запроси у оператора.
    - Установи `order.analyzer_output` = результат анализа (объект с полями `clothing_style`, `headgear`, `composition`, `photo_angle`, `facing_direction`, `garments[]`).
    - Обнови `order.status` = `"analyzing"`.
    - Сохрани файл.
