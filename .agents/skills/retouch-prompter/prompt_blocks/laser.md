@@ -9,13 +9,10 @@
 3. **Materiality & Sculpted Volume:**
    To ensure edge-to-edge sharpness and prevent laser melting, capture clothing with sculpted 3D volume through smooth, high-contrast shading. Convey fabric structure through smooth tonal transitions — sculpted volume takes priority over fine fabric texture. Render clothing detailed and defined with smooth tonal transitions.
 
-4. **Sharp Edge Definition:**
-   Define the subject's edges cleanly and sharply against the blue (#0000FF) background.
+4. **Contour Definition:**
+   Draw a dark contour along the entire silhouette — face, ears, hair, shoulders, clothing — as a continuous, clearly readable edge. Apply zone-specific rendering:
+   * **Clothing, shoulders, outer silhouette:** Dark contour as a deliberate outline.
+   * **Face and neck:** Distinct inner shadow along the periphery, fading inward.
+   * **Hair:** Distinct inner shadow along the edge zone, fading inward.
 
-5. **Light Edge Separation:**
-   Separate bright edges from the outer glow with a tonal gap, using a zoned approach:
-   * **Clothing, shoulders, outer silhouette:** Subtle dark contour as a technical separation line for engraving.
-   * **Face and neck:** Soft inner shadow on the periphery of bright areas.
-   * **Grey/white hair:** Soft inner shadow along the edge zone, fading inward from the contour.
-
-**Goal (Laser Optimization):** Create a professional memorial portrait with "High-End Airbrush" materiality. Skin brightness 230-245 applies ONLY to highlight peaks (forehead, cheekbones, nose bridge) — these must be the BRIGHTEST areas, catching light like polished surfaces. Shadow zones of the face (under-eyes, jawline, sides of nose) must remain at 170-200 — noticeably darker than highlights, roughly 1-2 stops below, to preserve sculptural volume. Shadow floor: 10–15 minimum in all shadow areas. Render the face with clear directional lighting — light-catching surfaces and receding darker areas. Keep input brightness controlled — over-bright input causes flat white blowout on stone. Porcelain-smooth with no pores or noise, sculptural hair with prominent white highlights, clean volumetric depth without harsh graphic lines. No skin area may exceed brightness 240 except eye whites. This is a HIGH KEY portrait — intentionally bright and luminous. Generate the full face uniformly bright with shallow shadow depth. Use an **f/11 aperture** setting for maximum depth of field and sharpness.
+**Goal (Laser Optimization):** Create a professional memorial portrait with "High-End Airbrush" materiality. Skin brightness 230-245 applies ONLY to highlight peaks (forehead, cheekbones, nose bridge) — these must be the BRIGHTEST areas, catching light like polished surfaces. Shadow zones of the face (under-eyes, jawline, sides of nose) must remain at 170-200 — noticeably darker than highlights, roughly 1-2 stops below, to preserve sculptural volume. Shadow floor: 10–15 minimum in all shadow areas. Render the face with clear directional lighting — light-catching surfaces and receding darker areas. Keep input brightness controlled — over-bright input causes flat white blowout on stone. Porcelain-smooth with no pores or noise, sculptural hair with prominent white highlights, clear dark contour along the full silhouette, clean volumetric depth without harsh graphic lines. No skin area may exceed brightness 240 except eye whites. This is a HIGH KEY portrait — intentionally bright and luminous. Generate the full face uniformly bright with shallow shadow depth. Use an **f/11 aperture** setting for maximum depth of field and sharpness.

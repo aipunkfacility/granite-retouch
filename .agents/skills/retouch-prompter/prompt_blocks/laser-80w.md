@@ -9,13 +9,10 @@
 3. **Materiality & Sculpted Volume:**
    Capture clothing with sculpted 3D volume through smooth, high-contrast shading. Render clothing with readable texture and tonal variation throughout — visible detail in all fabric zones. Flat areas without texture cause over-engraving on stone. Render clothing with smooth tonal transitions that preserve fabric definition. Convey fabric structure through smooth, high-contrast shading — sculpted volume takes priority over fine fabric texture.
 
-4. **Sharp Edge Definition:**
-   Define the subject's edges cleanly and sharply against the blue (#0000FF) background. Keep all edge lighting below the 235 white ceiling.
+4. **Contour Definition:**
+   Draw a dark contour along the entire silhouette — face, ears, hair, shoulders, clothing — as a continuous, clearly readable edge. Keep edge brightness below 235 (on 0–255 scale). Apply zone-specific rendering:
+   * **Clothing, shoulders, outer silhouette:** Dark contour as a deliberate outline.
+   * **Face and neck:** Distinct inner shadow along the periphery, fading inward.
+   * **Hair:** Distinct inner shadow along the edge zone, fading inward.
 
-5. **Light Edge Separation:**
-   Separate bright edges from the outer glow with a tonal gap, using a zoned approach:
-   * **Clothing, shoulders, outer silhouette:** Subtle dark contour as a technical separation line for engraving.
-   * **Face and neck:** Soft inner shadow on the periphery of bright areas.
-   * **Grey/white hair:** Soft inner shadow along the edge zone, fading inward from the contour.
-
-**Goal (Laser 80W Optimization):** Create a professional studio memorial portrait with natural, dignified, and warm materiality — the result must look like a beautifully restored photograph. Target MEDIAN skin brightness 190-210 in the AI-generated grayscale file (before pipeline processing), with CLEAR tonal variation: highlight zones (forehead, cheekbones, nose bridge) must be NOTICEABLY BRIGHTER than shadow zones — highlights at ~200-220, shadows at ~140-170 (shadows visibly darker, roughly 2-3 stops below highlights). Render the face with clear directional lighting — light-catching surfaces and receding darker areas. Volume requires tonal range. The final output range of 210–230 preserves the tonal spread. Dark sculptural hair with subtle highlights, preserved facial character, clean volumetric depth without harsh graphic lines. No skin area may exceed brightness 235 except eye whites — this leaves headroom for the pipeline's adaptive brightness correction. Use an **f/11 aperture** setting for maximum depth of field and sharpness.
+**Goal (Laser 80W Optimization):** Create a professional studio memorial portrait with natural, dignified, and warm materiality — the result must look like a beautifully restored photograph. Target MEDIAN skin brightness 190-210 in the AI-generated grayscale file (before pipeline processing), with CLEAR tonal variation: highlight zones (forehead, cheekbones, nose bridge) must be NOTICEABLY BRIGHTER than shadow zones — highlights at ~200-220, shadows at ~140-170 (shadows visibly darker, roughly 2-3 stops below highlights). Render the face with clear directional lighting — light-catching surfaces and receding darker areas. Volume requires tonal range. The final output range of 210–230 preserves the tonal spread. Dark sculptural hair with subtle highlights, preserved facial character, clear dark contour along the full silhouette, clean volumetric depth without harsh graphic lines. No skin area may exceed brightness 235 except eye whites — this leaves headroom for the pipeline's adaptive brightness correction. Use an **f/11 aperture** setting for maximum depth of field and sharpness.
