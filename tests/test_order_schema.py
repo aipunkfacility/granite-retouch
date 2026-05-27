@@ -353,6 +353,14 @@ class TestInvalidOrders:
         errors = _validate(order)
         assert any("headgear" in e for e in errors)
 
+    def test_body_details_missing_required(self):
+        """Элемент body_details без обязательного поля — ошибка."""
+        order = _valid_order(analyzer_output={
+            "body_details": [{"type": "tattoo"}],  # нет location и description
+        })
+        errors = _validate(order)
+        assert any("location" in e for e in errors)
+
     def test_invalid_facing_direction(self):
         """Несуществующий facing_direction — ошибка."""
         order = _valid_order(analyzer_output={"facing_direction": "up"})
@@ -372,6 +380,37 @@ class TestInvalidOrders:
             })
             errors = _validate(order)
             assert errors == [], f"facing_direction={direction}: Unexpected errors: {errors}"
+
+    def test_body_details_valid(self):
+        """analyzer_output с body_details — валиден."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "preserve",
+            "headgear": "none",
+            "composition": "portrait",
+            "photo_angle": "frontal",
+            "facing_direction": "center",
+            "garments": [{"tone": "dark", "type": "jacket", "details": ["lapels"]}],
+            "body_details": [
+                {"location": "left forearm", "type": "tattoo", "description": "floral sleeve"},
+                {"location": "neck", "type": "necklace", "description": "silver chain"},
+            ],
+        })
+        errors = _validate(order)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_body_details_empty(self):
+        """Пустой body_details — валиден."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "preserve",
+            "headgear": "none",
+            "composition": "portrait",
+            "photo_angle": "frontal",
+            "facing_direction": "center",
+            "garments": [{"tone": "dark", "type": "jacket", "details": ["lapels"]}],
+            "body_details": [],
+        })
+        errors = _validate(order)
+        assert errors == [], f"Unexpected errors: {errors}"
 
 
 # ---------------------------------------------------------------------------

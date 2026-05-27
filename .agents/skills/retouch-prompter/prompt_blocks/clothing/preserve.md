@@ -8,7 +8,7 @@
    Render dark clothing with visible tonal transitions throughout. Fabric shadows at brightness 15–40, fabric highlights at 60–90. Keep dark clothing shadows above 0 except deep seam lines.
 
 3. **Detail Preservation:**
-   Preserve ALL readable details from the original: buttons, stitching, embroidery, medals, earrings, crosses, chains — the client knows every item by heart and will notice any omission.
+   Preserve ALL readable details from the original: buttons, stitching, embroidery, medals — the client knows every item by heart and will notice any omission.
 
 4. **Collar & Lapel Definition:**
    Render collar lines and lapel edges razor-sharp with clean 3D definition.

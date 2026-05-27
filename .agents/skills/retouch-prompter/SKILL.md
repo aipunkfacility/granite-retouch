@@ -86,8 +86,9 @@ outer glow для лазера, inner glow для импакта; (2) архов
    - Блок `base.md` от начала до маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation).
    - Блок композиции.
    - Блок одежды.
-   - Строка с перечнем предметов одежды из `garments[]` (шаг 3).
-   - Блок головного убора.
+    - Строка с перечнем предметов одежды из `garments[]` (шаг 3).
+    - Если `body_details[]` не пуст — строка инъекции: «Preserve body details from source: [location] — [description]; ... These details must be reproduced exactly as in the source photo.»
+    - Блок головного убора.
    - Блок станка (техническая часть: кожа, волосы, одежда).
    - Блок `base.md` от маркера до конца (Guideline 3 Background, Guideline 4 Anti-Doll).
    - Блок `constraints.md` (универсальные запреты).

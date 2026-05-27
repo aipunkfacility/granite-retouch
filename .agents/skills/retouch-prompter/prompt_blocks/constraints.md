@@ -11,3 +11,4 @@
 * **Neck-Face Separation:** Keep the jawline as the sharpest tonal boundary on the lower face, with distinct brightness levels between face and neck.
 * **Silhouette Separation:** Maintain a clear, continuous tonal separation between the subject and the background along the entire silhouette — face, ears, hair, shoulders, and clothing.
 * **Asymmetrical Collar Rendering:** Render each side of a collar individually according to perspective.
+* **Visible Body Details:** Anything visible on the body/face that is not clothing must exist on the retouch. Do not remove or blur.

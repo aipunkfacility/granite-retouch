@@ -9,7 +9,7 @@
   "machine_model": "",
   "source_photo": "source.jpg",
   "status": "new",
-  "analyzer_output": {},
+  "analyzer_output": {"body_details": []},
   "final_prompt": "",
   "generated_image": "",
   "final_file": "",

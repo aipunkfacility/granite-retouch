@@ -67,7 +67,14 @@ description: Анализирует исходное фото для грави�
      - **`details`** — перечень видимых деталей на английском, минимум 1 деталь (collar, lapels, buttons, pocket flaps, shoulder boards, medals, collar insignia, embroidery, stitching, fold shadows и т.д.)
     - **Жёсткое правило:** одежда не ярче лица. Если рубашка на фото белая → `tone: "light"`, не `"medium"` — промптер перекодирует её в light gray (160–200), а не оставит белой (240–255).
 
-6. **Сохрани результат в order.json:**
+6. **Перечисли заметные детали тела** (`body_details`):
+    - После одежды осмотри открытые участки тела (лицо, шея, руки, запястья).
+    - Ищи всё, что не является конструктивным элементом одежды: тату, шрамы, пирсинг, украшения (серьги, цепочки, колье, браслеты), очки, родинки на видимых местах.
+    - Если сомневаешься, относится ли деталь к одежде или к телу — клади в `body_details[]`.
+    - Для каждой детали укажи `location` (где на теле), `type` (категория), `description` (размер, форма, стиль).
+    - Если деталей нет — оставь пустой массив `[]`.
+
+7. **Сохрани результат в order.json:**
    - Прочитай существующий `order.json` из папки заказа: `<project_root>/orders/active/<order_id>/`. `order_id` берётся из контекста задачи (напр. ORD-2026-042). Если `order_id` неизвестен — запроси у оператора.
    - Установи `order.analyzer_output` = результат анализа (объект с полями `clothing_style`, `headgear`, `composition`, `photo_angle`, `facing_direction`, `garments[]`).
    - Обнови `order.status` = `"analyzing"`.
@@ -78,7 +85,7 @@ description: Анализирует исходное фото для грави�
 
 Верни ТОЛЬКО валидный JSON — содержимое поля `analyzer_output` (см. схему `analyzer_output` в `orders/schema.json`).
 
-Пример — мужчина в белой рубашке и чёрном пиджаке с медалями:
+Пример — мужчина в белой рубашке и чёрном пиджаке с медалями (без видимых деталей тела):
 
 ```json
 {
@@ -98,7 +105,8 @@ description: Анализирует исходное фото для грави�
       "type": "uniform jacket",
       "details": ["lapels", "shoulder boards", "collar insignia", "three medals on left chest"]
     }
-  ]
+  ],
+  "body_details": []
 }
 ```
 
@@ -140,6 +148,26 @@ description: Анализирует исходное фото для грави�
       "type": "blouse",
       "details": ["round collar", "button front", "fabric drape", "subtle folds"]
     }
+  ],
+  "body_details": []
+}
+```
+
+Пример — мужчина в тёмной футболке с тату на руке и пирсингом:
+
+```json
+{
+  "clothing_style": "preserve",
+  "headgear": "none",
+  "composition": "portrait",
+  "photo_angle": "3/4",
+  "facing_direction": "right",
+  "garments": [
+    {"tone": "dark", "type": "t-shirt", "details": ["crew neck", "fold shadows"]}
+  ],
+  "body_details": [
+    {"location": "left forearm", "type": "tattoo", "description": "black ink floral sleeve, roses and leaves"},
+    {"location": "right earlobe", "type": "piercing", "description": "small silver stud earring"}
   ]
 }
 ```

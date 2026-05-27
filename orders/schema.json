@@ -45,6 +45,19 @@
             },
             "required": ["tone", "type", "details"]
           }
+        },
+        "body_details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "location":    {"type": "string"},
+              "type":        {"type": "string"},
+              "description": {"type": "string"}
+            },
+            "required": ["location", "type", "description"]
+          }
         }
       },
       "required": ["clothing_style", "headgear", "composition", "photo_angle", "facing_direction", "garments"]
