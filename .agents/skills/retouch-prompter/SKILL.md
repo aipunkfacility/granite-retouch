@@ -38,36 +38,37 @@ outer glow для лазера, inner glow для импакта; (2) архов
 
 Вы — мастер промпт-инжиниринга. Ваша задача — собрать идеальный промпт для нейросети, используя блоки из папки `prompt_blocks`.
 
+**Важно: не ищи файлы блоков.** Пути к блокам указаны ниже — читай файлы по этим путям напрямую. Не сканируй директории, не glob'ь, не grep'и. Просто читай файл по указанному пути.
+
 ## Алгоритм работы
 
-1. Читает `order.json` из папки заказа. Папка заказа: `<project_root>/orders/active/<order_id>/`. `order_id` и `machine_type` берутся из `order.json`.
-2. Определяет набор блоков для сборки:
-   - **Основа**: `prompt_blocks/base.md` (содержит все Guidelines 1–4; base.md вставляется двумя частями — до и после маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`, см. шаг 4).
-   - **Композиция**:
-     - Если `analyzer_output.composition` = `"full_body"` → `prompt_blocks/composition/full-body.md`.
-     - Если `analyzer_output.composition` = `"half_body"` → `prompt_blocks/composition/half-body.md`.
-     - Иначе → `prompt_blocks/composition/portrait.md`.
-   - **Одежда**:
-     - Если `analyzer_output.clothing_style` = `"preserve"` → `prompt_blocks/clothing/preserve.md`.
-     - Если `analyzer_output.clothing_style` = `"military"` → `prompt_blocks/clothing/military.md`.
-     - Если `analyzer_output.clothing_style` = `"civilian"` → `prompt_blocks/clothing/civilian.md`.
-   - **Головной убор**:
-     - Если `analyzer_output.headgear` = `"cap"` → `prompt_blocks/headgear/cap.md`.
-     - Если `analyzer_output.headgear` = `"none"` → `prompt_blocks/headgear/none.md`.
-     - Значение `preserve` больше не существует — головной убор либо есть (`cap`), либо нет (`none`).
-    - **Станок (техническая часть)**: прямое сопоставление по `machine_type`:
-      - "laser_standard" → `prompt_blocks/laser.md`
-      - "laser_80w" → `prompt_blocks/laser-80w.md`
-      - "impact" → `prompt_blocks/impact.md`
-    - **Станок (Goal)**: прямое сопоставление по `machine_type`:
-      - "laser_standard" → `prompt_blocks/laser-goal.md`
-      - "laser_80w" → `prompt_blocks/laser-80w-goal.md`
-      - "impact" → `prompt_blocks/impact-goal.md`
-   - **Edge Separation**: прямое сопоставление по `machine_type`:
-     - "laser_standard" → `prompt_blocks/edge-separation/laser.md`
-     - "laser_80w" → `prompt_blocks/edge-separation/laser-80w.md`
-     - "impact" → `prompt_blocks/edge-separation/impact.md`
-   - **Запреты**: `prompt_blocks/constraints.md` (универсальные негативные ограничения, всегда включается).
+1. Читает `order.json` из папки заказа (ID заказа, тип станка, данные анализа). Папка заказа — та, где лежит исходник.
+2. Определяет набор блоков для сборки (все пути указаны от корня скилла):
+
+   | Категория | Условие | Путь к файлу |
+   |-----------|---------|-------------|
+   | Основа | всегда | `prompt_blocks/base.md` |
+   | Композиция | `composition = "full_body"` | `prompt_blocks/composition/full-body.md` |
+   | Композиция | `composition = "half_body"` | `prompt_blocks/composition/half-body.md` |
+   | Композиция | иначе | `prompt_blocks/composition/portrait.md` |
+   | Одежда | `clothing_style = "preserve"` | `prompt_blocks/clothing/preserve.md` |
+   | Одежда | `clothing_style = "military"` | `prompt_blocks/clothing/military.md` |
+   | Одежда | `clothing_style = "civilian"` | `prompt_blocks/clothing/civilian.md` |
+   | Головной убор | `headgear = "cap"` | `prompt_blocks/headgear/cap.md` |
+   | Головной убор | `headgear = "none"` | `prompt_blocks/headgear/none.md` |
+   | Станок (тех.) | `machine_type = "laser_standard"` | `prompt_blocks/laser.md` |
+   | Станок (тех.) | `machine_type = "laser_80w"` | `prompt_blocks/laser-80w.md` |
+   | Станок (тех.) | `machine_type = "impact"` | `prompt_blocks/impact.md` |
+   | Станок (Goal) | `machine_type = "laser_standard"` | `prompt_blocks/laser-goal.md` |
+   | Станок (Goal) | `machine_type = "laser_80w"` | `prompt_blocks/laser-80w-goal.md` |
+   | Станок (Goal) | `machine_type = "impact"` | `prompt_blocks/impact-goal.md` |
+   | Edge Separation | `machine_type = "laser_standard"` | `prompt_blocks/edge-separation/laser.md` |
+   | Edge Separation | `machine_type = "laser_80w"` | `prompt_blocks/edge-separation/laser-80w.md` |
+   | Edge Separation | `machine_type = "impact"` | `prompt_blocks/edge-separation/impact.md` |
+   | Запреты | всегда | `prompt_blocks/constraints.md` |
+
+   Значение `preserve` для headgear больше не существует — головной убор либо есть (`cap`), либо нет (`none`).
+   Блок `base.md` вставляется двумя частями — до и после маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`, см. шаг 4.
 3. Подставляет данные из `analyzer_output`:
     - `garments[]` → уже содержит тональную категорию (`tone`) и перечень деталей (`details`) для каждого предмета одежды
     - Перекодируй `tone` в диапазон яркости: `light` → light gray (brightness 160–200), `medium` → medium gray (100–159), `dark` → dark gray (50–99), `very_dark` → charcoal gray (20–49)
@@ -92,7 +93,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
    - Блок `constraints.md` (универсальные запреты).
    - Блок `edge-separation/` по machine_type.
    - Блок станка (Goal) из `*-goal.md`.
-5. Сохраняет `prompt.md` в папку заказа: `<project_root>/orders/active/<order_id>/prompt.md`. Обновляет `order.final_prompt` и `order.status = "prompting"` в `order.json`.
+5. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
 
 ## Важно
 
