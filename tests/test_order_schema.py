@@ -142,8 +142,16 @@ class TestValidOrders:
             analyzer_output={
                 "clothing_style": "civilian",
                 "headgear": "none",
-                "face_quality": "high",
-                "defects": ["scratches"],
+                "composition": "portrait",
+                "photo_angle": "frontal",
+                "facing_direction": "center",
+                "garments": [
+                    {
+                        "tone": "light",
+                        "type": "dress shirt",
+                        "details": ["collar", "buttons"],
+                    }
+                ],
             },
             final_prompt="Portrait of...",
             generated_image="output.png",
@@ -243,6 +251,127 @@ class TestInvalidOrders:
         order = _valid_order(analyzer_output={"clothing_style": "spacesuit"})
         errors = _validate(order)
         assert any("clothing_style" in e for e in errors)
+
+    def test_invalid_garment_tone(self):
+        """Несуществующий garments[].tone — ошибка."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "civilian",
+            "garments": [{"tone": "neon", "type": "shirt", "details": ["collar"]}],
+        })
+        errors = _validate(order)
+        assert any("tone" in e for e in errors)
+
+    def test_invalid_composition(self):
+        """Несуществующий composition — ошибка."""
+        order = _valid_order(analyzer_output={"composition": "landscape"})
+        errors = _validate(order)
+        assert any("composition" in e for e in errors)
+
+    def test_valid_half_body_composition(self):
+        """half_body — валидный composition."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "preserve",
+            "headgear": "none",
+            "composition": "half_body",
+            "photo_angle": "frontal",
+            "facing_direction": "center",
+            "garments": [{"tone": "medium", "type": "sweater", "details": ["crew neck"]}],
+        })
+        errors = _validate(order)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_garment_missing_required_fields(self):
+        """garments[] без обязательных полей — ошибка."""
+        order = _valid_order(analyzer_output={
+            "garments": [{"tone": "dark"}],  # нет type и details
+        })
+        errors = _validate(order)
+        assert any("type" in e or "details" in e for e in errors)
+
+    def test_valid_garments_two_items(self):
+        """Два предмета одежды в garments — валиден."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "military",
+            "headgear": "none",
+            "composition": "portrait",
+            "photo_angle": "3/4",
+            "facing_direction": "right",
+            "garments": [
+                {"tone": "light", "type": "dress shirt", "details": ["collar"]},
+                {"tone": "very_dark", "type": "uniform jacket", "details": ["lapels", "medals"]},
+            ],
+        })
+        errors = _validate(order)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_empty_garments_array(self):
+        """Пустой garments — ошибка (minItems: 1)."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "preserve",
+            "composition": "portrait",
+            "photo_angle": "frontal",
+            "garments": [],
+        })
+        errors = _validate(order)
+        assert any("garments" in e or "minItems" in e for e in errors)
+
+    def test_empty_details_array(self):
+        """Пустой details — ошибка (minItems: 1)."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "preserve",
+            "garments": [{"tone": "dark", "type": "jacket", "details": []}],
+        })
+        errors = _validate(order)
+        assert any("details" in e or "minItems" in e for e in errors)
+
+    def test_empty_analyzer_output(self):
+        """Пустой analyzer_output — ошибка (required поля отсутствуют)."""
+        order = _valid_order(analyzer_output={})
+        errors = _validate(order)
+        assert any("required" in e or "clothing_style" in e for e in errors)
+
+    def test_invalid_photo_angle(self):
+        """Несуществующий photo_angle — ошибка."""
+        order = _valid_order(analyzer_output={"photo_angle": "back"})
+        errors = _validate(order)
+        assert any("photo_angle" in e for e in errors)
+
+    def test_old_fields_rejected(self):
+        """Старые поля (fabric_type, face_quality, defects) — ошибка."""
+        order = _valid_order(analyzer_output={
+            "clothing_style": "civilian",
+            "fabric_type": "wool",
+        })
+        errors = _validate(order)
+        assert any("fabric_type" in e or "additionalProperties" in e for e in errors)
+
+    def test_headgear_preserve_rejected(self):
+        """preserve для headgear — ошибка (удалено из enum)."""
+        order = _valid_order(analyzer_output={
+            "headgear": "preserve",
+        })
+        errors = _validate(order)
+        assert any("headgear" in e for e in errors)
+
+    def test_invalid_facing_direction(self):
+        """Несуществующий facing_direction — ошибка."""
+        order = _valid_order(analyzer_output={"facing_direction": "up"})
+        errors = _validate(order)
+        assert any("facing_direction" in e for e in errors)
+
+    def test_valid_facing_directions(self):
+        """Все три facing_direction — валидны."""
+        for direction in ["left", "right", "center"]:
+            order = _valid_order(analyzer_output={
+                "clothing_style": "preserve",
+                "headgear": "none",
+                "composition": "portrait",
+                "photo_angle": "3/4",
+                "facing_direction": direction,
+                "garments": [{"tone": "dark", "type": "jacket", "details": ["lapels"]}],
+            })
+            errors = _validate(order)
+            assert errors == [], f"facing_direction={direction}: Unexpected errors: {errors}"
 
 
 # ---------------------------------------------------------------------------

@@ -90,8 +90,10 @@ opencode.
 
 **Путь:** `.agents/skills/retouch-analyzer/SKILL.md`
 
-Анализирует исходное фото и возвращает структурированный JSON (одежда, ткань,
-головной убор, качество лица, дефекты).
+Анализирует исходное фото и возвращает структурированный JSON: стиль одежды,
+головной убор, состав кадра, ракурс, направление взгляда, перечень предметов
+одежды с тональной рекодировкой и деталями. Результат используется
+`retouch-prompter` для сборки промпта.
 
 **Активируется:** "проанализируй фото", "заполни analyzer_output", "анализ
 изображения".
@@ -105,10 +107,22 @@ uv run python -m retouch process -i input.png -o final.bmp --dry-run
 ```json
 {
   "clothing_style": "military",
-  "fabric_type": "ripstop",
   "headgear": "cap",
-  "face_quality": "medium",
-  "defects": ["noise", "low contrast"]
+  "composition": "portrait",
+  "photo_angle": "3/4",
+  "facing_direction": "right",
+  "garments": [
+    {
+      "tone": "light",
+      "type": "dress shirt",
+      "details": ["collar", "button placket", "vertical weave"]
+    },
+    {
+      "tone": "very_dark",
+      "type": "uniform jacket",
+      "details": ["lapels", "shoulder boards", "three medals on left chest"]
+    }
+  ]
 }
 ```
 

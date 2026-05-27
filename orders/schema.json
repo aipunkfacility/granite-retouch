@@ -25,13 +25,29 @@
     },
     "analyzer_output": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "clothing_style": { "type": "string", "enum": ["civilian", "military", "preserve"] },
-        "fabric_type": { "type": "string" },
-        "headgear": { "type": "string", "enum": ["none", "cap", "preserve"] },
-        "face_quality": { "type": "string", "enum": ["high", "medium", "low"] },
-        "defects": { "type": "array", "items": { "type": "string"} }
-      }
+        "headgear": { "type": "string", "enum": ["none", "cap"] },
+        "composition": { "type": "string", "enum": ["portrait", "half_body", "full_body"] },
+        "photo_angle": { "type": "string", "enum": ["frontal", "3/4", "profile"] },
+        "facing_direction": { "type": "string", "enum": ["left", "right", "center"] },
+        "garments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tone": { "type": "string", "enum": ["light", "medium", "dark", "very_dark"] },
+              "type": { "type": "string" },
+              "details": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            },
+            "required": ["tone", "type", "details"]
+          }
+        }
+      },
+      "required": ["clothing_style", "headgear", "composition", "photo_angle", "facing_direction", "garments"]
     },
     "final_prompt": { "type": "string" },
     "generated_image": { "type": "string" },

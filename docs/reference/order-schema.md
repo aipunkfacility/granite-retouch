@@ -47,11 +47,15 @@ new → analyzing → prompting → generating → postprocessing → done
 
 | Поле | Тип | Enum | Описание |
 |------|-----|------|----------|
-| `clothing_style` | string | `civilian`, `military`, `preserve` | Стиль одежды |
-| `fabric_type` | string | — | Тип ткани (шерсть, хлопок, рип-стоп, кожа) |
-| `headgear` | string | `none`, `cap`, `preserve` | Головной убор |
-| `face_quality` | string | `high`, `medium`, `low` | Качество лица на фото |
-| `defects` | [string] | — | Массив дефектов (noise, low contrast, cracks, etc.) |
+| `clothing_style` | string | `civilian`, `military`, `preserve` | Факт + дефолт: `military` = военная (сохранить), `preserve` = гражданская (сохранить), `civilian` = заменить (оператор) |
+| `headgear` | string | `none`, `cap` | Факт + дефолт: `cap` = есть (сохранить), `none` = нет |
+| `composition` | string | `portrait`, `half_body`, `full_body` | Состав кадра — выбор composition-блока |
+| `photo_angle` | string | `frontal`, `3/4`, `profile` | Ракурс фото — для Source Angle Preservation |
+| `facing_direction` | string | `left`, `right`, `center` | Направление взгляда — для Source Angle Preservation |
+| `garments` | array | minItems: 1 | Список предметов одежды с тональной рекодировкой (минимум 1) |
+| `garments[].tone` | string | `light`, `medium`, `dark`, `very_dark` | Тональная категория → диапазон яркости |
+| `garments[].type` | string | — | Тип предмета на английском |
+| `garments[].details` | [string] | minItems: 1 | Перечень видимых деталей на английском (минимум 1) |
 
 ## face_oval
 
@@ -102,10 +106,22 @@ new → analyzing → prompting → generating → postprocessing → done
   "status": "done",
   "analyzer_output": {
     "clothing_style": "military",
-    "fabric_type": "ripstop",
     "headgear": "cap",
-    "face_quality": "medium",
-    "defects": ["noise", "low contrast"]
+    "composition": "portrait",
+    "photo_angle": "3/4",
+    "facing_direction": "right",
+    "garments": [
+      {
+        "tone": "light",
+        "type": "dress shirt",
+        "details": ["collar", "button placket", "vertical weave"]
+      },
+      {
+        "tone": "very_dark",
+        "type": "uniform jacket",
+        "details": ["lapels", "shoulder boards", "three medals on left chest"]
+      }
+    ]
   },
   "final_prompt": "Professional retouched portrait...",
   "generated_image": "generated/ai.png",

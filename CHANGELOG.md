@@ -2,6 +2,56 @@
 
 Все заметные изменения в проекте granite-retouch фиксируются в этом файле.
 
+## [7.0.0] — 2026-05-27
+
+### 💥 Breaking Changes — analyzer_output v2
+
+Полная переработка структуры `analyzer_output` в `orders/schema.json`. Старые поля удалены, новые добавлены. Заказы со старым форматом `analyzer_output` невалидны.
+
+#### Удалённые поля
+
+- `fabric_type` — не использовался промптером
+- `face_quality` — не использовался промптером
+- `defects` — не использовался промптером
+- `headgear: "preserve"` — избыточное значение (заменено на `cap` = сохранить)
+
+#### Новые поля
+
+- `composition` (`portrait` / `half_body` / `full_body`) — состав кадра, выбор composition-блока
+- `photo_angle` (`frontal` / `3/4` / `profile`) — ракурс фото для Source Angle Preservation
+- `facing_direction` (`left` / `right` / `center`) — направление взгляда для Source Angle Preservation
+- `garments` (array, minItems: 1) — перечень предметов одежды с тональной рекодировкой и деталями
+  - `garments[].tone` (`light` / `medium` / `dark` / `very_dark`) — тональная категория
+  - `garments[].type` (string, required) — тип предмета на английском
+  - `garments[].details` (array, minItems: 1, required) — перечень видимых деталей
+
+#### Schema enforcement
+
+- `additionalProperties: false` на `analyzer_output` и `garments[]` — произвольные ключи отклоняются
+- `required: ["clothing_style", "headgear", "composition", "photo_angle", "facing_direction", "garments"]` — пустой `analyzer_output` невалиден
+
+#### Изменённые файлы
+
+- `orders/schema.json` — новая схема `analyzer_output`
+- `.agents/skills/retouch-analyzer/SKILL.md` — полныйrewrite: детальный алгоритм анализа, контрпримеры
+- `.agents/skills/retouch-prompter/SKILL.md` — обновлённые шаги 2 и 3, маппинг `photo_angle` + `facing_direction` → `{{ANGLE_DIRECTIVE}}`
+- `prompt_blocks/base.md` — добавлена Guideline 2.5 Source Angle Preservation с плейсхолдером `{{ANGLE_DIRECTIVE}}`
+- `prompt_blocks/headgear/cap.md` — переписан: preserve-семантика вместо «add a cap»
+- `prompt_blocks/headgear/preserve.md` — **удалён**
+- `prompt_blocks/composition/half-body.md` — **создан**
+- `docs/reference/order-schema.md` — обновлена таблица и пример
+- `knowledge/agent-capabilities.md` — обновлено описание и пример JSON
+- `docs/getting-started.md` — обновлён шаг 3
+- `tests/test_order_schema.py` — обновлён пример, +12 новых тестов
+
+#### Новые тесты (12)
+
+- `test_invalid_garment_tone`, `test_invalid_composition`, `test_valid_half_body_composition`
+- `test_garment_missing_required_fields`, `test_valid_garments_two_items`
+- `test_empty_garments_array`, `test_empty_details_array`, `test_empty_analyzer_output`
+- `test_invalid_photo_angle`, `test_old_fields_rejected`
+- `test_headgear_preserve_rejected`, `test_invalid_facing_direction`, `test_valid_facing_directions`
+
 ## [6.5.0] — 2026-05-20
 
 ### Pipeline Refactor Completion
