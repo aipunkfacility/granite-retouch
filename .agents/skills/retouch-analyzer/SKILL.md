@@ -59,28 +59,29 @@ description: Анализирует исходное фото для грави�
    - Ищи отдельные предметы: рубашка, пиджак, жилет, галстук, шарф и т.д.
    - Для каждого предмета определи:
      - **`tone`** — тональная категория по шкале яркости 0–255:
-       - Белая / очень светлая одежда → `"light"` (в промпте станет: light gray, brightness 160–220)
+        - Белая / очень светлая одежда → `"light"` (в промпте станет: light gray, brightness 160–200)
        - Средне-серая одежда → `"medium"` (medium gray, brightness 100–159)
        - Тёмная одежда → `"dark"` (dark gray, brightness 50–99)
        - Очень тёмная / чёрная одежда → `"very_dark"` (charcoal gray, brightness 20–49)
      - **`type`** — тип предмета на английском (dress shirt, blazer, tie, vest, uniform jacket и т.д.)
      - **`details`** — перечень видимых деталей на английском, минимум 1 деталь (collar, lapels, buttons, pocket flaps, shoulder boards, medals, collar insignia, embroidery, stitching, fold shadows и т.д.)
-   - **Жёсткое правило:** одежда не ярче лица. Если рубашка на фото белая → `tone: "light"`, не `"medium"` — промптер перекодирует её в light gray (160–220), а не оставит белой (240–255).
+    - **Жёсткое правило:** одежда не ярче лица. Если рубашка на фото белая → `tone: "light"`, не `"medium"` — промптер перекодирует её в light gray (160–200), а не оставит белой (240–255).
 
-6. **Сохрани результат:**
-   - Собери полный JSON с полями: `machine_type`, `clothing_style`, `headgear`, `composition`, `photo_angle`, `facing_direction`, `garments[]`.
-   - Запиши JSON в файл `order.json` в папку заказа (там же, где лежит исходник). Если `order.json` уже существует — перезапиши. Если нет — создай.
-   - Файл `order.json` должен существовать в папке заказа после завершения работы. Не выводи JSON только в чат — обязательно сохрани файл.
+6. **Сохрани результат в order.json:**
+   - Прочитай существующий `order.json` из папки заказа (там же, где лежит исходник).
+   - Установи `order.analyzer_output` = результат анализа (объект с полями `clothing_style`, `headgear`, `composition`, `photo_angle`, `facing_direction`, `garments[]`).
+   - Обнови `order.status` = `"analyzing"`.
+   - Сохрани файл.
+   - Если `order.json` не существует — запроси у оператора `order_id`, создай новый `order.json` из шаблона `orders/template/order.json`, заполни `order_id`, `analyzer_output` и `status`, сохрани.
 
 ## Формат вывода
 
-Верни ТОЛЬКО валидный JSON, соответствующий схеме `analyzer_output` в `orders/schema.json`.
+Верни ТОЛЬКО валидный JSON — содержимое поля `analyzer_output` (см. схему `analyzer_output` в `orders/schema.json`).
 
 Пример — мужчина в белой рубашке и чёрном пиджаке с медалями:
 
 ```json
 {
-  "machine_type": "laser_standard",
   "clothing_style": "military",
   "headgear": "none",
   "composition": "portrait",

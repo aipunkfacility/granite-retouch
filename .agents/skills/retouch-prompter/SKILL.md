@@ -42,7 +42,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
 
 1. Читает `order.json` из папки заказа (ID заказа, тип станка, данные анализа). Папка заказа — та, где лежит исходник.
 2. Определяет набор блоков для сборки:
-   - **Основа**: `prompt_blocks/base.md` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation, 3 Background, 4 Anti-Doll).
+   - **Основа**: `prompt_blocks/base.md` (содержит все Guidelines 1–4; base.md вставляется двумя частями — до и после маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`, см. шаг 4).
    - **Композиция**:
      - Если `analyzer_output.composition` = `"full_body"` → `prompt_blocks/composition/full-body.md`.
      - Если `analyzer_output.composition` = `"half_body"` → `prompt_blocks/composition/half-body.md`.
@@ -55,19 +55,24 @@ outer glow для лазера, inner glow для импакта; (2) архов
      - Если `analyzer_output.headgear` = `"cap"` → `prompt_blocks/headgear/cap.md`.
      - Если `analyzer_output.headgear` = `"none"` → `prompt_blocks/headgear/none.md`.
      - Значение `preserve` больше не существует — головной убор либо есть (`cap`), либо нет (`none`).
-   - **Станок**: прямое сопоставление по `machine_type`:
-     - "laser_standard" → `prompt_blocks/laser.md`
-     - "laser_80w" → `prompt_blocks/laser-80w.md`
-     - "impact" → `prompt_blocks/impact.md`
+    - **Станок (техническая часть)**: прямое сопоставление по `machine_type`:
+      - "laser_standard" → `prompt_blocks/laser.md`
+      - "laser_80w" → `prompt_blocks/laser-80w.md`
+      - "impact" → `prompt_blocks/impact.md`
+    - **Станок (Goal)**: прямое сопоставление по `machine_type`:
+      - "laser_standard" → `prompt_blocks/laser-goal.md`
+      - "laser_80w" → `prompt_blocks/laser-80w-goal.md`
+      - "impact" → `prompt_blocks/impact-goal.md`
    - **Edge Separation**: прямое сопоставление по `machine_type`:
      - "laser_standard" → `prompt_blocks/edge-separation/laser.md`
      - "laser_80w" → `prompt_blocks/edge-separation/laser-80w.md`
      - "impact" → `prompt_blocks/edge-separation/impact.md`
    - **Запреты**: `prompt_blocks/constraints.md` (универсальные негативные ограничения, всегда включается).
 3. Подставляет данные из `analyzer_output`:
-   - `garments[]` → уже содержит тональную категорию (`tone`) и перечень деталей (`details`) для каждого предмета одежды
-   - Перекодируй `tone` в диапазон яркости: `light` → light gray (brightness 160–220), `medium` → medium gray (100–159), `dark` → dark gray (50–99), `very_dark` → charcoal gray (20–49)
-   - Если `analyzer_output` пустой или отсутствует — **прекрати сборку промпта и запроси анализ**
+    - `garments[]` → уже содержит тональную категорию (`tone`) и перечень деталей (`details`) для каждого предмета одежды
+    - Перекодируй `tone` в диапазон яркости: `light` → light gray (brightness 160–200), `medium` → medium gray (100–159), `dark` → dark gray (50–99), `very_dark` → charcoal gray (20–49)
+    - После clothing-блока добавь конкретизирующую строку per garment: «The [type] is [tone_range] with [details]». Например: «The uniform jacket is dark gray with lapels, shoulder boards, collar insignia, and medals»
+    - Если `analyzer_output` пустой или отсутствует — **прекрати сборку промпта и запроси анализ**
    - `composition` → выбор composition-блока (уже учтён в шаге 2)
    - `photo_angle` + `facing_direction` → подставь вместо `{{ANGLE_DIRECTIVE}}` в base.md (Guideline 2.5) по маппингу:
      - `"frontal"` → `facing the camera directly`
@@ -77,15 +82,16 @@ outer glow для лазера, inner glow для импакта; (2) архов
      - `"profile"` + `facing_direction: "left"` → `profile view, facing left`
      - `facing_direction: "center"` не добавляет направления (используется только с `frontal`)
 4. Собирает промпт в следующем порядке:
-   - Блок `base.md` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation).
+   - Блок `base.md` от начала до маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation).
    - Блок композиции.
    - Блок одежды.
+   - Строка с перечнем предметов одежды из `garments[]` (шаг 3).
    - Блок головного убора.
    - Блок станка (техническая часть: кожа, волосы, одежда).
-   - Блок `base.md` (продолжение: Guideline 3 Background, Guideline 4 Anti-Doll).
+   - Блок `base.md` от маркера до конца (Guideline 3 Background, Guideline 4 Anti-Doll).
    - Блок `constraints.md` (универсальные запреты).
-   - Блок `edge-separation/` по machine_type (laser.md / laser-80w.md / impact.md).
-   - Блок станка (Goal).
+   - Блок `edge-separation/` по machine_type.
+   - Блок станка (Goal) из `*-goal.md`.
 5. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
 
 ## Важно
