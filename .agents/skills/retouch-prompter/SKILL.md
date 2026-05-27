@@ -9,7 +9,7 @@ description: Собирает финальный промпт для генер�
 
 ## Алгоритм работы
 
-1. Читает `order.json` (ID заказа, тип станка, данные анализа).
+1. Читает `order.json` из папки заказа (ID заказа, тип станка, данные анализа). Папка заказа — та, где лежит исходник.
 2. Определяет набор блоков для сборки:
    - **Основа**: `prompt_blocks/base.md` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation, 3 Background, 4 Anti-Doll).
    - **Композиция**:
@@ -51,7 +51,7 @@ description: Собирает финальный промпт для генер�
    - Блок `constraints.md` (универсальные запреты).
    - Блок станка (Contour Definition / Rim Light — раздел контура из блока станка).
    - Блок станка (Goal).
-5. Сохраняет финальный результат в `prompt.md` и обновляет `order.json`.
+5. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
 
 ## Важно
 
