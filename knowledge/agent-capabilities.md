@@ -131,19 +131,21 @@ uv run python -m retouch process -i input.png -o final.bmp --dry-run
 **Путь:** `.agents/skills/retouch-prompter/SKILL.md`
 
 Собирает финальный промпт для Nano Banana из блоков
-(`prompt_blocks/base.md`, `clothing/`, `headgear/`, `laser.md`, `impact.md`,
-`constraints.md`) на основе `order.json`.
+(`prompt_blocks/base.md`, `clothing/`, `headgear/`, `laser.md`, `laser-80w.md`,
+`impact.md`, `edge-separation/`, `constraints.md`) на основе `order.json`.
 
 **Активируется:** "собери промпт", "сформируй prompt.md", "финальный промпт".
 
 **Порядок сборки:**
-1. `base.md` (Role, Guidelines 1, 1.5)
-2. Блок одежды (preserve / civilian / military)
-3. Блок головного убора (preserve / none / cap)
-4. Блок станка (laser / laser-80w / impact)
-5. `base.md` (продолжение: Guideline 4, 2, 3)
-6. `constraints.md` (универсальные запреты)
-7. Блок станка (Goal)
+1. `base.md` (Role/Context, Guidelines 1, 1.5, 2 Lighting, 2.5 Source Angle Preservation)
+2. Блок композиции (portrait / half-body / full-body)
+3. Блок одежды (preserve / civilian / military)
+4. Блок головного убора (none / cap)
+5. Блок станка (техническая часть: кожа, волосы, одежда)
+6. `base.md` (продолжение: Guideline 3 Background, Guideline 4 Anti-Doll)
+7. `constraints.md` (универсальные запреты)
+8. `edge-separation/` по machine_type (laser / laser-80w / impact)
+9. Блок станка (Goal)
 
 ### retouch-postprocessing
 

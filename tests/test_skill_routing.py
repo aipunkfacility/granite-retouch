@@ -14,6 +14,12 @@ MACHINE_TYPE_TO_FILE = {
     "impact": "impact.md",
 }
 
+EDGE_SEPARATION_FILES = {
+    "laser_standard": "edge-separation/laser.md",
+    "laser_80w": "edge-separation/laser-80w.md",
+    "impact": "edge-separation/impact.md",
+}
+
 
 class TestSkillRouting:
     """D2: каждый machine_type выбирает корректный промпт-файл."""
@@ -50,9 +56,29 @@ class TestSkillRouting:
         content = path.read_text(encoding="utf-8")
         assert "235" in content, "laser-80w.md должен упоминать потолок яркости 235"
 
-    def test_impact_file_has_calibration_note(self):
-        """impact.md содержит Calibration Note."""
+    def test_impact_file_has_reference_targets(self):
+        """impact.md содержит Reference Targets вместо Calibration Note."""
         path = PROMPT_BLOCKS / "impact.md"
         content = path.read_text(encoding="utf-8")
-        assert "Calibration Note" in content or "calibration" in content.lower(), \
-            "impact.md должен содержать Calibration Note"
+        assert "Reference Targets" in content, \
+            "impact.md должен содержать Reference Targets"
+        assert "Aim for these" in content, \
+            "Reference Targets должен содержать инструкцию 'Aim for these'"
+
+    @pytest.mark.parametrize("machine_type,expected_file", EDGE_SEPARATION_FILES.items())
+    def test_edge_separation_file_exists(self, machine_type, expected_file):
+        """edge-separation файл существует для каждого machine_type."""
+        path = PROMPT_BLOCKS / expected_file
+        assert path.exists(), f"edge-separation файл {expected_file} не найден по пути {path}"
+        content = path.read_text(encoding="utf-8")
+        assert len(content) > 50, f"Файл {expected_file} слишком короткий ({len(content)} символов)"
+
+    def test_edge_separation_has_anti_doll_carveout(self):
+        """edge-separation файлы содержат оговорку про Anti-Doll."""
+        for machine_type, rel_path in EDGE_SEPARATION_FILES.items():
+            path = PROMPT_BLOCKS / rel_path
+            if not path.exists():
+                continue
+            content = path.read_text(encoding="utf-8")
+            assert "silhouette edge only" in content.lower() or "not to facial features" in content.lower(), \
+                f"{rel_path} должен содержать Anti-Doll оговорку"
