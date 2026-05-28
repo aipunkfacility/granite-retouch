@@ -17,6 +17,7 @@
 - Прямые, конкретные инструкции: «the upper face reads as the illuminated side»
 - Без хеджирования: никакого «subtle», «micro», «gentle», «uniform at first glance» — это говорит модели «не утруждайся»
 - Без языка реставрации: «preserve and enhance», «repair blur», «restore» — модель генерирует с нуля, используй язык генерации: «render matching the source photo exactly»
+- Без перекрёстных ссылок: модель читает промпт линейно, сверху вниз. «As specified above», «see below», «following the machine-type specification» — модель не бегает по тексту и не ищет упомянутое место. Каждая инструкция должна быть самодостаточной в точке употребления.
 
 ## Чего НЕ писать
 
@@ -31,8 +32,34 @@
 - «specular highlights», «silver luminosity» → та же проблема: горячие точки вместо плавной тональной вариации
 - Вместо этого описывай направление: «the upper face reads as the illuminated side, the lower sides fall into shadow» — пусть модель сама выводит тональные значения из описания освещения
 
+### Не описывай falloff яркости лица от лба к челюсти (для impact)
+- ❌ «the forehead catches the most light and the cheekbones receive less as they angle away» → модель делает верхнюю половину лица пересвеченной, нижнюю — тёмной, лицо выглядит двухтональным (как будто нижняя часть была под козырьком кепки)
+- ✅ «the face is evenly illuminated from above — forehead, cheeks, and jaw receive comparable light» → вариация приходит от рельефа (морщины, складки), а не от градиента освещения
+- Это правило специфично для impact. Для laser falloff допустим (высокий ключ).
+
+### Морщины — источник тональной вариации, не косметическая деталь
+- ❌ «Wrinkles are soft tonal suggestions» → модель стирает их
+- ❌ «Wrinkles are visible tonal lines» → модель рисует их, но без тональной связи с кожей
+- ✅ «Each wrinkle casts a shadow into its recess and catches light on the raised skin beside it, creating tonal variety» → морщины встроены в тональную структуру кожи
+- Дифференциация по зонам: лобные морщины → заметнее, морщины вокруг глаз → мягче, иначе модель может переборщить и превратить портрет в старушку
+
+### Не пиши «smooth» для кожи в контексте импакта
+- «smooth skin» → модель сглаживает лицо до плоской поверхности, убирая тональную вариацию
+- «smooth and clean» → то же: «smooth» доминирует, «clean» не спасает
+- ✅ «clean of pores, noise, and grain» — чистая кожа без шума, но с сохранением скульптурной формы
+- ✅ «prominent sculptural form» — лицо не должно быть плоским
+- Никогда не пиши «no texture» про кожу лица — морщины и складки это текстура
+
+### Не пиши «keep [feature] as they are»
+- «keep eye wrinkles as they are» → модель читает текущее слабое состояние как целевое и оставляет морщины невидимыми
+- ✅ Опиши целевое состояние явно: «clearly visible as soft tonal lines — not erased, not exaggerated into deep grooves, but present and natural»
+
+### Не убирай повторное упоминание эффекта как «дубль»
+- Rim light: «Two light sources...» + «Add a rim light along the contour...» — это НЕ дубль, а усиление сигнала. Модель лучше отрабатывает эффект, когда он описан с двух сторон. При консолидации оставь оба упоминания.
+
 ### Не пихай числа яркости в описание кожи
 - ❌ «highlights 190–215, shadows 130–170» — читается как техническая спецификация, а не инструкция
+- ❌ «The forehead reads around 210, the upper cheeks around 195, the lower cheeks around 185» — ПРОВЕРЕНО: модель рисует три горизонтальные полосы с резкими границами (пятна)
 - ✅ Описывай зоны света и тени естественно, ограничения яркости дай один раз отдельной строкой (потолок, белки глаз)
 
 ### Не хеджируй тональную вариацию
@@ -96,7 +123,7 @@
 - Назови паттерн (напр., «frontal butterfly»)
 - Опиши какие зоны освещены, какие в тени
 - Позволь модели самой вывести тональные значения из направления света — не прописывай brightness-числа по зонам
-- Rim light: описывай как естественный эффект контровика, а не как значения яркости
+- Rim light: описывай как естественный эффект контровика, а не как значения яркости. Для импакта: используй «two light sources» + «clear gray edge» вместо «natural backlight reflex» — последнее ослабляет rim light
 
 ## Чеклист перед отправкой
 
@@ -115,3 +142,13 @@
 - [ ] Ограничения яркости указаны один раз, не повторяются
 - [ ] Промпт читается как естественный английский, ~25–35 строк
 - [ ] Anti-Doll — закрывающая фраза, не секция
+- [ ] Нет перекрёстных ссылок («as specified above», «see below») — каждая инструкция самодостаточна
+- [ ] Нет «smooth» для кожи в импакт-контексте (только «clean of pores/noise»)
+- [ ] Нет «no texture» для кожи лица — морщины это текстура
+- [ ] Нет «keep [feature] as they are» — только явное описание целевого состояния
+- [ ] Signal reinforcement (rim light и др.) не удалён при консолидации
+- [ ] Нет «natural backlight reflex» для импакта — только «two light sources» + «clear gray edge»
+- [ ] Нет falloff яркости от лба к челюсти (для impact)
+- [ ] Морщины описаны как источник тональной вариации, не как «soft suggestions»
+- [ ] Rim light для impact описан как gray, не white
+- [ ] Одежда для impact описана как гладкая, без «macro-sharpness»

@@ -92,6 +92,16 @@ outer glow для лазера, inner glow для импакта; (2) архов
     - **Убери дословные дубли** — если одна и та же фраза встречается дважды, оставь одно вхождение там, где оно логичнее в потоке текста.
     - **Слей пересекающиеся инструкции** — если два блока говорят об одном и том же разными словами, объедини в одно предложение. Например: «The jawline matches the original photo exactly» (base) + «Keep the jawline as the sharpest tonal boundary on the lower face» (constraints) → «The jawline matches the original photo exactly — it is the sharpest tonal boundary on the lower face, with distinct brightness between face and neck.»
     - **Убери инструкции, противоречащие контексту заказа** — если `headgear = "none"` и на фото нет головного убора, не вставляй блок none.md с инструкцией «Professionally remove any headgear». Если убирать нечего — просто опиши волосы естественно.
+    - **НЕ убирай усиление сигнала (signal reinforcement)** — если один и тот же эффект описан дважды разными, но непротиворечащими способами (напр. rim light: «Two light sources...» + «Add a rim light along the contour...»), это не дубль, а усиление. Оставь оба упоминания — модель лучше отрабатывает эффект, когда он описан с двух сторон.
+    - **Приоритет машинных блоков над base.md** — если base.md говорит «Wrinkles are soft tonal suggestions», а impact.md говорит «Forehead wrinkles are prominent sculptural elements», машинный блок побеждает. При слиянии используй формулировку машинного блока.
+    - **Таблица приоритетов при конфликтах:**
+
+      | Конфликт | Приоритет для impact | Приоритет для laser |
+      |---|---|---|
+      | Кожа: smooth vs tonal range | tonal range от рельефа | smooth (porcelain) |
+      | Одежда: texture vs smooth | smooth fabric | texture detail |
+      | Освещение: falloff vs even | even illumination | falloff (high-key) |
+      | Морщины: soft vs prominent | prominent sculptural | soft / erased |
     - **Целевая длина: 20–35 строк.** Каждый абзац — одна законченная мысль. Без нумерованных секций и списков параметров.
     - **Anti-Doll** — закрывающая фраза промпта, не отдельный блок: «The portrait must look like a photograph, not an illustration — smooth, gradual transitions, no harsh black stripes on skin. Work with light, not with lines.»
     - **Ограничения яркости** — один раз: «Skin must never reach pure white — only the whites of the eyes may.»
