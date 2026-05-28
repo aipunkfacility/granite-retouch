@@ -36,7 +36,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
 
 # Retouch Prompter Skill
 
-Вы — мастер промпт-инжиниринга. Ваша задача — собрать идеальный промпт для нейросети, используя блоки из папки `prompt_blocks`.
+Вы — мастер промпт-инжиниринга. Ваша задача — собрать промпт для нейросети, используя блоки из папки `prompt_blocks`, и затем консолидировать его в связный текст без дублей.
 
 **Важно: не ищи файлы блоков.** Пути к блокам указаны ниже — читай файлы по этим путям напрямую. Не сканируй директории, не glob'ь, не grep'и. Просто читай файл по указанному пути.
 
@@ -72,11 +72,11 @@ outer glow для лазера, inner glow для импакта; (2) архов
 3. Подставляет данные из `analyzer_output`:
     - `garments[]` → уже содержит тональную категорию (`tone`) и перечень деталей (`details`) для каждого предмета одежды
     - Перекодируй `tone` в описание яркости естественным языком: `light` → «light gray», `medium` → «medium gray», `dark` → «dark gray», `very_dark` → «charcoal gray»
-    - После clothing-блока добавь конкретизирующую строку per garment: «The [type] is [tone] with [details]». Например: «The uniform jacket is dark gray with lapels, shoulder boards, and collar insignia»
+    - После clothing-блока добавь конкретизирующую строку per garment: «The [type] is [tone]. Note visible elements: [elements from details — только факт наличия, без описания внешнего вида]». Например: «The coat is charcoal gray. Note visible elements: button at center front.» — НЕ описывай внешний вид (крой, форму, текстуру), модель видит фото. Если VLM указал неточные детали (напр. «stand collar» когда стойки нет), не включай их.
     - Если `analyzer_output` пустой или отсутствует — **прекрати сборку промпта и запроси анализ**
    - `composition` → выбор composition-блока (уже учтён в шаге 2)
    - `photo_angle` + `facing_direction` → не подставляются в промпт. Если поза не меняется, base.md уже содержит «Keep the original pose and angle exactly as in the source». Если поза меняется — добавь конкретное указание после этой строки.
-4. Собирает промпт в следующем порядке:
+4. Собирает черновик промпта в следующем порядке:
    - Блок `base.md` от начала до маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`.
    - Блок композиции.
    - Блок одежды.
@@ -88,8 +88,17 @@ outer glow для лазера, inner glow для импакта; (2) архов
    - Блок `constraints.md` (универсальные запреты).
    - Блок `edge-separation/` по machine_type.
    - Блок станка (Goal) из `*-goal.md`.
-5. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
+5. **Консолидация (КРИТИЧЕСКИЙ ШАГ):** Черновик содержит дубли — блоки написаны как самостоятельные документы, и при склейке одна и та же мысль повторяется в нескольких местах. Модель получает размытый сигнал от дублей. Консолидируй:
+    - **Убери дословные дубли** — если одна и та же фраза встречается дважды, оставь одно вхождение там, где оно логичнее в потоке текста.
+    - **Слей пересекающиеся инструкции** — если два блока говорят об одном и том же разными словами, объедини в одно предложение. Например: «The jawline matches the original photo exactly» (base) + «Keep the jawline as the sharpest tonal boundary on the lower face» (constraints) → «The jawline matches the original photo exactly — it is the sharpest tonal boundary on the lower face, with distinct brightness between face and neck.»
+    - **Убери инструкции, противоречащие контексту заказа** — если `headgear = "none"` и на фото нет головного убора, не вставляй блок none.md с инструкцией «Professionally remove any headgear». Если убирать нечего — просто опиши волосы естественно.
+    - **Целевая длина: 20–35 строк.** Каждый абзац — одна законченная мысль. Без нумерованных секций и списков параметров.
+    - **Anti-Doll** — закрывающая фраза промпта, не отдельный блок: «The portrait must look like a photograph, not an illustration — smooth, gradual transitions, no harsh black stripes on skin. Work with light, not with lines.»
+    - **Ограничения яркости** — один раз: «Skin must never reach pure white — only the whites of the eyes may.»
+    - **Clothing stays below face brightness** — один раз, рядом с описанием одежды.
+    - Проверь по чеклисту из `PROMPT_RULES.md` (файл лежит рядом с SKILL.md: `.agents/skills/retouch-prompter/PROMPT_RULES.md`).
+6. Сохраняет `prompt.md` в папку заказа (там же, где исходник и `order.json`) и обновляет `order.json`.
 
 ## Важно
 
-Не добавляйте никакой отсебятины, используйте строго тексты из файлов блоков.
+Блоки — исходный материал, а не готовый промпт. Черновая сборка всегда содержит дубли — это нормально, так блоки спроектированы (каждый блок самодостаточен). Шаг 5 (консолидация) — обязательный, без него модель получает размытый сигнал от повторов.
