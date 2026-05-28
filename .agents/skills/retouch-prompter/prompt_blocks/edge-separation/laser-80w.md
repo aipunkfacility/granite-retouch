@@ -1,7 +1,7 @@
 ## Edge Separation (Laser 80W)
 
 Define the subject's edges cleanly and sharply against the blue (#0000FF) background.
-Keep all edge lighting below the 235 white ceiling.
+Keep all edge lighting well below pure white.
 This applies to the silhouette edge only, not to facial features — facial transitions
 must remain smooth as defined in the Anti-Doll guideline.
 

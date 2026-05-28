@@ -30,7 +30,7 @@ outer glow для лазера, inner glow для импакта; (2) архов
 - **Импакт** = только rim light / inner glow внутри силуэта (добавляется пайплайном).
   Внешнего glow нет — сепарация через контровой свет, обводящий силуэт изнутри.
 
-Анти-кукла (Guideline 4) применяется к чертам лица — плавные тональные переходы,
+Анти-кукла применяется к чертам лица — плавные тональные переходы,
 без графических контуров. Это НЕ относится к контуру силуэта — там, наоборот,
 нужен чёткий тональный разрыв между субъектом и фоном.
 
@@ -71,26 +71,20 @@ outer glow для лазера, inner glow для импакта; (2) архов
    Блок `base.md` вставляется двумя частями — до и после маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`, см. шаг 4.
 3. Подставляет данные из `analyzer_output`:
     - `garments[]` → уже содержит тональную категорию (`tone`) и перечень деталей (`details`) для каждого предмета одежды
-    - Перекодируй `tone` в диапазон яркости: `light` → light gray (brightness 160–200), `medium` → medium gray (100–159), `dark` → dark gray (50–99), `very_dark` → charcoal gray (20–49)
-    - После clothing-блока добавь конкретизирующую строку per garment: «The [type] is [tone_range] with [details]». Например: «The uniform jacket is dark gray with lapels, shoulder boards, collar insignia, and medals»
+    - Перекодируй `tone` в описание яркости естественным языком: `light` → «light gray», `medium` → «medium gray», `dark` → «dark gray», `very_dark` → «charcoal gray»
+    - После clothing-блока добавь конкретизирующую строку per garment: «The [type] is [tone] with [details]». Например: «The uniform jacket is dark gray with lapels, shoulder boards, and collar insignia»
     - Если `analyzer_output` пустой или отсутствует — **прекрати сборку промпта и запроси анализ**
    - `composition` → выбор composition-блока (уже учтён в шаге 2)
-   - `photo_angle` + `facing_direction` → подставь вместо `{{ANGLE_DIRECTIVE}}` в base.md (Guideline 2.5) по маппингу:
-     - `"frontal"` → `facing the camera directly`
-     - `"3/4"` + `facing_direction: "right"` → `3/4 view, slightly turned to the right`
-     - `"3/4"` + `facing_direction: "left"` → `3/4 view, slightly turned to the left`
-     - `"profile"` + `facing_direction: "right"` → `profile view, facing right`
-     - `"profile"` + `facing_direction: "left"` → `profile view, facing left`
-     - `facing_direction: "center"` не добавляет направления (используется только с `frontal`)
+   - `photo_angle` + `facing_direction` → не подставляются в промпт. Если поза не меняется, base.md уже содержит «Keep the original pose and angle exactly as in the source». Если поза меняется — добавь конкретное указание после этой строки.
 4. Собирает промпт в следующем порядке:
-   - Блок `base.md` от начала до маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->` (Role/Context, Guidelines 1, 1.5, 2 Lighting + Brightness Ceiling, 2.5 Source Angle Preservation).
+   - Блок `base.md` от начала до маркера `<!-- INSERT: COMPOSITION/CLOTHING/HEADGEAR/MACHINE -->`.
    - Блок композиции.
    - Блок одежды.
     - Строка с перечнем предметов одежды из `garments[]` (шаг 3).
-    - Если `body_details[]` не пуст — строка инъекции: «Preserve body details from source: [location] — [description]; ... These details must be reproduced exactly as in the source photo.»
+    - Если `body_details[]` не пуст — строка инъекции: «Body details from the source must be reproduced exactly: [location] — [description]; ... These details must be reproduced exactly as in the source photo.»
     - Блок головного убора.
    - Блок станка (техническая часть: кожа, волосы, одежда).
-   - Блок `base.md` от маркера до конца (Guideline 3 Background, Guideline 4 Anti-Doll).
+   - Блок `base.md` от маркера до конца (Background, Anti-Doll).
    - Блок `constraints.md` (универсальные запреты).
    - Блок `edge-separation/` по machine_type.
    - Блок станка (Goal) из `*-goal.md`.

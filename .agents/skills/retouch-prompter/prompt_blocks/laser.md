@@ -1,13 +1,7 @@
-# Лазерная гравировка (Laser Style)
+# Laser Style
 
-All brightness values in this block are on a 0–255 scale.
+Render the skin smooth and luminous, like polished porcelain. Eliminate all pores, wrinkles, and noise — replace them with smooth light-to-shadow gradients. Build sculptural volume through light and shadow, not skin texture. Skin must never reach pure white — only eye whites may.
 
-1. **Face & Skin (Porcelain Smoothness):**
-   Render the skin with the materiality of smooth, polished porcelain. Eliminate all pores, wrinkles, and digital noise, replacing them with mathematically perfect light-to-shadow gradients. The skin must glow with soft, even highlights — a respectful, airbrushed aesthetic. The stone itself provides the final texture; the file must be clean. Build strong 3D volumetric depth through light and shadow, not through skin texture. Skin should have a subtle 'silver luminosity' — semi-specular highlights on forehead, cheekbones and nose that suggest polished, living tissue.
+Hair matches the source photo in length and style. Render it as large sculptural locks with bold white highlight ridges following the growth direction. Highlights take absolute priority — even mid-gray reads dark on stone. Create sculptural volume with highlight ridges instead of fine individual strands.
 
-2. **Hair Rendering (Sculptural Volume):**
-   Form hair into large, sculptural locks with PROMINENT WHITE HIGHLIGHT RIDGES and deep black shadow valleys. The highlights must be bold and follow the hair growth direction — this is what the laser reads on stone. White highlight ridges take ABSOLUTE PRIORITY over dark strand shadows — even mid-gray values appear 'dark' on engraved stone. Prioritize bold, bright highlight streaks over uniform gray fill to prevent the hair from appearing bald on the final engraving. Hair must have clear SCULPTURAL VOLUME — it must look like a 3D mass with a distinct beginning, curve, and end. Render hair as a 3D sculptural mass with varied tonal zones — dark base with prominent highlight ridges. Create confident, sculptural locks with subtle light ridges instead of fine individual strands.
-
-3. **Materiality & Sculpted Volume:**
-   To ensure edge-to-edge sharpness and prevent laser melting, capture clothing with sculpted 3D volume through smooth, high-contrast shading. Convey fabric structure through smooth tonal transitions — sculpted volume takes priority over fine fabric texture. Render clothing detailed and defined with smooth tonal transitions.
-
+Render clothing with sculpted 3D volume through smooth, high-contrast shading. Sculpted volume takes priority over fine fabric texture.
