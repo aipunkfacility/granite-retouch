@@ -50,6 +50,15 @@
 - ✅ «prominent sculptural form» — лицо не должно быть плоским
 - Никогда не пиши «no texture» про кожу лица — морщины и складки это текстура
 
+### «Smooth fabric» ≠ «flat fabric»
+- ❌ «smooth fabric» без уточнения → модель делает плоскую заливку без складок
+- ✅ «smooth fabric with pronounced three-dimensional folds — each fold has a lit side, a shadow side, and a gradient between them» — гладкая поверхность, но складки дают объём
+- «Smooth» для ткани означает отсутствие текстуры плетения/зёрен, а не отсутствие складок и объёма
+
+### Паттерн на ткани: градиент, не бинарный шум
+- ❌ «clear tonal definition so the pattern reads» → модель делает высокий контраст → бинарные чёрно-белые пятна = шум
+- ✅ «each pattern element is a distinct, recognizable shape with clear outlines, with gradual tonal gradients within each shape» — градиентные формы, не бинарные пятна
+
 ### Не пиши «keep [feature] as they are»
 - «keep eye wrinkles as they are» → модель читает текущее слабое состояние как целевое и оставляет морщины невидимыми
 - ✅ Опиши целевое состояние явно: «clearly visible as soft tonal lines — not erased, not exaggerated into deep grooves, but present and natural»
@@ -79,8 +88,8 @@
 ## Принцип Anti-Doll
 
 Вшивается естественно в конец промпта, не отдельной секцией:
-- «The portrait must look like a photograph, not an illustration — smooth, gradual transitions, no harsh black stripes on skin. Work with light, not with lines.»
-- Этого достаточно. Не нужен 5-строчный CRITICAL-блок, повторяющий «smooth transitions», уже сказанные в других местах.
+- «The portrait must look like a photograph, not an illustration — gradual tonal transitions, no harsh black stripes on skin. Work with light, not with lines.»
+- Этого достаточно. Не нужен 5-строчный CRITICAL-блок, повторяющий «transitions», уже сказанные в других местах.
 
 ## Body Details
 
@@ -90,7 +99,7 @@
 - Указывай только факт наличия и локацию: «earring on the left earlobe», а не «small dark-toned stud earring». Если элемент не упомянуть — модель может его не сгенерировать. Если описать внешний вид — модель генерит по описанию вместо референса.
 - Формат: «[location] — [type of detail]»
 - Без описания внешнего вида — модель видит, как выглядит серьга/тату/шрам
-- В constraints: «Anything visible on the body/face that is not clothing must be reproduced in the generated image.» — без языка редактирования («do not remove or blur»), модель генерирует с нуля
+- В constraints: «Every visible detail on the skin and body must be present in the result.» — без языка редактирования («do not remove or blur»), модель генерирует с нуля
 
 ## Описание одежды
 
