@@ -48,8 +48,9 @@ new → analyzing → prompting → generating → postprocessing → done
 | Поле | Тип | Enum | Описание |
 |------|-----|------|----------|
 | `clothing_style` | string | `civilian`, `military`, `preserve` | Факт + дефолт: `military` = военная (сохранить), `preserve` = гражданская (сохранить), `civilian` = заменить (оператор) |
-| `headgear` | string | `none`, `cap` | Факт + дефолт: `cap` = есть (сохранить), `none` = нет |
+| `headgear` | string | `none`, `present` | Факт + дефолт: `present` = есть (сохранить), `none` = нет |
 | `composition` | string | `portrait`, `half_body`, `full_body` | Состав кадра — выбор composition-блока |
+| `composition_changed` | boolean | `true`, `false` | `true` = оператор заказал изменение композиции → вставить composition-блок. `false` (по умолчанию) = не вставлять |
 | `photo_angle` | string | `frontal`, `3/4`, `profile` | Ракурс фото — для Source Angle Preservation |
 | `facing_direction` | string | `left`, `right`, `center` | Направление взгляда — для Source Angle Preservation |
 | `garments` | array | minItems: 1 | Список предметов одежды с тональной рекодировкой (минимум 1) |
@@ -106,8 +107,9 @@ new → analyzing → prompting → generating → postprocessing → done
   "status": "done",
   "analyzer_output": {
     "clothing_style": "military",
-    "headgear": "cap",
+    "headgear": "present",
     "composition": "portrait",
+    "composition_changed": false,
     "photo_angle": "3/4",
     "facing_direction": "right",
     "garments": [

@@ -28,8 +28,9 @@
       "additionalProperties": false,
       "properties": {
         "clothing_style": { "type": "string", "enum": ["civilian", "military", "preserve"] },
-        "headgear": { "type": "string", "enum": ["none", "cap"] },
+        "headgear": { "type": "string", "enum": ["none", "present"] },
         "composition": { "type": "string", "enum": ["portrait", "half_body", "full_body"] },
+        "composition_changed": { "type": "boolean", "default": false, "description": "true = оператор заказал изменение композиции, вставить composition-блок. false (по умолчанию) = композиция не меняется, блок не вставляется." },
         "photo_angle": { "type": "string", "enum": ["frontal", "3/4", "profile"] },
         "facing_direction": { "type": "string", "enum": ["left", "right", "center"] },
         "garments": {

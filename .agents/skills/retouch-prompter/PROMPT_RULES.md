@@ -23,7 +23,7 @@
 
 ### Не повторяй очевидное из исходника
 - **Поза/ракурс**: Если поза не меняется, пиши «Keep the original pose and angle exactly as in the source» — НЕ повторяй «3/4 view, slightly turned to the right». Модель видит фото; пересказ того, что она уже видит, размывает сигнал.
-- **Композиция**: Если композиция не меняется, НЕ пиши «Render the subject from the shoulders up» или «Frame the subject from the shoulders up» — это указание модели изменить крупность. Просто не упоминай композицию.
+- **Композиция**: Если `composition_changed != true` в order.json, НЕ вставляй composition-блок — модель видит фото и воспримет фрейминг как инструкцию изменить композицию. Если `composition_changed = true` — вставь composition-блок, оператор заказал изменение крупности.
 - **Типы головных уборов**: Не перечисляй «(cap, peaked cap, beret, etc.)» — модель видит головной убор на фото.
 - **Детали одежды, которых нет**: Не пиши «buttons, stitching», если нет пуговиц. Описывай только то, что реально есть.
 
@@ -99,7 +99,7 @@
 - Указывай только факт наличия и локацию: «earring on the left earlobe», а не «small dark-toned stud earring». Если элемент не упомянуть — модель может его не сгенерировать. Если описать внешний вид — модель генерит по описанию вместо референса.
 - Формат: «[location] — [type of detail]»
 - Без описания внешнего вида — модель видит, как выглядит серьга/тату/шрам
-- В constraints: «Every visible detail on the skin and body must be present in the result.» — без языка редактирования («do not remove or blur»), модель генерирует с нуля
+- Body-details правило встроено в base.md после маркера: «Every visible detail on the skin and body must be present in the result.» — без языка редактирования («do not remove or blur»), модель генерирует с нуля
 
 ## Описание одежды
 

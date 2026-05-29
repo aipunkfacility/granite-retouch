@@ -107,7 +107,7 @@ uv run python -m retouch process -i input.png -o final.bmp --dry-run
 ```json
 {
   "clothing_style": "military",
-  "headgear": "cap",
+  "headgear": "present",
   "composition": "portrait",
   "photo_angle": "3/4",
   "facing_direction": "right",
@@ -132,7 +132,7 @@ uv run python -m retouch process -i input.png -o final.bmp --dry-run
 
 Собирает финальный промпт для Nano Banana из блоков
 (`prompt_blocks/base.md`, `clothing/`, `headgear/`, `laser.md`, `laser-80w.md`,
-`impact.md`, `edge-separation/`, `constraints.md`) на основе `order.json`.
+`impact.md`, `edge-separation/`) на основе `order.json`.
 
 **Активируется:** "собери промпт", "сформируй prompt.md", "финальный промпт".
 
@@ -140,10 +140,10 @@ uv run python -m retouch process -i input.png -o final.bmp --dry-run
 1. `base.md` (Role/Context, Guidelines 1, 1.5, 2 Lighting, 2.5 Source Angle Preservation)
 2. Блок композиции (portrait / half-body / full-body)
 3. Блок одежды (preserve / civilian / military)
-4. Блок головного убора (none / cap)
+4. Блок головного убора (none / present)
 5. Блок станка (техническая часть: кожа, волосы, одежда)
 6. `base.md` (продолжение: Guideline 3 Background, Guideline 4 Anti-Doll)
-7. `constraints.md` (универсальные запреты)
+
 8. `edge-separation/` по machine_type (laser / laser-80w / impact)
 9. Блок станка (Goal)
 

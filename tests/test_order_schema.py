@@ -346,7 +346,7 @@ class TestInvalidOrders:
         assert any("fabric_type" in e or "additionalProperties" in e for e in errors)
 
     def test_headgear_preserve_rejected(self):
-        """preserve для headgear — ошибка (удалено из enum)."""
+        """preserve для headgear — ошибка (допустимые значения: none, present)."""
         order = _valid_order(analyzer_output={
             "headgear": "preserve",
         })

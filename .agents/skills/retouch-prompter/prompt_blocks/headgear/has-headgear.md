@@ -1,3 +1,5 @@
-# Cap
+# Headgear
 
 Render the headgear matching the source photo exactly — same shape, volume, fit, and position. The fabric surface is completely smooth — no visible weave, no texture grain, no fabric micro-structure, no surface noise. Only gradual tonal gradients describe the folds and volume. If the headgear carries a pattern, each element of the pattern is a distinct, recognizable shape with clear outlines — not an abstract camouflage pattern or high-contrast noise of binary black-and-white spots. Pattern elements have strong tonal contrast against the fabric, with gradual tonal gradients within each shape. The edges, hems, and hanging ends of the headgear are perfectly smooth and clean, with no frayed threads, jagged fibers, or pixelated fringes — like a neatly finished fabric hem.
+
+Hair visible around the headgear follows the machine-type hair specification: sculptural locks with appropriate highlight treatment for the engraving method. The boundary between the headgear edge and the forehead hair must be clean and sharp — no merging or blurring.

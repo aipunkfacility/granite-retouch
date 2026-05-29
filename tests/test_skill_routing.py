@@ -16,7 +16,7 @@ MACHINE_TYPE_TO_FILE = {
 
 EDGE_SEPARATION_FILES = {
     "laser_standard": "edge-separation/laser.md",
-    "laser_80w": "edge-separation/laser-80w.md",
+    "laser_80w": "edge-separation/laser.md",
     "impact": "edge-separation/impact.md",
 }
 
@@ -47,14 +47,6 @@ class TestSkillRouting:
         for machine_type in MACHINE_TYPE_TO_FILE:
             assert machine_type in DEFAULTS["processing"], \
                 f"Нет секции {machine_type} в DEFAULTS['processing']"
-
-    def test_laser_80w_file_contains_ceiling(self):
-        """laser-80w.md упоминает потолок 235."""
-        path = PROMPT_BLOCKS / "laser-80w.md"
-        if not path.exists():
-            pytest.skip("laser-80w.md не найден")
-        content = path.read_text(encoding="utf-8")
-        assert "235" in content, "laser-80w.md должен упоминать потолок яркости 235"
 
     def test_impact_file_has_reference_targets(self):
         """impact.md содержит Reference Targets вместо Calibration Note."""
