@@ -1,7 +1,7 @@
 ## Edge Separation (Laser)
 
 Define the subject's edges cleanly and sharply against the blue (#0000FF) background.
-This applies to the silhouette edge only, not to facial features — facial transitions must remain gradual, no harsh black stripes on skin, work with light not with lines.
+This applies to the silhouette edge only — facial transitions remain gradual, with soft tonal boundaries.
 
 Separate the subject's edges from the background with a tonal gap, using a zoned approach:
 * **Clothing, shoulders, outer silhouette:** Subtle dark contour as a technical separation line for engraving.
