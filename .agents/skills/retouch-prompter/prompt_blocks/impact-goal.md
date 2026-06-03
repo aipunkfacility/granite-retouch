@@ -1,3 +1,0 @@
-## Goal (Impact Optimization)
-
-Create a high-contrast memorial portrait optimized for diamond needle impact engraving. The face reads as medium gray overall with clearly distinct light and shadow zones. No single zone becomes a bright patch — even illumination across the face. Forehead wrinkles are bold sculptural lines. Eye wrinkles and nasolabial folds are present and natural. Deep eye socket shadows give sculptural volume. Prioritize contrast over brightness. Bold highlight/shadow transitions, sculptural hair with dominant white highlights, clear gray rim light along the full silhouette, volumetric clothing folds with tonal depth, and vibrant catchlights in the eyes.

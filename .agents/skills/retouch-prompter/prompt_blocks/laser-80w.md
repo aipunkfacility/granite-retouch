@@ -4,4 +4,4 @@ The face is the dominant light element — bright with visible tonal range acros
 
 Hair matches the source photo in length and style. Render it as a dark sculptural mass with controlled highlight streaks following the growth direction. Hair remains noticeably darker than the face — highlight streaks define volume while maintaining a secondary, integrated role. Create sculptural locks with smooth light ridges and clean separation between adjacent locks.
 
-Render clothing with sculpted 3D volume through smooth, high-contrast shading and readable texture throughout. Every fabric zone carries tonal information — texture prevents over-engraving on stone. Sculpted volume takes priority over fine fabric texture.
+Render clothing with sculpted 3D volume through smooth, high-contrast shading and readable texture throughout. Every fabric zone carries tonal information — texture prevents over-engraving on stone. Sculpted volume takes priority over fine fabric texture. A professional studio memorial portrait — like a beautifully restored photograph with natural, dignified warmth. Clear directional lighting with tonal range, dark sculptural hair with controlled highlights.

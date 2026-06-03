@@ -4,4 +4,4 @@ The face is the dominant light element — luminous and bright, with sculptural 
 
 Hair matches the source photo in length and style. Render it as large sculptural locks with bold white highlight ridges following the growth direction. Highlights take absolute priority — even mid-gray reads dark on stone. Sculptural volume comes from highlight ridges defining individual locks, with clean separation between adjacent locks.
 
-Render clothing with sculpted 3D volume through smooth, high-contrast shading. Sculpted volume takes priority over fine fabric texture.
+Render clothing with sculpted 3D volume through smooth, high-contrast shading. Sculpted volume takes priority over fine fabric texture. A luminous, high-key memorial portrait for laser engraving — uniformly bright face with shallow shadow depth, porcelain-smooth skin, sculptural hair with bold highlights, and clean volumetric depth.
