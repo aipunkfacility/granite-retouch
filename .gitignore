@@ -39,6 +39,7 @@ retouch_ui/frontend/dist/
 retouch_ui/frontend/.vite/
 
 docs/superpowers/
+knowledge/reference/
 
 # Временные файлы загрузок (если backend запускался локально)
 /tmp_upload_*
