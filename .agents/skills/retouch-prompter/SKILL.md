@@ -60,9 +60,6 @@ outer glow для лазера, inner glow для импакта; (2) архов
    | Станок (тех.) | `machine_type = "laser_standard"` | `prompt_blocks/laser.md` |
    | Станок (тех.) | `machine_type = "laser_80w"` | `prompt_blocks/laser-80w.md` |
    | Станок (тех.) | `machine_type = "impact"` | `prompt_blocks/impact.md` |
-   | Станок (Goal) | `machine_type = "laser_standard"` | `prompt_blocks/laser-goal.md` |
-   | Станок (Goal) | `machine_type = "laser_80w"` | `prompt_blocks/laser-80w-goal.md` |
-   | Станок (Goal) | `machine_type = "impact"` | `prompt_blocks/impact-goal.md` |
     | Edge Separation | `machine_type = "laser_standard"` | `prompt_blocks/edge-separation/laser.md` |
     | Edge Separation | `machine_type = "laser_80w"` | `prompt_blocks/edge-separation/laser.md` |
    | Edge Separation | `machine_type = "impact"` | `prompt_blocks/edge-separation/impact.md` |
@@ -91,7 +88,6 @@ outer glow для лазера, inner glow для импакта; (2) архов
 
 
    - Блок `edge-separation/` по machine_type.
-   - Блок станка (Goal) из `*-goal.md`.
 5. **Консолидация (КРИТИЧЕСКИЙ ШАГ):** Черновик содержит дубли — блоки написаны как самостоятельные документы, и при склейке одна и та же мысль повторяется в нескольких местах. Модель получает размытый сигнал от дублей. Консолидируй:
     - **Убери дословные дубли** — если одна и та же фраза встречается дважды, оставь одно вхождение там, где оно логичнее в потоке текста.
     - **Слей пересекающиеся инструкции** — если два блока говорят об одном и том же разными словами, объедини в одно предложение. Например: «The jawline matches the original photo exactly» (base) + «Keep the jawline as the sharpest tonal boundary on the lower face» (constraints) → «The jawline matches the original photo exactly — it is the sharpest tonal boundary on the lower face, with distinct brightness between face and neck.»

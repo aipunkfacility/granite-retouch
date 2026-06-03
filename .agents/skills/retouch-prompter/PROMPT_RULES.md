@@ -161,3 +161,8 @@
 - [ ] Морщины описаны как источник тональной вариации, не как «soft suggestions»
 - [ ] Rim light для impact описан как gray, не white
 - [ ] Одежда для impact описана как гладкая, без «macro-sharpness»
+- [ ] Нет ролевых установок («You are a master retoucher», «you are a professional»)
+- [ ] Нет отрицательных формулировок («no X», «never Y») — всё положительное
+- [ ] Нет технических чисел и углов («3/4 angle», brightness values) в описаниях
+- [ ] Нет хеджирующих слов («subtle», «micro», «gentle», «slight»)
+- [ ] Goal-блок не используется (удалён, закрывающая фраза в machine block)
