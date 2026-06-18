@@ -29,9 +29,8 @@ projects/
 *.tiff
 *.bmp
 
-# Orders with binary content (кроме шаблона и тестового)
-orders/active/*/
-!orders/active/TEST_ORDER/
+# Orders — хранятся локально, не в git
+orders/
 
 # Web UI — временные файлы
 retouch_ui/frontend/node_modules/
